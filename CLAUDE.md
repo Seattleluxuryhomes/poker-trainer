@@ -44,13 +44,19 @@ cribbage-trainer." The port keeps that project's architecture verbatim:
    is per-coin linear except the royal's 4000 at exactly 5 coins. Hint =
    `bestHold` = `analyze()[0]` — one engine, so the game can never contradict
    the trainer.
-3. **Hold'em Table** (`src/PokerTable.jsx`) — a 1:1 React translation of the
-   founder-supplied F# Fable/Feliz/Elmish component (dark neon theme; their
-   Elmish `init/update/view` become `initModel`/`update`/components, semantics
-   preserved verbatim, including its simplifications). It is a UI mock: fold /
-   call / raise mutate the model, but there is no dealing, betting-round, or
-   showdown engine yet. The room label drops the original's third-party casino
-   brand name on purpose — don't reintroduce it.
+3. **Hold'em Table** (`src/PokerTable.jsx`) — a REAL four-max no-limit game
+   (grew out of the founder-supplied F# Elmish mock; the dark neon theme is
+   theirs). Every hand: fresh shuffled 52-card deck, SB/BB 25/50, four betting
+   streets with ordered action queues and min-raise rules, all-ins with layered
+   side pots, best-5-of-7 showdown (`score5H`/`score7`, packed comparable
+   integers with full kicker tiebreaks). Bots decide by Monte Carlo equity
+   (`equityVs`, rollouts of the unseen deck) against pot odds, shaded by
+   persona (tight/aggr) — simulation, never strategy charts. The featured
+   opponent "Ace Meridian, World #1" is a FICTIONAL character by design: never
+   name, imitate, or style the bots after real players. Short all-ins reopen
+   betting (a simplification vs. casino rules — documented, revisit if it
+   matters). The game core is pure top-level functions so verify_table can
+   drive it deterministically with an injected mulberry32 rng.
 
 ## Cards
 

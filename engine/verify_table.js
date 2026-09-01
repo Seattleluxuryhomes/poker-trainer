@@ -1,14 +1,18 @@
 #!/usr/bin/env node
-/* Verifies the Hold'em table's Elmish-style reducer (table.html) without a browser.
- * The page is a faithful React translation of the founder-supplied F# Fable/Elmish
- * component; `update(model, msg)` and `initModel()` are top-level in the compiled
- * <script>. We eval them in a vm sandbox and check the supplied semantics verbatim:
- *   - init: pot 1250.50, 3 community cards, 4 seats, user seat 1 on turn holding K♠ Q♥;
- *   - FoldAction: user -> Folded, turn over; nobody else touched;
- *   - CallAction: user balance -CurrentBet, pot +50;
- *   - RaiseAction(amount): user balance -amount, currentBet = amount, pot +amount;
- *   - UpdateRaiseVal: slider only, everything else untouched;
- *   - update is pure: the input model is never mutated.
+/* Verifies the REAL hold'em game that ships in table.html — evaluator, dealing,
+ * betting, side pots — by eval'ing the compiled page in a vm sandbox:
+ *   - score5H/score7 tiebreak facts (kickers, wheel, boat ranks, split detection);
+ *   - startHand: 52-card deck integrity (holes + remaining deck all unique),
+ *     blinds posted, chip conservation, action starts under the gun;
+ *   - betting: check-around advances the street and deals the right board size;
+ *     min-raise legality is enforced; chip totals are conserved through play;
+ *   - fold-out: last player standing takes the pot without a reveal;
+ *   - showdown: a rigged deck pays the best hand; layered SIDE POTS pay each
+ *     level to the best eligible hand (verified against hand-computed amounts);
+ *   - equity sanity: pocket aces preflop vs one random hand ≈ 85% (simulated,
+ *     seeded rng, wide tolerance);
+ *   - botDecide returns only legal actions across seeded random hands.
+ * The rng is injected (mulberry32), so every check is reproducible.
  */
 const fs = require("fs");
 const path = require("path");
@@ -21,64 +25,166 @@ let ok = 0, fail = 0;
 const check = (cond, msg) => { if (cond) { ok++; } else { fail++; console.error("  ✗ " + msg); } };
 
 const sandbox = {
-  React: { createElement: () => ({}), useState: () => [0, () => {}], useMemo: (f) => f(), useCallback: (f) => f, useEffect: () => {}, useRef: () => ({ current: null }), useReducer: () => [null, () => {}] },
+  React: { createElement: () => ({}), useState: (v) => [typeof v === "function" ? v() : v, () => {}], useMemo: (f) => f(), useCallback: (f) => f, useEffect: () => {}, useRef: (v) => ({ current: v }) },
   ReactDOM: { createRoot: () => ({ render() {} }) },
   document: { getElementById: () => ({}) },
-  localStorage: { getItem: () => null },
-  Math, console,
+  window: undefined,
+  localStorage: { getItem: () => null, setItem: () => {} },
+  Math, console, JSON, Set, Array, Object, Number,
 };
 vm.createContext(sandbox);
 vm.runInContext(body, sandbox);
-const { update, initModel } = vm.runInContext("({ update, initModel })", sandbox);
+const api = vm.runInContext(
+  "({ score5H, score7, equityVs, makeTable, startHand, legalActions, applyAction, botDecide, settleShowdown, mulberry32, cardId, SMALL_BLIND, BIG_BLIND, START_STACK })",
+  sandbox,
+);
+const { score5H, score7, equityVs, makeTable, startHand, legalActions, applyAction, botDecide, settleShowdown, mulberry32, cardId, SMALL_BLIND, BIG_BLIND, START_STACK } = api;
 
-const user = (m) => m.players.find((p) => p.id === m.userSeatId);
+const c = (r, s) => ({ r, s });
+/* The pot value is kept for display after settlement, so conservation counts it
+ * only while the hand is live (before awards land in stacks). */
+const totalChips = (st) => st.players.reduce((a, p) => a + p.stack, 0) + (st.phase === "over" ? 0 : st.pot);
 
-/* ---- init state, as supplied ---- */
+/* ---- evaluator tiebreaks ---- */
 {
-  const m = initModel();
-  check(m.pot === 1250.5, `init pot 1250.50 (got ${m.pot})`);
-  check(m.communityCards.length === 3, "init deals 3 community cards");
-  check(m.players.length === 4, "init seats 4 players");
-  check(user(m).isTurn === true && user(m).name === "You", "user seat 1 is on turn");
-  check(user(m).cards.map((c) => `${c.r}.${c.s}`).join(" ") === "13.0 12.1", "user holds K♠ Q♥");
-  check(m.players[2].status === "Folded", "Satoshi_99 starts folded");
-  check(m.minRaise === 50 && m.maxRaise === 2500 && m.raiseSliderVal === 100, "raise slider bounds as supplied");
+  const straightFlush = score5H([c(9, 0), c(10, 0), c(11, 0), c(12, 0), c(13, 0)]);
+  const quads = score5H([c(1, 0), c(1, 1), c(1, 2), c(1, 3), c(13, 0)]);
+  check(straightFlush > quads, "straight flush beats quad aces");
+  check(score5H([c(1, 0), c(2, 1), c(3, 2), c(4, 3), c(5, 0)]) < score5H([c(2, 0), c(3, 1), c(4, 2), c(5, 3), c(6, 0)]), "wheel loses to six-high straight");
+  check(score5H([c(1, 0), c(1, 1), c(13, 2), c(7, 3), c(2, 0)]) > score5H([c(1, 2), c(1, 3), c(12, 0), c(7, 1), c(2, 1)]), "AA-K kicker beats AA-Q kicker");
+  check(score5H([c(3, 0), c(3, 1), c(3, 2), c(2, 3), c(2, 0)]) > score5H([c(2, 1), c(2, 2), c(2, 3), c(1, 0), c(1, 1)]), "threes full of twos beats twos full of aces");
+  check(score5H([c(5, 0), c(9, 0), c(11, 0), c(2, 0), c(13, 0)]) > score5H([c(1, 1), c(1, 2), c(13, 3), c(12, 1), c(9, 2)]), "flush beats aces up... (pair)");
+  check(score5H([c(8, 0), c(8, 1), c(4, 2), c(4, 3), c(13, 0)]) === score5H([c(8, 2), c(8, 3), c(4, 0), c(4, 1), c(13, 1)]), "identical two-pair hands tie exactly");
+  // 7-card: pair of kings + board straight -> the straight plays
+  const s7 = score7([c(13, 0), c(13, 1), c(9, 2), c(10, 3), c(11, 0), c(12, 1), c(4, 2)]);
+  check(Math.floor(s7 / 16 ** 5) === 4, "score7 finds the board straight over the pair");
 }
 
-/* ---- FoldAction ---- */
+/* ---- dealing: deck integrity, blinds, conservation ---- */
 {
-  const m0 = initModel();
-  const m1 = update(m0, { type: "FoldAction" });
-  check(user(m1).status === "Folded" && user(m1).isTurn === false, "fold: user folded, turn over");
-  check(m1.pot === m0.pot, "fold: pot untouched");
-  check(m1.players[1].status === "Active", "fold: other seats untouched");
-  check(user(m0).status === "Active", "update is pure (fold did not mutate the input model)");
+  const rng = mulberry32(42);
+  const st = startHand(makeTable(0), rng);
+  const seen = [...st.deck, ...st.players.flatMap((p) => p.hole)].map(cardId);
+  check(seen.length === 52 && new Set(seen).size === 52, "one full deck: holes + remaining deck are 52 unique cards");
+  check(st.players.every((p) => p.hole.length === 2), "every seat dealt exactly two hole cards");
+  const sb = st.players[(st.btn + 1) % 4], bb = st.players[(st.btn + 2) % 4];
+  check(sb.committed === SMALL_BLIND && bb.committed === BIG_BLIND, "blinds posted");
+  check(st.pot === SMALL_BLIND + BIG_BLIND, "pot equals the blinds");
+  check(totalChips(st) === 4 * START_STACK, "chips conserved after the deal");
+  check(st.toAct === (st.btn + 3) % 4, "pre-flop action starts under the gun");
 }
 
-/* ---- CallAction ---- */
+/* ---- betting: calls around advance streets; conservation throughout ---- */
 {
-  const m0 = initModel();
-  const m1 = update(m0, { type: "CallAction" });
-  check(user(m1).balance === 2450 - 50, `call: balance drops by the current bet (got ${user(m1).balance})`);
-  check(m1.pot === 1250.5 + 50, `call: pot +50 (got ${m1.pot})`);
-  check(user(m1).isTurn === false, "call: turn over");
+  const rng = mulberry32(7);
+  let st = startHand(makeTable(0), rng);
+  const start = totalChips(st);
+  let guard = 0;
+  while (st.phase === "betting" && guard++ < 64) {
+    st = applyAction(st, { type: "call" });
+    check(totalChips(st) === start, `chips conserved after action ${guard}`);
+  }
+  check(st.phase === "over", "calling every decision reaches a showdown");
+  check(st.board.length === 5, "full board of five dealt through flop/turn/river");
+  check(st.revealed === true, "showdown reveals the hands");
+  check(st.pot === 4 * BIG_BLIND, "four players called the big blind: pot is 4 BB");
 }
 
-/* ---- RaiseAction ---- */
+/* ---- min-raise legality ---- */
 {
-  const m0 = initModel();
-  const m1 = update(m0, { type: "RaiseAction", amount: 300 });
-  check(user(m1).balance === 2450 - 300, `raise: balance -amount (got ${user(m1).balance})`);
-  check(user(m1).currentBet === 300, "raise: current bet = amount");
-  check(m1.pot === 1250.5 + 300, `raise: pot +amount (got ${m1.pot})`);
+  const rng = mulberry32(9);
+  let st = startHand(makeTable(0), rng);
+  const la = legalActions(st);
+  check(la.minRaiseTo === 2 * BIG_BLIND, "first pre-flop raise must be to at least 2 BB");
+  const st2 = applyAction(st, { type: "raise", to: BIG_BLIND + 1 }); // illegal size -> clamped up
+  check(st2.currentBet >= 2 * BIG_BLIND, `undersized raise is clamped to the legal minimum (got ${st2.currentBet})`);
+  const st3 = applyAction(st, { type: "raise", to: 10 * START_STACK }); // oversized -> clamped to all-in
+  const raiser = st3.players[st.toAct];
+  check(raiser.allIn && raiser.stack === 0 && st3.currentBet <= START_STACK, "oversized raise becomes an all-in, not chip creation");
+  check(totalChips(st3) === 4 * START_STACK, "chips conserved through the all-in");
 }
 
-/* ---- UpdateRaiseVal ---- */
+/* ---- fold-out: uncontested pot, no reveal ---- */
 {
-  const m0 = initModel();
-  const m1 = update(m0, { type: "UpdateRaiseVal", value: 777 });
-  check(m1.raiseSliderVal === 777, "slider: value updates");
-  check(m1.pot === m0.pot && user(m1).balance === user(m0).balance, "slider: nothing else moves");
+  const rng = mulberry32(11);
+  let st = startHand(makeTable(0), rng);
+  let guard = 0;
+  while (st.phase === "betting" && guard++ < 8) st = applyAction(st, { type: "fold" });
+  check(st.phase === "over" && st.revealed === false, "everyone folding ships the pot without a reveal");
+  check(st.winners.length === 1, "exactly one uncontested winner");
+  check(totalChips(st) === 4 * START_STACK, "chips conserved after the fold-out");
+  check(st.players[st.winners[0]].stack > START_STACK - BIG_BLIND, "the winner banked the blinds");
+}
+
+/* ---- rigged showdown + layered side pots ---- */
+{
+  // Hand-built state: board K♠ K♥ 7♦ 2♣ 3♠.
+  //   seat0: A♠ A♦ (aces up: AAKK7) committed 1000  (short stack, all-in)
+  //   seat1: K♦ Q♠ (trip kings)     committed 3000
+  //   seat2: 7♣ 7♥ (sevens full)    committed 3000
+  //   seat3: folded                 committed 500
+  // Levels: 500 (×4 = 2000), 1000 (×3 -> +1500), 3000 (×2 -> +4000). Pot 7500.
+  //   Layers 2000+1500 = 3500 -> best of seats 0,1,2 at that level... seat2's boat
+  //   wins everything it's eligible for; seat0 only contests up to 1000.
+  //   Main (level ≤1000): eligible 0,1,2 -> seat2 boat wins 3500.
+  //   Side (1000→3000): eligible 1,2 -> seat2 wins 4000. Seat2 total 7500.
+  const st = {
+    handNo: 1, btn: 3, phase: "betting", street: 3,
+    board: [c(13, 0), c(13, 1), c(7, 2), c(2, 3), c(3, 0)],
+    deck: [], pot: 7500, currentBet: 0, minRaise: 50, toAct: -1, needs: [],
+    message: "", quip: null, winners: [], revealed: false,
+    players: [
+      { name: "You", isUser: true, tight: 0, aggr: 0, stack: 0, hole: [c(1, 0), c(1, 2)], folded: false, allIn: true, streetBet: 0, committed: 1000, lastAct: "" },
+      { name: "B", isUser: false, tight: 0, aggr: 0, stack: 2000, hole: [c(13, 2), c(12, 0)], folded: false, allIn: false, streetBet: 0, committed: 3000, lastAct: "" },
+      { name: "C", isUser: false, tight: 0, aggr: 0, stack: 2000, hole: [c(7, 3), c(7, 1)], folded: false, allIn: false, streetBet: 0, committed: 3000, lastAct: "" },
+      { name: "D", isUser: false, tight: 0, aggr: 0, stack: 4500, hole: [c(9, 0), c(4, 1)], folded: true, allIn: false, streetBet: 0, committed: 500, lastAct: "folds" },
+    ],
+  };
+  const before = totalChips(st);
+  const out = settleShowdown(JSON.parse(JSON.stringify(st)));
+  check(out.players[2].stack === 2000 + 7500, `sevens full sweeps both pots (got ${out.players[2].stack})`);
+  check(out.players[0].stack === 0 && out.players[1].stack === 2000, "aces and trip kings win nothing over the boat");
+  check(out.players.reduce((a, p) => a + p.stack, 0) === before, "settle conserves chips");
+  check(out.winners.includes(2) && out.revealed, "winner list and reveal set");
+
+  // Swap the boat onto the SHORT stack: seat0 gets 7♣7♥ (sevens full), seat2
+  // gets A♠A♦ (aces up). Seat0's boat wins only the layers it covered — the
+  // main pot, 2000+1500 = 3500 — while the 1000→3000 side pot (4000) is
+  // contested by seats 1 and 2 only: trip kings beat aces up, so seat1 takes it.
+  const st2 = JSON.parse(JSON.stringify(st));
+  st2.players[0].hole = [c(7, 3), c(7, 1)];
+  st2.players[2].hole = [c(1, 0), c(1, 2)];
+  const out2 = settleShowdown(st2);
+  check(out2.players[0].stack === 3500, `short stack's boat wins only the main pot it covered (got ${out2.players[0].stack})`);
+  check(out2.players[1].stack === 2000 + 4000, `side pot goes to the best eligible hand, trip kings (got ${out2.players[1].stack})`);
+  check(out2.players[2].stack === 2000, "aces up win neither pot");
+}
+
+/* ---- equity sanity: aces are still aces ---- */
+{
+  const rng = mulberry32(1234);
+  const eq = equityVs([c(1, 0), c(1, 1)], [], 1, 600, rng);
+  check(eq > 0.78 && eq < 0.92, `AA vs one random hand ≈ 85% (simulated ${Math.round(eq * 100)}%)`);
+  const eq72 = equityVs([c(7, 0), c(2, 1)], [], 3, 400, rng);
+  check(eq72 < 0.35, `7-2 offsuit vs three hands is weak (simulated ${Math.round(eq72 * 100)}%)`);
+}
+
+/* ---- bots only take legal actions ---- */
+{
+  for (let seed = 1; seed <= 6; seed++) {
+    const rng = mulberry32(seed * 101);
+    let st = startHand(makeTable(0), rng);
+    let guard = 0, legal = true;
+    while (st.phase === "betting" && guard++ < 80) {
+      const a = botDecide(st, rng);
+      const la = legalActions(st);
+      if (a.type === "raise" && !la.canRaise) legal = false;
+      if (a.type === "fold" && la.canCheck) legal = false; // never fold when checking is free
+      st = applyAction(st, a);
+      if (totalChips(st) !== 4 * START_STACK) legal = false; // totalChips ignores the display pot once settled
+    }
+    check(legal && st.phase === "over", `seeded game ${seed}: bots legal, chips conserved, hand completes`);
+  }
 }
 
 console.log(fail === 0 ? `✓ verify_table: all ${ok} checks passed` : `✗ verify_table: ${fail} of ${ok + fail} checks FAILED`);
