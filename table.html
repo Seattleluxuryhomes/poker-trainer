@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'" />
+<meta name="theme-color" content="#0f2417" />
+<meta name="description" content="A no-limit hold'em table UI with fold, call, and a raise slider. Practice chips only. Free and open-source." />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Poker — Hold'em Table" />
+<meta property="og:description" content="A no-limit hold'em table UI with fold, call, and a raise slider. Practice chips only. Free and open-source." />
+<title>Poker — Hold'em Table</title>
+<style>html,body{margin:0;background:#0f2417;min-height:100%;-webkit-user-select:none;user-select:none}#root{min-height:100vh}input,textarea{-webkit-user-select:text;user-select:text}</style>
+<script src="vendor/react.production.min.js"></script>
+<script src="vendor/react-dom.production.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+"use strict";
+const cardId = (c) => (c.r - 1) * 4 + c.s;
+function fullDeck() {
+    const d = [];
+    for (let r = 1; r <= 13; r++)
+        for (let s = 0; s < 4; s++)
+            d.push({ r, s });
+    return d;
+}
+function deckExcluding(cards) {
+    const used = new Set(cards.map(cardId));
+    return fullDeck().filter((c) => !used.has(cardId(c)));
+}
+function mulberry32(a) {
+    return function () {
+        a |= 0;
+        a = (a + 0x6d2b79f5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+function shuffledDeck(rng) {
+    const R = rng || Math.random;
+    const d = fullDeck();
+    for (let i = d.length - 1; i > 0; i--) {
+        const j = (R() * (i + 1)) | 0;
+        [d[i], d[j]] = [d[j], d[i]];
+    }
+    return d;
+}
+const CAT = { NOTHING: 0, JACKS: 1, TWO_PAIR: 2, TRIPS: 3, STRAIGHT: 4, FLUSH: 5, FULL_HOUSE: 6, QUADS: 7, STRAIGHT_FLUSH: 8, ROYAL: 9 };
+const CAT_COUNT = 10;
+const PAY = [0, 1, 2, 3, 4, 6, 9, 25, 50, 800];
+const MAX_BET = 5;
+const ROYAL_MAX_BET_PAYOUT = 4000;
+function payoutFor(cat, bet) {
+    if (cat === CAT.ROYAL && bet === MAX_BET)
+        return ROYAL_MAX_BET_PAYOUT;
+    return PAY[cat] * bet;
+}
+const _rc = new Array(14).fill(0);
+function categorize(rs, ss) {
+    for (let r = 1; r <= 13; r++)
+        _rc[r] = 0;
+    for (let i = 0; i < 5; i++)
+        _rc[rs[i]]++;
+    const flush = ss[0] === ss[1] && ss[0] === ss[2] && ss[0] === ss[3] && ss[0] === ss[4];
+    let pairs = 0, trips = 0, quads = 0, highPair = false, distinct = 0, lo = 14, hi = 0;
+    for (let r = 1; r <= 13; r++) {
+        const n = _rc[r];
+        if (!n)
+            continue;
+        distinct++;
+        if (r < lo)
+            lo = r;
+        if (r > hi)
+            hi = r;
+        if (n === 2) {
+            pairs++;
+            if (r === 1 || r >= 11)
+                highPair = true;
+        }
+        else if (n === 3)
+            trips++;
+        else if (n === 4)
+            quads++;
+    }
+    const straight = distinct === 5 && (hi - lo === 4 || (_rc[1] === 1 && _rc[10] === 1 && _rc[11] === 1 && _rc[12] === 1 && _rc[13] === 1));
+    const aceHigh = _rc[1] === 1 && _rc[10] === 1 && _rc[13] === 1;
+    if (flush && straight)
+        return aceHigh ? CAT.ROYAL : CAT.STRAIGHT_FLUSH;
+    if (quads)
+        return CAT.QUADS;
+    if (trips && pairs)
+        return CAT.FULL_HOUSE;
+    if (flush)
+        return CAT.FLUSH;
+    if (straight)
+        return CAT.STRAIGHT;
+    if (trips)
+        return CAT.TRIPS;
+    if (pairs === 2)
+        return CAT.TWO_PAIR;
+    if (pairs === 1 && highPair)
+        return CAT.JACKS;
+    return CAT.NOTHING;
+}
+function categorizeCards(cards5) {
+    return categorize(cards5.map((c) => c.r), cards5.map((c) => c.s));
+}
+function holdCombos() {
+    const out = [];
+    for (let m = 0; m < 32; m++) {
+        const idxs = [];
+        for (let i = 0; i < 5; i++)
+            if (m & (1 << i))
+                idxs.push(i);
+        out.push({ mask: m, idxs });
+    }
+    return out;
+}
+function analyze(hand5) {
+    const pool = deckExcluding(hand5);
+    const poolR = pool.map((c) => c.r), poolS = pool.map((c) => c.s);
+    const n = pool.length;
+    const rs = new Array(5), ss = new Array(5);
+    const opts = holdCombos().map(({ mask, idxs }) => {
+        const cards = idxs.map((i) => hand5[i]);
+        for (let i = 0; i < idxs.length; i++) {
+            rs[i] = cards[i].r;
+            ss[i] = cards[i].s;
+        }
+        const need = 5 - idxs.length;
+        const catCounts = new Array(CAT_COUNT).fill(0);
+        let draws = 0;
+        const walk = (start, slot) => {
+            if (slot === 5) {
+                catCounts[categorize(rs, ss)]++;
+                draws++;
+                return;
+            }
+            for (let i = start; i < n; i++) {
+                rs[slot] = poolR[i];
+                ss[slot] = poolS[i];
+                walk(i + 1, slot + 1);
+            }
+        };
+        if (need === 0) {
+            catCounts[categorize(rs, ss)]++;
+            draws = 1;
+        }
+        else
+            walk(0, idxs.length);
+        let total = 0, sq = 0, hits = 0, min = Infinity, max = 0;
+        for (let c = 0; c < CAT_COUNT; c++) {
+            const k = catCounts[c];
+            if (!k)
+                continue;
+            const pay = PAY[c];
+            total += k * pay;
+            sq += k * pay * pay;
+            if (pay > 0)
+                hits += k;
+            if (pay < min)
+                min = pay;
+            if (pay > max)
+                max = pay;
+        }
+        const ev = total / draws;
+        return {
+            id: idxs.join(","), idxs: idxs.slice(), cards, mask,
+            ev, sd: Math.sqrt(Math.max(0, sq / draws - ev * ev)),
+            min: min === Infinity ? 0 : min, max,
+            hitRate: hits / draws, draws,
+            cats: catCounts.map((k) => k / draws),
+        };
+    });
+    return opts.sort((a, b) => b.ev - a.ev || a.mask - b.mask);
+}
+function bestHold(hand5) {
+    return analyze(hand5)[0].idxs;
+}
+const T = {
+    baize: "#1F423A", baizeHi: "#28534A",
+    woodD: "#5E3F26", woodM: "#8A5E37", woodL: "#B9824B",
+    pegRed: "#C8412B", pegIvory: "#ECDCB4",
+    ivory: "#F6EFDE", ink: "#241D14", suitRed: "#A8362A",
+    cream: "#ECE0C6", muted: "#C9BC9A", line: "rgba(236,224,182,0.16)",
+    good: "#5FA47C", goodDeep: "#3F7E5E", selBlue: "#5B95C2", gold: "#D9A441",
+};
+const SUIT = ["♠", "♥", "♦", "♣"];
+const isRed = (s) => s === 1 || s === 2;
+const rankLabel = (r) => (r === 1 ? "A" : r === 11 ? "J" : r === 12 ? "Q" : r === 13 ? "K" : String(r));
+const tag = (c) => `${rankLabel(c.r)}${SUIT[c.s]}`;
+const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
+const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
+const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
+const catName = (i) => CAT_NAMES[i];
+const APP_VERSION = "0.1.2";
+const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
+const segStyle = (on) => ({
+    flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
+    background: on ? T.pegIvory : "rgba(0,0,0,0.2)", color: on ? "#2A1B0E" : T.cream,
+    border: `1px solid ${on ? T.pegIvory : T.line}`, fontWeight: on ? 700 : 400,
+});
+function Modal({ onBackdrop, maxWidth = 380, padding = "20px", scroll = false, zIndex = 220, children }) {
+    return (React.createElement("div", { onClick: onBackdrop, style: { position: "fixed", inset: 0, zIndex, background: "rgba(0,0,0,0.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 } },
+        React.createElement("div", { onClick: (e) => e.stopPropagation(), style: { maxWidth, width: "100%", background: T.baize, border: `1px solid ${T.line}`, borderRadius: 14, padding, boxShadow: "0 14px 44px rgba(0,0,0,0.55)", ...(scroll ? { maxHeight: "86vh", overflowY: "auto" } : null) } }, children)));
+}
+function ModalHeader({ title, onClose, closeLabel }) {
+    return (React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 } },
+        React.createElement("span", { style: { fontWeight: 700, fontSize: 17 } }, title),
+        React.createElement("button", { onClick: onClose, style: { padding: "6px 14px", borderRadius: 8, cursor: "pointer", border: `1px solid ${T.line}`, background: "rgba(0,0,0,0.25)", color: T.cream, fontFamily: mono, fontSize: 11.5, fontWeight: 700 } }, closeLabel || "Done")));
+}
+function AboutModal({ onClose }) {
+    return (React.createElement(Modal, { onBackdrop: onClose },
+        React.createElement(ModalHeader, { title: "About", onClose: onClose }),
+        React.createElement("div", { style: { fontSize: 13.5, lineHeight: 1.55, color: T.cream } },
+            React.createElement("p", { style: { marginTop: 0 } },
+                "A five-card-draw poker trainer and a playable Jacks-or-Better game, modeled on the open-source ",
+                React.createElement("a", { href: "https://github.com/ghug/cribbage-trainer", style: { color: T.pegIvory } }, "cribbage-trainer"),
+                ": every number on screen comes from enumeration over the deck, never from a strategy chart."),
+            React.createElement("p", null, "All client-side \u2014 no accounts, no tracking; practice stats and the play bankroll live only in this browser."),
+            React.createElement("p", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, marginBottom: 0 } },
+                "v",
+                APP_VERSION))));
+}
+function ChipTrack({ pct }) {
+    const CHIPS = 20;
+    const lit = Math.round((Math.max(0, Math.min(100, pct)) / 100) * CHIPS);
+    return (React.createElement("div", { style: { display: "flex", gap: 4, alignItems: "center" }, "aria-label": `Accuracy ${pct.toFixed(0)}%` }, Array.from({ length: CHIPS }, (_, i) => (React.createElement("span", { key: i, style: {
+            width: 10, height: 10, borderRadius: "50%", flex: "0 0 auto",
+            background: i < lit ? T.pegIvory : "rgba(0,0,0,0.28)",
+            boxShadow: i < lit ? "0 0 0 2px rgba(236,220,180,0.45)" : "inset 0 1px 2px rgba(0,0,0,0.6)",
+            transition: "all 200ms ease",
+        } })))));
+}
+function CardFace({ card, held, faceDown, disabled, onClick, badge }) {
+    return (React.createElement("button", { onClick: onClick, disabled: disabled, "aria-pressed": !!held, "aria-label": faceDown ? "Face-down card" : `${rankLabel(card.r)} of ${["spades", "hearts", "diamonds", "clubs"][card.s]}${held ? ", held" : ""}`, style: {
+            width: 64, height: 92, borderRadius: 9, padding: 0, position: "relative",
+            background: faceDown ? `repeating-linear-gradient(45deg, ${T.baizeHi}, ${T.baizeHi} 4px, ${T.baize} 4px, ${T.baize} 8px)` : T.ivory,
+            color: faceDown ? T.ivory : isRed(card.s) ? T.suitRed : T.ink,
+            border: "1px solid rgba(0,0,0,0.3)", cursor: disabled ? "default" : "pointer",
+            outline: held ? `3px solid ${T.pegIvory}` : "none", outlineOffset: 1,
+            transform: held ? "translateY(-8px)" : "none", transition: "transform 140ms ease, outline 140ms ease",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 3px 8px rgba(0,0,0,0.35)", fontFamily: serif,
+        } },
+        !faceDown && React.createElement("span", { style: { fontSize: 26, fontWeight: 700, lineHeight: 1 } }, rankLabel(card.r)),
+        !faceDown && React.createElement("span", { style: { fontSize: 26, lineHeight: 1.1 } }, SUIT[card.s]),
+        held && React.createElement("span", { style: { position: "absolute", top: -22, left: 0, right: 0, textAlign: "center", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: T.pegIvory } }, "HELD"),
+        badge && React.createElement("span", { style: { position: "absolute", bottom: -19, left: 0, right: 0, textAlign: "center", fontFamily: mono, fontSize: 9.5, fontWeight: 700, color: T.gold } }, badge)));
+}
+function CatBars({ cats, color }) {
+    const rows = [];
+    for (let c = CAT_COUNT - 1; c >= 1; c--) {
+        if (cats[c] <= 0)
+            continue;
+        rows.push({ c, p: cats[c], evShare: cats[c] * PAY[c] });
+    }
+    if (!rows.length)
+        return React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.muted } }, "No paying draw exists for this hold.");
+    const maxShare = Math.max(...rows.map((r) => r.evShare));
+    return (React.createElement("div", { style: { display: "grid", gap: 4 } }, rows.map(({ c, p, evShare }) => (React.createElement("div", { key: c, style: { display: "grid", gridTemplateColumns: "118px 1fr 92px", gap: 8, alignItems: "center", fontFamily: mono, fontSize: 11 } },
+        React.createElement("span", { style: { color: T.cream } }, catName(c)),
+        React.createElement("span", { style: { height: 8, borderRadius: 4, background: "rgba(0,0,0,0.3)", overflow: "hidden" } },
+            React.createElement("span", { style: { display: "block", height: "100%", width: `${maxShare > 0 ? (evShare / maxShare) * 100 : 0}%`, background: color, borderRadius: 4 } })),
+        React.createElement("span", { style: { color: T.muted, textAlign: "right" } },
+            (p * 100).toFixed(p >= 0.01 ? 1 : 3),
+            "% \u00B7 ",
+            evShare.toFixed(3)))))));
+}
+const { useReducer, useState, useEffect } = React;
+const initModel = () => ({
+    pot: 1250.5,
+    communityCards: [
+        { r: 1, s: 0 },
+        { r: 13, s: 1 },
+        { r: 10, s: 2 },
+    ],
+    userSeatId: 1,
+    raiseSliderVal: 100,
+    minRaise: 50,
+    maxRaise: 2500,
+    players: [
+        { id: 1, name: "You", balance: 2450, currentBet: 50, cards: [{ r: 13, s: 0 }, { r: 12, s: 1 }], isTurn: true, status: "Active" },
+        { id: 2, name: "CryptoWhale", balance: 8120, currentBet: 50, cards: [], isTurn: false, status: "Active" },
+        { id: 3, name: "Satoshi_99", balance: 410, currentBet: 0, cards: [], isTurn: false, status: "Folded" },
+        { id: 4, name: "Degenerate", balance: 1200, currentBet: 50, cards: [], isTurn: false, status: "Active" },
+    ],
+});
+function update(model, msg) {
+    const onUser = (fn) => model.players.map((p) => (p.id === model.userSeatId ? fn(p) : p));
+    switch (msg.type) {
+        case "FoldAction":
+            return { ...model, players: onUser((p) => ({ ...p, status: "Folded", isTurn: false })) };
+        case "CallAction":
+            return { ...model, players: onUser((p) => ({ ...p, balance: p.balance - p.currentBet, isTurn: false })), pot: model.pot + 50 };
+        case "RaiseAction":
+            return { ...model, players: onUser((p) => ({ ...p, balance: p.balance - msg.amount, currentBet: msg.amount, isTurn: false })), pot: model.pot + msg.amount };
+        case "UpdateRaiseVal":
+            return { ...model, raiseSliderVal: msg.value };
+        default:
+            return model;
+    }
+}
+const money = (v) => `$${v.toFixed(2)}`;
+const chips = (v) => (Number.isInteger(v) ? `$${v.toLocaleString()}` : money(v));
+const clampN = (lo, v, hi) => Math.max(lo, Math.min(v, hi));
+function useViewportWidth() {
+    const [w, setW] = useState(typeof window !== "undefined" ? window.innerWidth : 400);
+    useEffect(() => {
+        const onResize = () => setW(window.innerWidth);
+        window.addEventListener("resize", onResize);
+        return () => window.removeEventListener("resize", onResize);
+    }, []);
+    return w;
+}
+const N = {
+    bg: "#0b0e11", panel: "#14171d", panelHi: "#1f2937", card: "#1a1d24",
+    line: "#222630", line2: "#2c303c", felt: "#0f2018", feltHi: "#16301f", rail: "#1e2c24",
+    green: "#00e676", red: "#ff4d4d", redSoft: "#ff5252", amber: "#ffb74d",
+    text: "#ffffff", dim: "#8b93a3", faint: "#5b6272",
+};
+const sans = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
+function TableCard({ card, w }) {
+    const red = isRed(card.s);
+    const col = red ? N.red : "#e8ebf2";
+    return (React.createElement("div", { style: {
+            width: w, height: Math.round(w * 1.42), borderRadius: Math.max(8, w * 0.14),
+            background: `linear-gradient(160deg, #21252e, ${N.card} 60%)`,
+            border: `1px solid ${N.line2}`, boxShadow: "0 6px 14px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.05)",
+            position: "relative", color: col, flex: "0 0 auto",
+        } },
+        React.createElement("div", { style: { position: "absolute", top: w * 0.1, left: w * 0.14, lineHeight: 1, textAlign: "center" } },
+            React.createElement("div", { style: { fontSize: w * 0.34, fontWeight: 800, letterSpacing: "-0.02em" } }, rankLabel(card.r)),
+            React.createElement("div", { style: { fontSize: w * 0.3, marginTop: w * 0.03 } }, SUIT[card.s])),
+        React.createElement("div", { style: {
+                position: "absolute", right: w * 0.1, bottom: w * 0.04, fontSize: w * 0.62,
+                opacity: 0.9, lineHeight: 1,
+            } }, SUIT[card.s])));
+}
+function CardSlot({ w }) {
+    return (React.createElement("div", { style: {
+            width: w, height: Math.round(w * 1.42), borderRadius: Math.max(8, w * 0.14),
+            border: `1.5px dashed rgba(139,147,163,0.25)`, flex: "0 0 auto",
+        } }));
+}
+function MiniBacks() {
+    const back = (rot) => (React.createElement("span", { style: {
+            width: 17, height: 24, borderRadius: 4, display: "inline-block",
+            background: `repeating-linear-gradient(45deg, #123322, #123322 3px, ${N.rail} 3px, ${N.rail} 6px)`,
+            border: "1px solid rgba(0,230,118,0.25)", transform: `rotate(${rot}deg)`,
+            boxShadow: "0 2px 5px rgba(0,0,0,0.5)",
+        } }));
+    return React.createElement("span", { style: { display: "inline-flex", gap: 2, marginTop: 5 } },
+        back(-8),
+        back(8));
+}
+function BetPill({ amount }) {
+    if (!(amount > 0))
+        return null;
+    return (React.createElement("div", { style: {
+            display: "inline-flex", alignItems: "center", gap: 5, marginTop: 6,
+            background: "rgba(0,0,0,0.55)", border: "1px solid rgba(255,183,77,0.35)",
+            borderRadius: 999, padding: "2.5px 9px",
+            fontSize: 11, fontWeight: 700, color: N.amber, whiteSpace: "nowrap",
+        } },
+        React.createElement("span", { style: {
+                width: 9, height: 9, borderRadius: "50%", flex: "0 0 auto",
+                background: `radial-gradient(circle at 35% 35%, #ffd54f, ${N.amber} 70%)`,
+                boxShadow: "0 0 0 1.5px rgba(0,0,0,0.5) inset",
+            } }),
+        chips(amount)));
+}
+function OppSeat({ player, spot }) {
+    const folded = player.status === "Folded";
+    return (React.createElement("div", { style: {
+            position: "absolute", left: `${spot.x}%`, top: `${spot.y}%`, transform: "translate(-50%, -50%)",
+            display: "flex", flexDirection: "column", alignItems: "center",
+            opacity: folded ? 0.45 : 1, zIndex: 3, width: "min(27vw, 122px)",
+        } },
+        React.createElement("div", { style: {
+                width: 46, height: 46, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                background: player.isTurn ? N.panelHi : "#111318",
+                border: `2px solid ${player.isTurn ? N.green : N.line}`,
+                boxShadow: player.isTurn ? "0 0 14px rgba(0,230,118,0.45)" : "0 4px 10px rgba(0,0,0,0.5)",
+                fontSize: 18, fontWeight: 800, color: player.isTurn ? N.green : N.dim,
+            } }, player.name.charAt(0).toUpperCase()),
+        React.createElement("div", { style: {
+                marginTop: 5, background: "rgba(13,16,20,0.92)", border: `1px solid ${player.isTurn ? "rgba(0,230,118,0.45)" : N.line}`,
+                borderRadius: 9, padding: "4px 9px", textAlign: "center", maxWidth: "100%",
+                boxShadow: "0 4px 10px rgba(0,0,0,0.45)",
+            } },
+            React.createElement("div", { style: {
+                    fontSize: 12, fontWeight: 700, color: N.text, whiteSpace: "nowrap",
+                    overflow: "hidden", textOverflow: "ellipsis", maxWidth: "min(24vw, 106px)",
+                } }, player.name),
+            React.createElement("div", { style: { fontSize: 11.5, fontWeight: 700, color: N.green, whiteSpace: "nowrap" } }, chips(player.balance))),
+        folded
+            ? React.createElement("div", { style: { marginTop: 5, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.14em", color: N.dim } }, "FOLDED")
+            : React.createElement(MiniBacks, null),
+        React.createElement(BetPill, { amount: player.currentBet })));
+}
+function PokerTable() {
+    const [model, dispatch] = useReducer(update, undefined, initModel);
+    const you = model.players.find((p) => p.id === model.userSeatId);
+    const opps = model.players.filter((p) => p.id !== model.userSeatId);
+    const youFolded = you.status === "Folded";
+    const youActed = !you.isTurn;
+    const OPP_SPOTS = [{ x: 14, y: 26 }, { x: 50, y: 11 }, { x: 86, y: 26 }];
+    const vw = useViewportWidth();
+    const boardW = clampN(40, Math.round(vw * 0.125), 58);
+    const holeW = clampN(56, Math.round(vw * 0.17), 78);
+    const actBtn = (extra) => ({
+        padding: "14px 10px", borderRadius: 12, fontFamily: sans, fontSize: 14.5, fontWeight: 800,
+        letterSpacing: "0.04em", cursor: "pointer", border: "1px solid transparent",
+        transition: "filter 120ms ease, transform 120ms ease", width: "100%",
+        ...extra,
+    });
+    return (React.createElement("div", { style: {
+            background: `radial-gradient(130% 70% at 50% -10%, #10151b, ${N.bg} 60%)`,
+            minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: sans,
+            color: N.text, overflow: "hidden",
+        } },
+        React.createElement("style", null, `
+        html, body { background: ${N.bg}; }
+        button:active { filter: brightness(1.15); transform: translateY(1px); }
+        input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px;
+          border-radius: 999px; background: linear-gradient(90deg, ${N.green} var(--fill, 0%), #2b2f3a var(--fill, 0%));
+          outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+          width: 24px; height: 24px; border-radius: 50%; border: none;
+          background: radial-gradient(circle at 35% 35%, #7dffb8, ${N.green} 65%);
+          box-shadow: 0 0 12px rgba(0,230,118,0.55), 0 2px 6px rgba(0,0,0,0.6); }
+        input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; border: none;
+          background: ${N.green}; box-shadow: 0 0 12px rgba(0,230,118,0.55); }
+      `),
+        React.createElement("div", { style: {
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "12px 16px 8px", flex: "0 0 auto",
+            } },
+            React.createElement("div", null,
+                React.createElement("span", { style: { fontSize: 13, fontWeight: 800, letterSpacing: "0.12em", color: N.dim } }, "POKER ROOM #402"),
+                React.createElement("span", { style: { fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", color: N.faint, marginLeft: 8 } }, "PRACTICE CHIPS ONLY")),
+            React.createElement("a", { href: "index.html", "aria-label": "Home", style: {
+                    color: N.dim, textDecoration: "none", fontSize: 17, lineHeight: 1,
+                    border: `1px solid ${N.line}`, borderRadius: 9, padding: "6px 10px", background: "rgba(255,255,255,0.02)",
+                } }, "\u2302")),
+        React.createElement("div", { style: { flex: "1 1 auto", position: "relative", minHeight: 0 } },
+            React.createElement("div", { style: {
+                    position: "absolute", inset: "6% 5% 4% 5%", borderRadius: "48% / 42%",
+                    background: `radial-gradient(75% 70% at 50% 32%, ${N.feltHi}, ${N.felt} 75%)`,
+                    border: `7px solid ${N.rail}`,
+                    boxShadow: "0 0 60px rgba(0,0,0,0.85), inset 0 0 46px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(0,230,118,0.07)",
+                } }),
+            opps.map((p, i) => React.createElement(OppSeat, { key: p.id, player: p, spot: OPP_SPOTS[i] || OPP_SPOTS[1] })),
+            React.createElement("div", { style: {
+                    position: "absolute", left: "50%", top: "48%", transform: "translate(-50%, -50%)",
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 12, zIndex: 2, width: "100%",
+                } },
+                React.createElement("div", { style: {
+                        background: "rgba(0,0,0,0.6)", border: "1px solid rgba(0,230,118,0.3)", borderRadius: 999,
+                        padding: "5px 16px", fontSize: 13.5, fontWeight: 800, color: N.green, letterSpacing: "0.02em",
+                        boxShadow: "0 0 18px rgba(0,230,118,0.12)",
+                    } },
+                    "POT\u00A0\u00A0",
+                    money(model.pot)),
+                React.createElement("div", { style: { display: "flex", gap: "clamp(5px, 1.6vw, 9px)", justifyContent: "center" } },
+                    model.communityCards.map((c) => React.createElement(TableCard, { key: cardId(c), card: c, w: boardW })),
+                    React.createElement(CardSlot, { w: boardW }),
+                    React.createElement(CardSlot, { w: boardW }))),
+            React.createElement("div", { style: {
+                    position: "absolute", left: "50%", bottom: 0, transform: "translateX(-50%)",
+                    display: "flex", flexDirection: "column", alignItems: "center", zIndex: 4,
+                    opacity: youFolded ? 0.45 : 1,
+                } },
+                !youFolded && (React.createElement("div", { style: { display: "flex", marginBottom: -10 } }, you.cards.map((c, i) => (React.createElement("div", { key: cardId(c), style: {
+                        transform: `rotate(${i === 0 ? -6 : 6}deg) translateY(${i === 0 ? 2 : 0}px)`,
+                        marginLeft: i === 0 ? 0 : -Math.round(holeW * 0.24), zIndex: i,
+                    } },
+                    React.createElement(TableCard, { card: c, w: holeW })))))),
+                React.createElement("div", { style: {
+                        display: "flex", alignItems: "center", gap: 12, position: "relative", zIndex: 6,
+                        background: youActed && !youFolded ? "rgba(13,16,20,0.97)" : "rgba(16,24,20,0.97)",
+                        border: `2px solid ${you.isTurn ? N.green : N.line}`,
+                        boxShadow: you.isTurn ? "0 0 18px rgba(0,230,118,0.4)" : "0 6px 16px rgba(0,0,0,0.55)",
+                        borderRadius: 14, padding: "8px 16px",
+                    } },
+                    React.createElement("div", null,
+                        React.createElement("div", { style: { fontSize: 13, fontWeight: 800 } },
+                            you.name,
+                            youFolded ? " · FOLDED" : ""),
+                        React.createElement("div", { style: { fontSize: 13, fontWeight: 800, color: N.green } }, chips(you.balance))),
+                    React.createElement(BetPill, { amount: you.currentBet })))),
+        React.createElement("div", { style: {
+                flex: "0 0 auto", background: `linear-gradient(180deg, ${N.panel}, #101318)`,
+                borderTop: `1px solid ${N.line}`, padding: "14px 16px calc(14px + env(safe-area-inset-bottom, 0px))",
+                display: "flex", flexDirection: "column", gap: 12,
+            } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+                React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: N.dim, flex: "0 0 auto" } }, chips(model.minRaise)),
+                React.createElement("input", { type: "range", "aria-label": "Raise amount", min: model.minRaise, max: model.maxRaise, value: model.raiseSliderVal, style: { "--fill": `${((model.raiseSliderVal - model.minRaise) / (model.maxRaise - model.minRaise)) * 100}%`, flex: 1 }, onChange: (e) => dispatch({ type: "UpdateRaiseVal", value: Number(e.target.value) }) }),
+                React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: N.dim, flex: "0 0 auto" } }, chips(model.maxRaise))),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1.5fr", gap: 10 } },
+                React.createElement("button", { onClick: () => dispatch({ type: "FoldAction" }), style: actBtn({
+                        background: "#232733", color: N.redSoft, border: `1px solid rgba(255,82,82,0.25)`,
+                    }) }, "FOLD"),
+                React.createElement("button", { onClick: () => dispatch({ type: "CallAction" }), style: actBtn({
+                        background: "#232733", color: N.text, border: `1px solid ${N.line2}`,
+                    }) }, "CALL $50"),
+                React.createElement("button", { onClick: () => dispatch({ type: "RaiseAction", amount: model.raiseSliderVal }), style: actBtn({
+                        background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f",
+                        boxShadow: "0 4px 16px rgba(0,230,118,0.35)",
+                    }) },
+                    "RAISE ",
+                    chips(model.raiseSliderVal))))));
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(PokerTable));
+
+</script>
+</body>
+</html>

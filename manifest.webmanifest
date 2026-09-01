@@ -1,0 +1,9 @@
+{
+  "name": "Poker Trainer",
+  "short_name": "Poker",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f2417",
+  "theme_color": "#0f2417",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

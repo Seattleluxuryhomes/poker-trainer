@@ -1,0 +1,45 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'dev.poker.trainer'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "dev.poker.trainer"
+        minSdk 26          // adaptive icons; covers ~95%+ of devices
+        targetSdk 34
+        versionCode 3      // bump by 1 on every release
+        versionName "0.1.2"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false   // nothing to strip; pure-asset WebView app
+            // Intentionally no signingConfig here: no key material lives in the repo.
+            // CI signs the unsigned release APK with apksigner (see
+            // .github/workflows/android-release.yml and docs/ANDROID.md).
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+// Bundle the built web app (committed at the repo root) into the APK's assets before
+// every build, so the wrapper always ships the current pages + vendored React. The
+// app directory holds the source of truth (index/trainer/play/table.html + vendor/),
+// produced by ../build.sh; these copies under src/main/assets are git-ignored.
+tasks.register('syncWebAssets', Copy) {
+    def appRoot = rootProject.projectDir.parentFile   // the repo root
+    into layout.projectDirectory.dir('src/main/assets')
+    from(appRoot) {
+        include 'index.html', 'trainer.html', 'play.html', 'table.html'
+        include 'vendor/**'
+        include 'favicon.svg', 'manifest.webmanifest'
+    }
+}
+tasks.named('preBuild') { dependsOn 'syncWebAssets' }

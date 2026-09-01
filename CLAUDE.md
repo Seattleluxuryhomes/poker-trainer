@@ -1,0 +1,96 @@
+# CLAUDE.md — Poker Trainer
+
+> Read this first. It is the full context for this app. It began life on a
+> branch of the founder's builderbuybox repo and was moved to this standalone
+> repository (2026-09-01); it shares no code, data model, or runtime with any
+> other project.
+
+## Provenance (read before changing anything)
+
+This app is a deliberate port of **ghug/cribbage-trainer** (public domain, The
+Unlicense) at the founder's request: "make a poker app based on
+cribbage-trainer." The port keeps that project's architecture verbatim:
+
+- **Buildless React.** No bundler, no npm project. React/React-DOM are vendored
+  in `vendor/` (copied from the reference repo; MIT). `build.sh` prepends the
+  shared `src/engine.js` + `src/chrome.jsx` to each page component, swaps the
+  ESM React import for the browser globals, name-guards with tsc (an undefined
+  identifier aborts the build instead of shipping a blank page), transpiles
+  JSX, and wraps the result in a self-contained HTML shell. The compiled root
+  pages ARE committed — `index.html`, `trainer.html`, `play.html`,
+  `table.html` — and must be rebuilt and committed together with any `src/`
+  change.
+- **Verification over trust.** `engine/verify_*.js` eval the COMPILED pages in
+  a Node vm (the reference's pattern) and re-prove the math against facts that
+  can be derived independently: the published C(52,5) frequency table, the
+  919/47 flush-break EV, payout linearity, the supplied Elmish reducer
+  semantics. Run all four after any engine or page change; they are the CI.
+- **The value model is the law.** Expected values come strictly from
+  enumeration over the unseen deck — never strategy charts, never heuristics,
+  never weights (the reference's "Project Philosophy", inherited whole).
+  `analyze(hand5)` enumerates all 32 holds × every C(47, 5-k) completion and
+  derives EV, sd, floor, ceiling, hit rate, and per-category probabilities
+  from the exact counts.
+
+## The three pages
+
+1. **Hold Trainer** (`src/PokerTrainer.jsx`) — the cribbage discard-trainer
+   loop mapped to video poker: deal → choose → reveal a ranked, fully-explained
+   option list, with header stats (hands / % optimal / avg EV lost) and an
+   expandable per-option Explain drawer. EV is coins per coin at max bet
+   (royal = 800). Optimal means EV-tied with the top option (< 1e-6).
+2. **Play** (`src/PokerPlay.jsx`) — 9/6 Jacks or Better with a localStorage
+   practice bankroll (`poker-trainer:bank`, start 200). `payoutFor(cat, bet)`
+   is per-coin linear except the royal's 4000 at exactly 5 coins. Hint =
+   `bestHold` = `analyze()[0]` — one engine, so the game can never contradict
+   the trainer.
+3. **Hold'em Table** (`src/PokerTable.jsx`) — a 1:1 React translation of the
+   founder-supplied F# Fable/Feliz/Elmish component (dark neon theme; their
+   Elmish `init/update/view` become `initModel`/`update`/components, semantics
+   preserved verbatim, including its simplifications). It is a UI mock: fold /
+   call / raise mutate the model, but there is no dealing, betting-round, or
+   showdown engine yet. The room label drops the original's third-party casino
+   brand name on purpose — don't reintroduce it.
+
+## Cards
+
+`{ r: 1..13, s: 0..3 }` (A=1 … K=13; spade/heart/diamond/club) — the reference
+engine's shape, kept so ports stay literal. The ace is stored low; `categorize`
+special-cases the ace-high straight (A-10-J-Q-K) and the royal.
+
+## Honesty rules (inherited from both parents)
+
+- Practice chips only, everywhere, always. No real wagering, no purchases, no
+  "buy credits" — if a change adds monetary value flow, stop and ask the founder.
+- No fake states: never show a win, a payout, or a saved bankroll unless it
+  actually happened.
+- Stats and bankroll stay in this browser (localStorage); nothing is sent
+  anywhere. No analytics, no tracking.
+
+## Known limitations / next steps (in order)
+
+1. The Hold'em table needs its engine: dealing, blinds, betting rounds, bot
+   seats, showdown (7-card evaluation — extend `categorize` or add a
+   `best5of7`), then hook the supplied UI to it.
+2. The trainer's "Deal custom" card picker (the reference has one; not ported yet).
+3. i18n: the reference ships a full locale system; this port is English-only.
+4. PWA service worker for offline (manifest exists; no SW yet).
+5. Multi-paytable support (8/5, 7/5) — PAY is already the single source of truth.
+
+## Android
+
+`android/` is the reference's offline WebView wrapper, ported (applicationId
+`dev.poker.trainer`, spade icon). `:app:syncWebAssets` copies the committed
+root pages into assets at build time — never commit the assets copies. Releases:
+push a `v*` tag; `.github/workflows/android-release.yml` builds,
+signs (repo secrets `POKER_KEYSTORE_*`, or a one-off key with a warning), and
+attaches the APK to a GitHub Release for Obtainium. Bump `versionCode` by 1 and
+sync `versionName` with `VERSION` on every release. Details: `docs/ANDROID.md`.
+
+## Working rules
+
+- Run `./build.sh && node engine/verify_rank.js && node engine/verify_trainer.js
+  && node engine/verify_play.js && node engine/verify_table.js` before declaring
+  anything done; commit `src/` and the rebuilt root pages together.
+- Bump `VERSION` (dev suffix) with each meaningful change; `build.sh` stamps it.
+- Keep new dependencies at zero. The vendored React is the dependency budget.

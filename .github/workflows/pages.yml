@@ -1,0 +1,49 @@
+name: Deploy to GitHub Pages
+
+# Publishes the committed, pre-built pages to GitHub Pages on every push to
+# main (and on demand). Only the whitelisted deployable files are published —
+# never src/, engine/, docs/, or the Android project.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble site (whitelisted files only)
+        run: |
+          mkdir -p _site/vendor
+          cp index.html trainer.html play.html table.html \
+             favicon.svg manifest.webmanifest _site/
+          cp vendor/react.production.min.js \
+             vendor/react-dom.production.min.js _site/vendor/
+
+      - name: Enable + configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

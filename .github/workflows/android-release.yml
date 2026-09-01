@@ -1,0 +1,101 @@
+name: Android Release APK
+
+# Builds the WebView wrapper into a signed APK and attaches it to a GitHub
+# Release on every v* tag (or on manual dispatch, which takes the tag as an
+# input and creates it). The release asset feeds Obtainium. See docs/ANDROID.md.
+#
+# Signing: uses the POKER_KEYSTORE_* repository secrets when present (create
+# them once with the "Bootstrap signing key" workflow). Absent secrets fall
+# back to a ONE-OFF key so the release is still installable; the release notes
+# say which mode signed each build.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create/publish (e.g. v0.1.2)"
+        required: true
+        default: "v0.1.2"
+
+permissions:
+  contents: write   # create the Release and upload the APK
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build release APK (unsigned)
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleRelease
+
+      - name: Sign APK
+        id: sign
+        env:
+          KEYSTORE_BASE64: ${{ secrets.POKER_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.POKER_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.POKER_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.POKER_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KS="$RUNNER_TEMP/release.jks"
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$KS"
+            SIGNING_MODE="repo signing key (stable updates)"
+          else
+            KEYSTORE_PASSWORD="$(openssl rand -base64 24)"
+            KEY_PASSWORD="$KEYSTORE_PASSWORD"
+            KEY_ALIAS="poker"
+            keytool -genkeypair -v \
+              -keystore "$KS" -storetype PKCS12 \
+              -alias "$KEY_ALIAS" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD" \
+              -dname "CN=PokerTrainer, OU=Poker, O=PokerTrainer"
+            SIGNING_MODE="ONE-OFF key (no signing secrets set — the next release will need an uninstall/reinstall; run the bootstrap-signing workflow for stable updates)"
+          fi
+          export KEYSTORE_PASSWORD KEY_PASSWORD
+          BT="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)"
+          UNSIGNED="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          OUT="poker-trainer-${RELEASE_TAG}.apk"
+          "$BT/zipalign" -p -f 4 "$UNSIGNED" "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" sign \
+            --ks "$KS" \
+            --ks-pass env:KEYSTORE_PASSWORD \
+            --ks-key-alias "$KEY_ALIAS" \
+            --key-pass env:KEY_PASSWORD \
+            --out "$OUT" "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" verify --print-certs "$OUT"
+          echo "apk=$OUT" >> "$GITHUB_OUTPUT"
+          echo "signing_mode=$SIGNING_MODE" >> "$GITHUB_OUTPUT"
+
+      - name: Publish APK to the Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: ${{ steps.sign.outputs.apk }}
+          fail_on_unmatched_files: true
+          body: |
+            Poker Trainer Android build — offline WebView wrapper around the web app.
+
+            Signed with: ${{ steps.sign.outputs.signing_mode }}
+
+            Install directly, or via Obtainium: Add App → paste this repo's URL.

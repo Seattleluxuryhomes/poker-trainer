@@ -1,0 +1,84 @@
+name: Bootstrap signing key
+
+# ONE-OFF, run from the Actions tab ("Run workflow"). Generates a release keystore
+# in CI and stores it — plus its passwords — as this repo's Actions secrets
+# (POKER_KEYSTORE_BASE64 / POKER_KEYSTORE_PASSWORD / POKER_KEY_PASSWORD /
+# POKER_KEY_ALIAS), so you never run keytool locally. The poker-android-release
+# workflow then uses those secrets on every v* tag, giving every release the
+# SAME signature — which is what lets Android install updates in place.
+#
+# Prerequisite: add a repo secret BOOTSTRAP_PAT = a fine-grained PAT scoped to this
+# repo with "Secrets: Read and write" (+ Metadata). After this workflow succeeds,
+# DELETE the BOOTSTRAP_PAT secret and revoke that token. You can also delete this
+# workflow file afterwards — it's single-use.
+#
+# Note: the key is stored only as a secret (not readable back), so there is no
+# off-device backup; if it's ever lost, re-run this to make a new one (users
+# reinstall once).
+
+on:
+  workflow_dispatch:
+    inputs:
+      key_alias:
+        description: "Key alias"
+        required: true
+        default: "poker"
+
+permissions: {}   # this job uses BOOTSTRAP_PAT for gh, not the default token
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up JDK 17 (for keytool)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Generate keystore and store signing secrets
+        env:
+          GH_TOKEN: ${{ secrets.BOOTSTRAP_PAT }}
+          KEY_ALIAS: ${{ inputs.key_alias }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Missing BOOTSTRAP_PAT secret (a fine-grained PAT with 'Secrets: Read and write' on this repo). See docs/ANDROID.md."
+            exit 1
+          fi
+
+          # One strong random password, used for both store and key (PKCS12 keeps them equal).
+          PASS="$(openssl rand -base64 24)"
+          echo "::add-mask::$PASS"
+
+          KS="$RUNNER_TEMP/release.jks"
+          keytool -genkeypair -v \
+            -keystore "$KS" -storetype PKCS12 \
+            -alias "$KEY_ALIAS" \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass "$PASS" -keypass "$PASS" \
+            -dname "CN=PokerTrainer, OU=Poker, O=PokerTrainer"
+
+          base64 -w0 "$KS"        > "$RUNNER_TEMP/ks.b64"
+          printf '%s' "$PASS"     > "$RUNNER_TEMP/pass.txt"
+          printf '%s' "$KEY_ALIAS"> "$RUNNER_TEMP/alias.txt"
+
+          # gh reads the secret value from stdin (no value on the command line / in logs).
+          gh secret set POKER_KEYSTORE_BASE64   --repo "$REPO" < "$RUNNER_TEMP/ks.b64"
+          gh secret set POKER_KEYSTORE_PASSWORD --repo "$REPO" < "$RUNNER_TEMP/pass.txt"
+          gh secret set POKER_KEY_PASSWORD      --repo "$REPO" < "$RUNNER_TEMP/pass.txt"
+          gh secret set POKER_KEY_ALIAS         --repo "$REPO" < "$RUNNER_TEMP/alias.txt"
+
+          rm -f "$RUNNER_TEMP/ks.b64" "$RUNNER_TEMP/pass.txt" "$RUNNER_TEMP/alias.txt" "$KS"
+
+          {
+            echo "### ✅ Poker Trainer signing secrets created"
+            echo ""
+            echo "\`POKER_KEYSTORE_BASE64\`, \`POKER_KEYSTORE_PASSWORD\`, \`POKER_KEY_PASSWORD\`, \`POKER_KEY_ALIAS\` are now set on \`$REPO\`."
+            echo ""
+            echo "**Next:**"
+            echo "1. Delete the \`BOOTSTRAP_PAT\` secret and revoke that token."
+            echo "2. (Optional) delete this workflow — it's single-use."
+            echo "3. Push the next \`v*\` tag; the release APK will use this key from now on."
+          } >> "$GITHUB_STEP_SUMMARY"
