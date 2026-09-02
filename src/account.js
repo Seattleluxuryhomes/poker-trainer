@@ -28,7 +28,9 @@ const STALE_AFTER_MS = 20 * 60 * 1000;
 
 const ACCT = {
   base: null,          // "" (same-origin) or PUBLIC_API_URL
-  available: false,    // /api/health answered
+  online: false,       // a poker server answered /api/health at all
+  available: false,    // …and it has accounts enabled
+  rooms: false,        // …and it hosts multiplayer rooms
   checked: false,
   user: null,
   stats: null,
@@ -80,10 +82,10 @@ async function acctApi(path, opts = {}) {
 async function acctProbe(base) {
   try {
     const res = await fetch(`${base}/api/health`, { cache: "no-store" });
-    if (!res.ok) return false;
+    if (!res.ok) return null;
     const j = await res.json();
-    return !!(j && j.ok && j.accounts);
-  } catch { return false; }
+    return j && j.ok ? { accounts: !!j.accounts, rooms: !!j.rooms } : null;
+  } catch { return null; }
 }
 
 function acctAdopt(payload) {
@@ -106,8 +108,10 @@ async function acctRefresh() {
 async function acctInit() {
   if (ACCT.checked || typeof window === "undefined") return;
   ACCT.checked = true;
-  if (await acctProbe("")) { ACCT.base = ""; ACCT.available = true; }
-  else if (await acctProbe(PUBLIC_API_URL)) { ACCT.base = PUBLIC_API_URL; ACCT.available = true; }
+  let h = await acctProbe("");
+  if (h) ACCT.base = "";
+  else { h = await acctProbe(PUBLIC_API_URL); if (h) ACCT.base = PUBLIC_API_URL; }
+  if (h) { ACCT.online = true; ACCT.available = h.accounts; ACCT.rooms = h.rooms; }
   acctNotify();
   if (ACCT.available && acctGetToken()) await acctRefresh();
   try {

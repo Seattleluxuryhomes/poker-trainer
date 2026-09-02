@@ -13,7 +13,8 @@ import { readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openDb } from "./db.mjs";
-import { handleApi, accountsEnabled, assertSecretStrength } from "./api.mjs";
+import { handleApi, accountsEnabled, assertSecretStrength, corsHeaders, userIdFrom } from "./api.mjs";
+import { handleRoom } from "./rooms.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
@@ -44,6 +45,8 @@ const TYPES = {
 
 const server = createServer(async (req, res) => {
   const path = new URL(req.url, "http://x").pathname;
+  if (path === "/api/room" || path.startsWith("/api/room/"))
+    return handleRoom(req, res, path, { corsHeaders, userIdFrom }); // rooms work without accounts
   if (path.startsWith("/api/")) return handleApi(req, res, path);
   const file = FILES.get(path);
   if (!file || (req.method !== "GET" && req.method !== "HEAD")) {

@@ -129,3 +129,25 @@ sync `versionName` with `VERSION` on every release. Details: `docs/ANDROID.md`.
   anything done; commit `src/` and the rebuilt root pages together.
 - Bump `VERSION` (dev suffix) with each meaningful change; `build.sh` stamps it.
 - Keep new dependencies at zero. The vendored React is the dependency budget.
+
+## Multiplayer rooms & Charity Night (v0.3.0)
+
+`rooms.mjs` hosts server-authoritative tables: it vm-loads the SAME
+src/engine.js + src/holdem.js the pages ship (one rules engine, no copy), keeps
+the deck and hole cards only in server memory, and pushes per-seat REDACTED
+views over SSE — a client never receives another player's cards pre-reveal, and
+never the deck (engine/verify_rooms.js audits every payload for exactly this).
+The server runs bots for unclaimed seats, a 45s no-show auto-check/fold, and
+the runout broadcast (equities computed server-side, shipped as bare
+percentages). Rooms need no account and work with JWT_SECRET unset.
+Client: ?room=CODE on table.html; host creates via PLAY WITH FRIENDS; joiners
+take seats between hands; host paces the deal.
+
+CHARITY NIGHT — the legal shape is the feature, keep it exactly: pledges are
+NUMBERS the app displays; the app NEVER holds, collects, or routes money; no
+player can ever receive anything of value; the night's chip leader wins ONLY
+the right to name the charity (https link enforced); everyone donates their own
+pledge directly on the charity's page. Nights are recorded metadata-only;
+signed-in players' `raised` tally grows by their pledge. Any change that gives
+a player value back, or has the app touch funds, is a refuse-and-stop — that's
+the line between this feature and an unlicensed gambling operation.

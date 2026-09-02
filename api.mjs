@@ -84,12 +84,12 @@ function ownerView(u) {
 function ownerStats(s) {
   return {
     bankroll: s.bankroll, table_stack: s.table_stack, table_hands: s.table_hands,
-    table_wins: s.table_wins, biggest_pot: s.biggest_pot,
+    table_wins: s.table_wins, biggest_pot: s.biggest_pot, raised: s.raised || 0,
     trainer_hands: s.trainer_hands, trainer_optimal: s.trainer_optimal, trainer_ev_lost: s.trainer_ev_lost,
   };
 }
 /* publicView is an ALLOWLIST: a field absent from this list cannot leak. */
-const PROFILE_PUBLIC_FIELDS = ["display_name", "avatar", "table_stack", "table_hands", "table_wins", "biggest_pot"];
+const PROFILE_PUBLIC_FIELDS = ["display_name", "avatar", "table_stack", "table_hands", "table_wins", "biggest_pot", "raised"];
 function publicView(row) {
   const out = {};
   for (const k of PROFILE_PUBLIC_FIELDS) out[k] = row[k];
@@ -306,7 +306,7 @@ function leaderboard() {
   // Public + PII-free, modeled on their GET /api/markets (the codebase's one
   // public stats endpoint): opted-in players only, allowlist serializer.
   const rows = all(`
-    SELECT u.display_name, u.avatar, s.table_stack, s.table_hands, s.table_wins, s.biggest_pot
+    SELECT u.display_name, u.avatar, s.table_stack, s.table_hands, s.table_wins, s.biggest_pot, s.raised
     FROM users u JOIN stats s ON s.user_id = u.id
     WHERE u.leaderboard_ok = 1 AND u.deleted = 0 AND u.suspended = 0
     ORDER BY s.table_stack DESC, s.biggest_pot DESC LIMIT 50`);
@@ -315,7 +315,17 @@ function leaderboard() {
 
 /* ---- router ---- */
 
-function corsHeaders(req) {
+/* Best-effort identity for rooms: a valid bearer names the user, anything else
+ * is an anonymous guest (rooms never require an account). */
+export function userIdFrom(req) {
+  if (!accountsEnabled()) return null;
+  const auth = req.headers.authorization || "";
+  if (!auth.startsWith("Bearer ")) return null;
+  const payload = decodeToken(auth.slice(7));
+  return payload ? payload.sub : null;
+}
+
+export function corsHeaders(req) {
   const origin = req.headers.origin;
   if (!origin || !CORS_ORIGINS.includes(origin)) return {};
   return {
@@ -336,7 +346,7 @@ export async function handleApi(req, res, path) {
   if (req.method === "OPTIONS") { res.writeHead(204, cors); res.end(); return; }
 
   if (path === "/api/health" && req.method === "GET")
-    return send(200, { ok: true, accounts: accountsEnabled(), time: nowIso() });
+    return send(200, { ok: true, accounts: accountsEnabled(), rooms: true, time: nowIso() });
 
   if (!accountsEnabled())
     return send(503, { detail: "Accounts are not configured on this server. Guest play is unaffected." });

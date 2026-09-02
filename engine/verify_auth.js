@@ -100,7 +100,7 @@ async function main() {
     const lb = await call("GET", "/leaderboard");
     check(lb.status === 200 && lb.body.players.length === 1 && lb.body.players[0].display_name === "Ben", "leaderboard lists ONLY opted-in players");
     const lbKeys = Object.keys(lb.body.players[0]).sort().join(",");
-    check(lbKeys === "avatar,biggest_pot,display_name,table_hands,table_stack,table_wins", `leaderboard fields are exactly the allowlist (got ${lbKeys})`);
+    check(lbKeys === "avatar,biggest_pot,display_name,raised,table_hands,table_stack,table_wins", `leaderboard fields are exactly the allowlist (got ${lbKeys})`);
 
     /* export */
     const ex = await call("GET", "/auth/export", null, tok);

@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 
+/* The game rules live in src/holdem.js (shared verbatim with the multiplayer
+ * server). This file is the VIEW: solo mode runs the core locally; room mode
+ * (?room=CODE) renders the server's redacted state and posts actions. */
+
 /* ============================================================
    HOLD'EM TABLE (table.html) — a real four-max no-limit game.
    Every hand deals from a freshly shuffled 52-card deck: blinds,
@@ -16,402 +20,6 @@ import React, { useState, useEffect, useRef } from "react";
    deck integrity, chip conservation, betting legality, side-pot
    math, and evaluator tiebreaks.
    ============================================================ */
-
-/* ==================== 7-CARD SHOWDOWN EVALUATION ====================
- * score5H packs a 5-card hand into one comparable integer:
- *   category * 16^5 + t1*16^4 + t2*16^3 + t3*16^2 + t4*16 + t5
- * where t1..t5 are the category's tiebreak ranks (ace high = 14,
- * except as the wheel's low end). Bigger number = better hand.
- * score7 takes the best of the 21 five-card choices. */
-
-const HOLDEM_CATS = ["High Card", "Pair", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush"];
-const hiRank = (r) => (r === 1 ? 14 : r);
-const P16 = [1, 16, 256, 4096, 65536, 1048576]; // 16^0..16^5
-
-function packScore(cat, t) {
-  let s = cat * P16[5];
-  for (let i = 0; i < 5; i++) s += (t[i] || 0) * P16[4 - i];
-  return s;
-}
-
-function score5H(cards) {
-  const rs = cards.map((c) => hiRank(c.r)).sort((a, b) => b - a);
-  const flush = cards.every((c) => c.s === cards[0].s);
-  const counts = {};
-  for (const r of rs) counts[r] = (counts[r] || 0) + 1;
-  // groups: [count, rank] by count desc, then rank desc
-  const groups = Object.keys(counts)
-    .map((r) => [counts[r], Number(r)])
-    .sort((a, b) => b[0] - a[0] || b[1] - a[1]);
-  const uniq = groups.map((g) => g[1]).sort((a, b) => b - a);
-  let straightTop = 0;
-  if (uniq.length === 5) {
-    if (uniq[0] - uniq[4] === 4) straightTop = uniq[0];
-    else if (uniq[0] === 14 && uniq[1] === 5 && uniq[4] === 2) straightTop = 5; // the wheel
-  }
-  if (flush && straightTop) return packScore(8, [straightTop]);
-  if (groups[0][0] === 4) return packScore(7, [groups[0][1], groups[1][1]]);
-  if (groups[0][0] === 3 && groups[1][0] === 2) return packScore(6, [groups[0][1], groups[1][1]]);
-  if (flush) return packScore(5, rs);
-  if (straightTop) return packScore(4, [straightTop]);
-  if (groups[0][0] === 3) return packScore(3, [groups[0][1], groups[1][1], groups[2][1]]);
-  if (groups[0][0] === 2 && groups[1][0] === 2) return packScore(2, [groups[0][1], groups[1][1], groups[2][1]]);
-  if (groups[0][0] === 2) return packScore(1, [groups[0][1], groups[1][1], groups[2][1], groups[3][1]]);
-  return packScore(0, rs);
-}
-
-function score7(cards) {
-  // best of the 21 five-card subsets (drop two of seven)
-  let best = 0;
-  const pick = new Array(5);
-  for (let a = 0; a < 6; a++)
-    for (let b = a + 1; b < 7; b++) {
-      let k = 0;
-      for (let i = 0; i < 7; i++) if (i !== a && i !== b) pick[k++] = cards[i];
-      const s = score5H(pick);
-      if (s > best) best = s;
-    }
-  return best;
-}
-
-const scoreCatName = (s) => HOLDEM_CATS[Math.floor(s / P16[5])];
-
-/* ==================== MONTE CARLO EQUITY ====================
- * Rollouts of the unseen deck: deal each opponent a random hole,
- * complete the board, count wins (ties count fractionally). This
- * is the bots' only source of hand strength. */
-function equityVs(hole, board, nOpps, trials, rng) {
-  const seen = new Set([...hole, ...board].map(cardId));
-  const pool = fullDeck().filter((c) => !seen.has(cardId(c)));
-  let won = 0;
-  const deckBuf = pool.slice();
-  for (let t = 0; t < trials; t++) {
-    // partial Fisher–Yates: we only need nOpps*2 + boardNeed cards
-    const need = nOpps * 2 + (5 - board.length);
-    for (let i = 0; i < need; i++) {
-      const j = i + ((rng() * (deckBuf.length - i)) | 0);
-      [deckBuf[i], deckBuf[j]] = [deckBuf[j], deckBuf[i]];
-    }
-    let d = 0;
-    const fullBoard = board.slice();
-    const oppHoles = [];
-    for (let o = 0; o < nOpps; o++) oppHoles.push([deckBuf[d++], deckBuf[d++]]);
-    while (fullBoard.length < 5) fullBoard.push(deckBuf[d++]);
-    const mine = score7([...hole, ...fullBoard]);
-    let beat = true, ties = 0;
-    for (const oh of oppHoles) {
-      const os = score7([...oh, ...fullBoard]);
-      if (os > mine) { beat = false; break; }
-      if (os === mine) ties++;
-    }
-    if (beat) won += ties ? 1 / (ties + 1) : 1;
-  }
-  return won / trials;
-}
-
-/* Broadcast equity: per-player win % when every live hole is known. EXACT
- * enumeration when one or two board cards remain (the project's
- * enumeration-first rule); Monte Carlo only preflop/on the flop. Ties count
- * fractionally. Returns win probabilities in `holes` order. */
-function equityMulti(holes, board, rng) {
-  const seen = new Set([...holes.flat(), ...board].map(cardId));
-  const pool = fullDeck().filter((c) => !seen.has(cardId(c)));
-  const need = 5 - board.length;
-  const wins = new Array(holes.length).fill(0);
-  let total = 0;
-  const scoreOut = (fullBoard) => {
-    const scores = holes.map((h) => score7([...h, ...fullBoard]));
-    const best = Math.max(...scores);
-    const winners = scores.reduce((n, s) => n + (s === best ? 1 : 0), 0);
-    for (let i = 0; i < scores.length; i++) if (scores[i] === best) wins[i] += 1 / winners;
-    total++;
-  };
-  if (need === 0) scoreOut(board);
-  else if (need <= 2) {
-    for (let i = 0; i < pool.length; i++) {
-      if (need === 1) scoreOut([...board, pool[i]]);
-      else for (let j = i + 1; j < pool.length; j++) scoreOut([...board, pool[i], pool[j]]);
-    }
-  } else {
-    const buf = pool.slice();
-    for (let t = 0; t < 400; t++) {
-      for (let i = 0; i < need; i++) {
-        const j = i + ((rng() * (buf.length - i)) | 0);
-        [buf[i], buf[j]] = [buf[j], buf[i]];
-      }
-      scoreOut([...board, ...buf.slice(0, need)]);
-    }
-  }
-  return wins.map((w) => w / total);
-}
-
-/* ==================== TABLE CORE (pure functions) ==================== */
-
-const SMALL_BLIND = 25;
-const BIG_BLIND = 50;
-const START_STACK = 5000;
-const USER_SEAT = 0;
-
-/* Fictional characters by design — no real player's name, image, or persona. */
-const PERSONAS = [
-  { name: "You", tag: "", tight: 0, aggr: 0, quips: [] },
-  {
-    name: "Ace Meridian", tag: "WORLD #1", tight: 0.06, aggr: 0.75,
-    quips: [
-      "Your bet tells a story. It's fiction.",
-      "Pressure is free. I give it away all night.",
-      "I've folded better hands than the one you're proud of.",
-      "The pot was mine before the flop. You're just finding out.",
-      "Chips flow toward patience.",
-      "I don't need cards. I need you to blink.",
-    ],
-  },
-  {
-    name: "Nova Tran", tag: "loose cannon", tight: -0.08, aggr: 0.9,
-    quips: ["Any two, baby.", "Math is for banks.", "Raise now, count later."],
-  },
-  {
-    name: "Granite Ford", tag: "the rock", tight: 0.12, aggr: 0.2,
-    quips: ["Hm.", "I'll wait.", "Patience pays the rent."],
-  },
-];
-
-function shuffledFrom(rng) {
-  const d = fullDeck();
-  for (let i = d.length - 1; i > 0; i--) {
-    const j = (rng() * (i + 1)) | 0;
-    [d[i], d[j]] = [d[j], d[i]];
-  }
-  return d;
-}
-
-function makeTable(userStack) {
-  return {
-    handNo: 0,
-    btn: 3, // first startHand advances to 0
-    phase: "idle", // idle | betting | over
-    street: 0, board: [], deck: [],
-    pot: 0, currentBet: 0, minRaise: BIG_BLIND,
-    toAct: -1, needs: [],
-    message: "", quip: null, winners: [], revealed: false,
-    players: PERSONAS.map((p, i) => ({
-      name: p.name, tag: p.tag, isUser: i === USER_SEAT,
-      tight: p.tight, aggr: p.aggr,
-      stack: i === USER_SEAT && userStack > 0 ? userStack : START_STACK,
-      hole: [], folded: true, allIn: false,
-      streetBet: 0, committed: 0, lastAct: "",
-    })),
-  };
-}
-
-const seatsFrom = (start, pred, players) => {
-  const out = [];
-  for (let k = 0; k < players.length; k++) {
-    const i = (start + k) % players.length;
-    if (pred(players[i], i)) out.push(i);
-  }
-  return out;
-};
-const inHand = (p) => !p.folded;
-const canStillAct = (p) => !p.folded && !p.allIn;
-
-function startHand(state, rng) {
-  const s = JSON.parse(JSON.stringify(state)); // state is plain JSON; oldest WebViews lack structuredClone
-  s.handNo += 1;
-  s.btn = (s.btn + 1) % 4;
-  s.deck = shuffledFrom(rng);
-  s.board = []; s.street = 0; s.pot = 0;
-  s.currentBet = 0; s.minRaise = BIG_BLIND;
-  s.message = ""; s.quip = null; s.winners = []; s.revealed = false;
-  s.phase = "betting";
-  for (const p of s.players) {
-    if (p.stack < BIG_BLIND) { p.stack = START_STACK; p.rebuyNote = true; } else p.rebuyNote = false;
-    p.hole = []; p.folded = false; p.allIn = false;
-    p.streetBet = 0; p.committed = 0; p.lastAct = "";
-  }
-  // two cards each, dealt from the top of the one shuffled deck
-  for (let round = 0; round < 2; round++)
-    for (let k = 1; k <= 4; k++) s.players[(s.btn + k) % 4].hole.push(s.deck.pop());
-  // blinds
-  const post = (seat, amt, label) => {
-    const p = s.players[seat];
-    const pay = Math.min(amt, p.stack);
-    p.stack -= pay; p.streetBet += pay; p.committed += pay; s.pot += pay;
-    if (p.stack === 0) p.allIn = true;
-    p.lastAct = label;
-  };
-  post((s.btn + 1) % 4, SMALL_BLIND, `small blind $${SMALL_BLIND}`);
-  post((s.btn + 2) % 4, BIG_BLIND, `big blind $${BIG_BLIND}`);
-  s.currentBet = BIG_BLIND;
-  // preflop action starts under the gun; the big blind acts last (option kept)
-  s.needs = seatsFrom((s.btn + 3) % 4, canStillAct, s.players);
-  s.toAct = s.needs.length ? s.needs[0] : -1;
-  return s;
-}
-
-function legalActions(state) {
-  const p = state.players[state.toAct];
-  const toCall = Math.min(state.currentBet - p.streetBet, p.stack);
-  const maxTo = p.streetBet + p.stack; // all-in "raise to"
-  const minTo = Math.min(state.currentBet + state.minRaise, maxTo);
-  return {
-    toCall,
-    canCheck: toCall === 0,
-    canRaise: maxTo > state.currentBet,
-    minRaiseTo: minTo,
-    maxRaiseTo: maxTo,
-  };
-}
-
-/* Layered side pots from per-player committed totals. Each layer pays the best
- * unfolded hand among players committed at that level (split on exact ties,
- * odd chip to the earliest winner left of the button). */
-function settleShowdown(s) {
-  const levels = [...new Set(s.players.filter((p) => p.committed > 0).map((p) => p.committed))].sort((a, b) => a - b);
-  const scores = s.players.map((p) => (inHand(p) ? score7([...p.hole, ...s.board]) : -1));
-  const awards = new Array(4).fill(0);
-  let prev = 0;
-  for (const level of levels) {
-    const contributors = s.players.filter((p) => p.committed >= level).length;
-    const layer = (level - prev) * contributors;
-    prev = level;
-    const eligible = s.players.map((p, i) => i).filter((i) => inHand(s.players[i]) && s.players[i].committed >= level);
-    const best = Math.max(...eligible.map((i) => scores[i]));
-    const winners = seatsFrom((s.btn + 1) % 4, (_, i) => eligible.includes(i) && scores[i] === best, s.players);
-    const share = Math.floor(layer / winners.length);
-    let rem = layer - share * winners.length;
-    for (const w of winners) { awards[w] += share + (rem > 0 ? 1 : 0); rem = Math.max(0, rem - 1); }
-  }
-  for (let i = 0; i < 4; i++) s.players[i].stack += awards[i];
-  const overallBest = Math.max(...scores);
-  s.winners = s.players.map((_, i) => i).filter((i) => scores[i] === overallBest && awards[i] > 0);
-  s.revealed = true;
-  s.phase = "over";
-  const names = s.winners.map((i) => s.players[i].name).join(" & ");
-  const plural = s.winners.length > 1 || s.winners.includes(USER_SEAT);
-  s.message = `${names} win${plural ? "" : "s"} with ${scoreCatName(overallBest)} · pot $${s.pot.toLocaleString()}`;
-  s.toAct = -1; s.needs = [];
-  return s;
-}
-
-function endStreetOrShowdown(s) {
-  for (const p of s.players) p.streetBet = 0;
-  s.currentBet = 0; s.minRaise = BIG_BLIND;
-  const live = s.players.filter(inHand);
-  const actors = s.players.filter(canStillAct);
-  const dealNext = () => {
-    s.street += 1;
-    s.board.push(s.deck.pop());
-    if (s.street === 1) { s.board.push(s.deck.pop()); s.board.push(s.deck.pop()); } // flop is three
-  };
-  if (actors.length < 2) {
-    // Everyone left is all-in (or only one can act): the broadcast moment.
-    // Hands flip up and the view steps the board out street by street with
-    // live win percentages (runoutStep below); nothing settles until the river.
-    if (s.street >= 3) return settleShowdown(s);
-    s.phase = "runout";
-    s.revealed = true;
-    s.toAct = -1; s.needs = [];
-    s.message = "ALL IN — running it out";
-    return s;
-  }
-  if (s.street === 3) return settleShowdown(s);
-  dealNext();
-  s.needs = seatsFrom((s.btn + 1) % 4, canStillAct, s.players);
-  s.toAct = s.needs[0];
-  if (live.length < 2) return settleShowdown(s); // defensive; folds are handled in applyAction
-  return s;
-}
-
-/* One broadcast tick: deal the next street; after the river, settle. Pure. */
-function runoutStep(state) {
-  const s = JSON.parse(JSON.stringify(state));
-  if (s.phase !== "runout") return s;
-  if (s.street >= 3) return settleShowdown(s);
-  s.street += 1;
-  s.board.push(s.deck.pop());
-  if (s.street === 1) { s.board.push(s.deck.pop()); s.board.push(s.deck.pop()); }
-  return s;
-}
-
-/* action: {type:'fold'} | {type:'call'} | {type:'raise', to} (+optional quipIndex) */
-function applyAction(state, action) {
-  const s = JSON.parse(JSON.stringify(state)); // state is plain JSON; oldest WebViews lack structuredClone
-  if (s.phase !== "betting" || s.toAct < 0) return s;
-  const seat = s.toAct;
-  const p = s.players[seat];
-  const la = legalActions(s);
-  s.quip = null;
-  if (action.type === "fold") {
-    p.folded = true;
-    p.lastAct = "folds";
-  } else if (action.type === "call") {
-    const pay = la.toCall;
-    p.stack -= pay; p.streetBet += pay; p.committed += pay; s.pot += pay;
-    if (p.stack === 0 && pay > 0) p.allIn = true;
-    p.lastAct = pay === 0 ? "checks" : `calls $${pay.toLocaleString()}`;
-  } else if (action.type === "raise") {
-    let to = Math.round(action.to);
-    if (!la.canRaise) return s;
-    to = Math.max(la.minRaiseTo, Math.min(to, la.maxRaiseTo));
-    const pay = to - p.streetBet;
-    p.stack -= pay; p.streetBet = to; p.committed += pay; s.pot += pay;
-    if (p.stack === 0) p.allIn = true;
-    s.minRaise = Math.max(s.minRaise, to - s.currentBet);
-    const wasBet = s.currentBet === 0;
-    s.currentBet = to;
-    p.lastAct = `${p.allIn ? "all-in" : wasBet ? "bets" : "raises to"} $${to.toLocaleString()}`;
-    s.needs = seatsFrom((seat + 1) % 4, (q, i) => i !== seat && canStillAct(q) && q.streetBet < to, s.players);
-    if (typeof action.quipIndex === "number" && PERSONAS[seat].quips.length)
-      s.quip = { seat, text: PERSONAS[seat].quips[action.quipIndex % PERSONAS[seat].quips.length] };
-    s.toAct = s.needs.length ? s.needs[0] : -1;
-    if (!s.needs.length) return endStreetOrShowdown(s);
-    return s;
-  }
-  s.needs = s.needs.filter((i) => i !== seat);
-  const live = s.players.filter(inHand);
-  if (live.length === 1) {
-    // everyone else folded: pot ships without a showdown, cards stay hidden
-    const w = s.players.findIndex(inHand);
-    s.players[w].stack += s.pot;
-    s.winners = [w]; s.revealed = false; s.phase = "over";
-    s.message = `${s.players[w].name} takes $${s.pot.toLocaleString()} uncontested`;
-    s.toAct = -1; s.needs = [];
-    return s;
-  }
-  if (!s.needs.length) return endStreetOrShowdown(s);
-  s.toAct = s.needs[0];
-  return s;
-}
-
-/* Bot policy: Monte Carlo equity vs pot odds, shaded by persona. Simulation is
- * the only card knowledge; tight shifts the calling bar, aggr sets bet frequency
- * and sizing. Returns an action for state.toAct. */
-function botDecide(state, rng) {
-  const seat = state.toAct;
-  const p = state.players[seat];
-  const la = legalActions(state);
-  const opps = state.players.filter((q, i) => i !== seat && inHand(q)).length;
-  const trials = 140 + state.street * 40;
-  const eq = equityVs(p.hole, state.board, opps, trials, rng);
-  const potAfterCall = state.pot + la.toCall;
-  const potOdds = la.toCall > 0 ? la.toCall / potAfterCall : 0;
-  const raiseTo = () => {
-    const size = Math.round((state.pot * (0.55 + p.aggr * 0.6 * rng())) / 25) * 25;
-    return Math.max(la.minRaiseTo, Math.min(p.streetBet + la.toCall + size, la.maxRaiseTo));
-  };
-  const quip = () => (rng() < (seat === 1 ? 0.45 : 0.2) ? { quipIndex: (rng() * 6) | 0 } : {});
-  if (la.canCheck) {
-    if (la.canRaise && (eq > 0.5 + p.tight + (1 - p.aggr) * 0.15 || rng() < p.aggr * 0.12))
-      return { type: "raise", to: raiseTo(), ...quip() };
-    return { type: "call" }; // check
-  }
-  if (eq < potOdds + p.tight * 0.6 && !(rng() < p.aggr * 0.05 && la.canRaise))
-    return la.toCall >= p.stack && eq > 0.32 ? { type: "call" } : { type: "fold" };
-  if (la.canRaise && eq > Math.max(0.62 + p.tight, potOdds * 2.2))
-    return { type: "raise", to: raiseTo(), ...quip() };
-  return { type: "call" };
-}
 
 const money = (v) => `$${v.toLocaleString()}`;
 
@@ -562,9 +170,10 @@ function loadStack() {
   } catch { return START_STACK; }
 }
 
-export default function PokerTable() {
+function SoloTable() {
   const [state, setState] = useState(() => makeTable(loadStack()));
   const [raiseTo, setRaiseTo] = useState(BIG_BLIND * 3);
+  const [friendsOpen, setFriendsOpen] = useState(false);
   const rngRef = useRef(mulberry32((Math.random() * 2 ** 31) | 0));
 
   const you = state.players[USER_SEAT];
@@ -694,10 +303,16 @@ export default function PokerTable() {
           <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", color: N.faint, marginLeft: 8 }}>PRACTICE CHIPS ONLY</span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button onClick={() => setFriendsOpen(true)} style={{
+            height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px",
+            border: "1px solid rgba(0,230,118,0.4)", background: "rgba(0,230,118,0.08)",
+            color: N.green, fontFamily: sans, fontSize: 11, fontWeight: 800,
+          }}>PLAY WITH FRIENDS</button>
           <AccountArea dark />
           <a href="index.html" aria-label="Home" style={{ color: N.dim, textDecoration: "none", fontSize: 16, lineHeight: 1, border: `1px solid ${N.line}`, borderRadius: 9, padding: "5px 9px", background: "rgba(255,255,255,0.02)" }}>⌂</a>
         </div>
       </div>
+      {friendsOpen && <CreateRoomModal onClose={() => setFriendsOpen(false)} />}
 
       <div style={{ flex: "1 1 auto", position: "relative", minHeight: 0, cursor: state.phase === "runout" ? "pointer" : "default" }}
         onClick={state.phase === "runout" ? skipRunout : undefined}>
@@ -840,4 +455,391 @@ export default function PokerTable() {
       </div>
     </div>
   );
+}
+
+/* ==================== MULTIPLAYER: ROOMS ====================
+ * ?room=CODE turns this page into a renderer of the server's redacted state
+ * (rooms.mjs): the deck and other players' hole cards never reach this
+ * browser. Actions are POSTs; state arrives over SSE. The server runs the
+ * bots, the turn timers, and the runout broadcast — same engine (src/holdem.js
+ * is vm-loaded server-side), one set of rules. */
+
+const roomIdentKey = (code) => `poker-room:${code}`;
+const readIdent = (code) => {
+  try { return JSON.parse(window.sessionStorage.getItem(roomIdentKey(code))); } catch { return null; }
+};
+const saveIdent = (code, ident) => {
+  try { window.sessionStorage.setItem(roomIdentKey(code), JSON.stringify(ident)); } catch { /* private mode */ }
+};
+
+const darkField = {
+  width: "100%", boxSizing: "border-box", padding: "11px 12px", borderRadius: 9,
+  border: `1px solid ${N.line2}`, background: "#101318", color: "#e8ebf2",
+  fontFamily: sans, fontSize: 14, marginBottom: 9, outline: "none",
+};
+const darkBtn = (primary) => ({
+  width: "100%", padding: "12px 10px", borderRadius: 10, cursor: "pointer",
+  fontFamily: sans, fontSize: 14, fontWeight: 800, border: "1px solid transparent",
+  background: primary ? `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)` : "#232733",
+  color: primary ? "#00230f" : "#e8ebf2",
+});
+
+function RoomCard({ children, title }) {
+  return (
+    <div style={{ minHeight: "100vh", background: N.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: sans, color: "#e8ebf2" }}>
+      <div style={{ width: "100%", maxWidth: 400, background: N.panel, border: `1px solid ${N.line}`, borderRadius: 16, padding: 22, boxShadow: "0 18px 50px rgba(0,0,0,0.6)" }}>
+        <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 12 }}>{title}</div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* Host-side "play with friends" modal, opened from the solo table. */
+function CreateRoomModal({ onClose }) {
+  const acct = useAccount();
+  const [name, setName] = React.useState((ACCT.user && ACCT.user.display_name) || "");
+  const [charity, setCharity] = React.useState(false);
+  const [pledge, setPledge] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const go = async () => {
+    setBusy(true); setError(null);
+    try {
+      const out = await acctApi("/room", { method: "POST", body: JSON.stringify({ name, charity_night: charity, pledge: Number(pledge) || 0 }) });
+      saveIdent(out.code, { seat: out.seat, key: out.key });
+      window.location.search = `?room=${out.code}`;
+    } catch (e) { setError(e.message); setBusy(false); }
+  };
+  return (
+    <Modal onBackdrop={onClose}>
+      <ModalHeader title="Play with friends" onClose={onClose} closeLabel="Close" />
+      <div style={{ fontFamily: mono, fontSize: 11, color: T.muted, lineHeight: 1.6, marginBottom: 10 }}>
+        You get a room link to text your friends — they take the bot seats from
+        anywhere. Cards are dealt on the server, so nobody's browser ever sees
+        another player's hand. Practice chips only.
+      </div>
+      <input style={fieldStyle} placeholder="your name at the table" maxLength={24} value={name} onChange={(e) => setName(e.target.value)} />
+      <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontFamily: mono, fontSize: 11.5, color: T.cream, margin: "2px 0 8px", cursor: "pointer" }}>
+        <input type="checkbox" checked={charity} onChange={(e) => setCharity(e.target.checked)} style={{ marginTop: 2 }} />
+        <span>Charity night — everyone pledges, the night's winner picks the charity, and everyone donates their own pledge directly on the charity's page. The app never touches money.</span>
+      </label>
+      {charity && <input style={fieldStyle} type="number" min="1" placeholder="your pledge (e.g. 50)" value={pledge} onChange={(e) => setPledge(e.target.value)} />}
+      {error && <div style={{ fontFamily: mono, fontSize: 11.5, color: T.pegRed, marginBottom: 8 }}>{error}</div>}
+      <button onClick={go} disabled={busy || !name.trim() || !acct.online} style={{ ...segStyle(true), width: "100%", padding: "11px 6px", fontSize: 13 }}>
+        {busy ? "…" : "Create room"}
+      </button>
+    </Modal>
+  );
+}
+
+function RoomTable({ code }) {
+  const acct = useAccount();
+  const [ident, setIdent] = React.useState(() => readIdent(code));
+  const [info, setInfo] = React.useState(null);
+  const [payload, setPayload] = React.useState(null);
+  const [error, setError] = React.useState(null);
+  const [joinName, setJoinName] = React.useState("");
+  const [joinPledge, setJoinPledge] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [raiseTo, setRaiseTo] = React.useState(BIG_BLIND * 3);
+  const [charityName, setCharityName] = React.useState("");
+  const [charityUrl, setCharityUrl] = React.useState("");
+  const esRef = React.useRef(null);
+
+  // pre-join info
+  React.useEffect(() => {
+    if (!acct.checked || !acct.online || ident) return;
+    acctApi(`/room/${code}/info`).then((i) => { setInfo(i); setJoinName((ACCT.user && ACCT.user.display_name) || ""); })
+      .catch((e) => setError(e.message));
+  }, [acct.checked, acct.online, ident]);
+
+  // the stream
+  React.useEffect(() => {
+    if (!acct.online || !ident) return;
+    const es = new EventSource(`${ACCT.base}/api/room/${code}/events?seat=${ident.seat}&key=${encodeURIComponent(ident.key)}`);
+    esRef.current = es;
+    es.onmessage = (ev) => { try { setPayload(JSON.parse(ev.data)); } catch { /* ping */ } };
+    es.onerror = () => { /* EventSource auto-reconnects */ };
+    return () => es.close();
+  }, [acct.online, ident]);
+
+  const post = async (verb, body = {}) => {
+    setError(null);
+    try { return await acctApi(`/room/${code}/${verb}`, { method: "POST", body: JSON.stringify({ seat: ident.seat, key: ident.key, ...body }) }); }
+    catch (e) { setError(e.message); }
+  };
+  const join = async () => {
+    setBusy(true); setError(null);
+    try {
+      const out = await acctApi(`/room/${code}/join`, { method: "POST", body: JSON.stringify({ name: joinName, pledge: Number(joinPledge) || 0 }) });
+      saveIdent(code, { seat: out.seat, key: out.key });
+      setIdent({ seat: out.seat, key: out.key });
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const state = payload && payload.state;
+  const mySeat = payload ? payload.youSeat : -1;
+  const isHost = mySeat === 0;
+  const userTurn = state && state.phase === "betting" && state.toAct === mySeat;
+  const la = userTurn ? legalActions(state) : null;
+  React.useEffect(() => { if (userTurn && la) setRaiseTo(clampN(la.minRaiseTo, state.pot, la.maxRaiseTo)); /* eslint-disable-line */ }, [userTurn]);
+
+  // my finished hands feed my account stats, same as solo
+  const reportedHand = React.useRef(0);
+  React.useEffect(() => {
+    if (!state || state.phase !== "over" || state.handNo === 0 || reportedHand.current === state.handNo) return;
+    reportedHand.current = state.handNo;
+    const won = state.winners.includes(mySeat);
+    reportStats({ set: { table_stack: state.players[mySeat].stack }, inc: { table_hands: 1, table_wins: won ? 1 : 0 }, maxOf: won ? { biggest_pot: state.pot } : {} });
+  }, [state]);
+
+  /* --- pre-table screens --- */
+  if (!acct.checked) return <RoomCard title="Connecting…"><div style={{ color: N.dim, fontSize: 13 }}>Finding the poker server.</div></RoomCard>;
+  if (!acct.online) return <RoomCard title="No table service here">
+    <div style={{ color: N.dim, fontSize: 13, lineHeight: 1.6 }}>This copy of the app can't reach the poker server, so shared rooms aren't available. Open the online version to join room {code}.</div>
+  </RoomCard>;
+  if (!ident) {
+    return (
+      <RoomCard title={info ? `Join room ${code}` : error ? "Room unavailable" : "Looking up the room…"}>
+        {info && (
+          <>
+            <div style={{ color: N.dim, fontSize: 12.5, lineHeight: 1.6, marginBottom: 12 }}>
+              At the table: {info.players.join(", ")} · {info.openSeats} open seat{info.openSeats === 1 ? "" : "s"}
+              {info.charity_night ? " · CHARITY NIGHT" : ""}
+            </div>
+            <input style={darkField} placeholder="your name at the table" maxLength={24} value={joinName} onChange={(e) => setJoinName(e.target.value)} />
+            {info.charity_night && <input style={darkField} type="number" min="1" placeholder="your pledge (donated by you, directly, later)" value={joinPledge} onChange={(e) => setJoinPledge(e.target.value)} />}
+            <button style={darkBtn(true)} disabled={busy || !joinName.trim()} onClick={join}>{busy ? "…" : "Take a seat"}</button>
+          </>
+        )}
+        {error && <div style={{ color: N.redSoft, fontSize: 12.5, marginTop: 8 }}>{error}</div>}
+      </RoomCard>
+    );
+  }
+  if (!state) return <RoomCard title={`Room ${code}`}><div style={{ color: N.dim, fontSize: 13 }}>Taking your seat…</div></RoomCard>;
+
+  /* --- the table (server-driven) --- */
+  const you = state.players[mySeat];
+  const others = [1, 2, 3].map((k) => (mySeat + k) % 4);
+  const OPP_SPOTS = [{ x: 14, y: 26 }, { x: 50, y: 11 }, { x: 86, y: 26 }];
+  const equities = payload.equities;
+  const leadSeat = equities ? Number(Object.keys(equities).reduce((a, b) => (equities[a] >= equities[b] ? a : b))) : -1;
+  const vw2 = Math.min(typeof window !== "undefined" ? window.innerWidth : 400, 900);
+  const boardW = clampN(38, Math.round(vw2 * 0.115), 54);
+  const holeW = clampN(54, Math.round(vw2 * 0.16), 74);
+  const streetNames = ["Pre-flop", "Flop", "Turn", "River"];
+  const charity = payload.charity;
+  const shareUrl = typeof window !== "undefined" ? `${window.location.origin}${window.location.pathname}?room=${code}` : "";
+  const actBtn = (extra) => ({
+    padding: "13px 8px", borderRadius: 12, fontFamily: sans, fontSize: 14, fontWeight: 800,
+    letterSpacing: "0.04em", cursor: "pointer", border: "1px solid transparent", width: "100%", ...extra,
+  });
+
+  return (
+    <div style={{ background: `radial-gradient(130% 70% at 50% -10%, #10151b, ${N.bg} 60%)`, minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: sans, color: N.text, overflow: "hidden" }}>
+      <style>{`
+        html, body { background: ${N.bg}; }
+        button:active { filter: brightness(1.15); transform: translateY(1px); }
+        button:disabled { opacity: 0.4; cursor: default; }
+        input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px;
+          border-radius: 999px; background: linear-gradient(90deg, ${N.green} var(--fill, 0%), #2b2f3a var(--fill, 0%)); outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+          width: 24px; height: 24px; border-radius: 50%; border: none;
+          background: radial-gradient(circle at 35% 35%, #7dffb8, ${N.green} 65%);
+          box-shadow: 0 0 12px rgba(0,230,118,0.55), 0 2px 6px rgba(0,0,0,0.6); }
+        input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; border: none; background: ${N.green}; }
+        @keyframes cardIn { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+        .boardwrap > * { animation: cardIn 240ms ease both }
+      `}</style>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px 6px", flex: "0 0 auto", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ minWidth: 0 }}>
+          <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: "0.12em", color: N.dim }}>ROOM {code}</span>
+          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", color: N.faint, marginLeft: 8 }}>PRACTICE CHIPS ONLY</span>
+          {charity.night && (
+            <span style={{ fontSize: 10.5, fontWeight: 800, color: N.gold, marginLeft: 8 }}>
+              CHARITY NIGHT · ${charity.total.toLocaleString()} pledged
+            </span>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {payload.openSeats > 0 && (
+            <button onClick={() => { try { navigator.clipboard.writeText(shareUrl); setError("Link copied — text it to a friend."); setTimeout(() => setError(null), 2000); } catch { setError(shareUrl); } }}
+              style={{ height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px", border: `1px solid rgba(0,230,118,0.4)`, background: "rgba(0,230,118,0.08)", color: N.green, fontFamily: sans, fontSize: 11, fontWeight: 800 }}>
+              INVITE · {payload.openSeats} seat{payload.openSeats === 1 ? "" : "s"} open
+            </button>
+          )}
+          <AccountArea dark />
+          <a href="index.html" aria-label="Home" style={{ color: N.dim, textDecoration: "none", fontSize: 16, lineHeight: 1, border: `1px solid ${N.line}`, borderRadius: 9, padding: "5px 9px", background: "rgba(255,255,255,0.02)" }}>⌂</a>
+        </div>
+      </div>
+      {error && <div style={{ textAlign: "center", fontSize: 11.5, fontWeight: 700, color: N.gold, padding: "0 12px" }}>{error}</div>}
+
+      <div style={{ flex: "1 1 auto", position: "relative", minHeight: 0 }}>
+       <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, transform: "translateX(-50%)", width: "min(100vw, 900px)" }}>
+        <div style={{
+          position: "absolute", inset: "5% 5% 3% 5%", borderRadius: "48% / 42%",
+          background: `radial-gradient(75% 70% at 50% 32%, ${N.feltHi}, ${N.felt} 75%)`,
+          border: `7px solid ${N.rail}`,
+          boxShadow: "0 0 60px rgba(0,0,0,0.85), inset 0 0 46px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(0,230,118,0.07)",
+        }} />
+
+        {others.map((seat, i) => (
+          <OppSeat key={seat} player={state.players[seat]} seat={seat} spot={OPP_SPOTS[i]} state={state} cardW={boardW}
+            equity={equities ? equities[seat] : null} lead={leadSeat === seat} />
+        ))}
+
+        <div style={{ position: "absolute", left: "50%", top: "47%", transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 9, zIndex: 2, width: "100%" }}>
+          {state.handNo > 0 && (
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", color: N.faint }}>
+              HAND #{state.handNo} · {state.phase === "over" ? "COMPLETE" : state.phase === "runout" ? "ALL IN" : streetNames[state.street].toUpperCase()}
+            </div>
+          )}
+          <div style={{ background: "rgba(0,0,0,0.6)", border: "1px solid rgba(0,230,118,0.3)", borderRadius: 999, padding: "4px 15px", fontSize: 13, fontWeight: 800, color: N.green, boxShadow: "0 0 18px rgba(0,230,118,0.12)" }}>
+            POT&nbsp;&nbsp;{money(state.pot)}
+          </div>
+          <div className="boardwrap" style={{ display: "flex", gap: "clamp(4px, 1.5vw, 8px)", justifyContent: "center" }}>
+            {state.board.map((c) => <TableCard key={cardId(c)} card={c} w={boardW} />)}
+            {Array.from({ length: 5 - state.board.length }, (_, i) => <CardSlot key={`s${i}`} w={boardW} />)}
+          </div>
+          {state.message && (
+            <div style={{ marginTop: 2, background: "rgba(255,213,79,0.12)", border: "1px solid rgba(255,213,79,0.4)", borderRadius: 10, padding: "6px 14px", fontSize: 12.5, fontWeight: 700, color: N.gold, textAlign: "center", maxWidth: "88%" }}>
+              {state.message}
+            </div>
+          )}
+          {charity.picked && charity.picked.name && (
+            <div style={{ background: "rgba(0,230,118,0.1)", border: "1px solid rgba(0,230,118,0.45)", borderRadius: 12, padding: "10px 16px", textAlign: "center", maxWidth: "90%" }}>
+              <div style={{ fontSize: 13.5, fontWeight: 800, color: N.green }}>
+                {state.players[charity.winnerSeat].name} picked {charity.picked.name}
+              </div>
+              <div style={{ fontSize: 12, color: "#c9cfda", marginTop: 3 }}>
+                The table pledged ${charity.total.toLocaleString()} — everyone donates their own pledge directly:
+              </div>
+              {charity.picked.url && (
+                <a href={charity.picked.url} target="_blank" rel="noreferrer" style={{ color: N.gold, fontWeight: 800, fontSize: 13 }}>
+                  {charity.picked.url}
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div style={{ position: "absolute", left: "50%", bottom: 0, transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", zIndex: 4, opacity: you.folded && state.phase === "betting" ? 0.5 : 1 }}>
+          {you.hole.length > 0 && !you.folded && (
+            <div style={{ display: "flex", marginBottom: -10 }}>
+              {you.hole.map((c, i) => (
+                <div key={cardId(c)} style={{ transform: `rotate(${i === 0 ? -6 : 6}deg) translateY(${i === 0 ? 2 : 0}px)`, marginLeft: i === 0 ? 0 : -Math.round(holeW * 0.24), zIndex: i }}>
+                  <TableCard card={c} w={holeW} />
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10, position: "relative", zIndex: 6,
+            background: "rgba(13,16,20,0.97)",
+            border: `2px solid ${state.winners.includes(mySeat) ? N.gold : userTurn ? N.green : N.line}`,
+            boxShadow: userTurn ? "0 0 18px rgba(0,230,118,0.4)" : state.winners.includes(mySeat) ? "0 0 18px rgba(255,213,79,0.4)" : "0 6px 16px rgba(0,0,0,0.55)",
+            borderRadius: 13, padding: "7px 14px",
+          }}>
+            {state.btn === mySeat && state.handNo > 0 && (
+              <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#e8ebf2", color: "#14171d", fontSize: 10, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center" }}>D</span>
+            )}
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 800 }}>{you.name}{you.folded && state.phase === "betting" ? " · FOLDED" : ""}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: N.green }}>{money(you.stack)}</div>
+            </div>
+            {you.lastAct && <span style={{ fontSize: 10, fontWeight: 700, color: N.dim }}>{you.lastAct}</span>}
+            {equities && equities[mySeat] != null && <EquityBadge pct={equities[mySeat]} lead={leadSeat === mySeat} />}
+            <BetPill amount={you.streetBet} />
+          </div>
+        </div>
+       </div>
+      </div>
+
+      <div style={{ flex: "0 0 auto", background: `linear-gradient(180deg, ${N.panel}, #101318)`, borderTop: `1px solid ${N.line}`, padding: "12px 16px calc(12px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 11, alignItems: "center" }}>
+       <div style={{ width: "100%", maxWidth: 620, display: "flex", flexDirection: "column", gap: 11 }}>
+        {state.phase === "betting" ? (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, opacity: userTurn && la && la.canRaise ? 1 : 0.35 }}>
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: N.dim, flex: "0 0 auto" }}>{la ? money(la.minRaiseTo) : ""}</span>
+              <input type="range" aria-label="Raise to" disabled={!userTurn || !la || !la.canRaise}
+                min={la ? la.minRaiseTo : 0} max={la ? la.maxRaiseTo : 100} step={25}
+                value={la ? clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) : 0}
+                style={{ "--fill": la && la.maxRaiseTo > la.minRaiseTo ? `${((clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) - la.minRaiseTo) / (la.maxRaiseTo - la.minRaiseTo)) * 100}%` : "100%", flex: 1 }}
+                onChange={(e) => setRaiseTo(Number(e.target.value))} />
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: N.dim, flex: "0 0 auto" }}>{la ? money(la.maxRaiseTo) : ""}</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr 1.5fr", gap: 9 }}>
+              <button disabled={!userTurn} onClick={() => post("act", { action: { type: "fold" } })}
+                style={actBtn({ background: "#232733", color: N.redSoft, border: "1px solid rgba(255,82,82,0.25)" })}>FOLD</button>
+              <button disabled={!userTurn} onClick={() => post("act", { action: { type: "call" } })}
+                style={actBtn({ background: "#232733", color: N.text, border: `1px solid ${N.line2}` })}>
+                {userTurn && la ? (la.canCheck ? "CHECK" : `CALL ${money(la.toCall)}`) : "CHECK"}
+              </button>
+              <button disabled={!userTurn || !la || !la.canRaise} onClick={() => post("act", { action: { type: "raise", to: raiseTo } })}
+                style={actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" })}>
+                {la && clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) >= la.maxRaiseTo ? "ALL-IN" : `RAISE TO ${la ? money(clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo)) : ""}`}
+              </button>
+            </div>
+            {!userTurn && (
+              <div style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: N.dim }}>
+                {state.toAct >= 0 ? `${state.players[state.toAct].name} is thinking…` : "…"}
+              </div>
+            )}
+          </>
+        ) : state.phase === "runout" ? (
+          <div style={{ textAlign: "center", fontSize: 13, fontWeight: 800, letterSpacing: "0.08em", color: N.gold, padding: "13px 0" }}>
+            ALL IN — running it out…
+          </div>
+        ) : charity.night && charity.winnerSeat != null && !(charity.picked && charity.picked.name) ? (
+          charity.winnerSeat === mySeat ? (
+            <div>
+              <div style={{ fontSize: 13.5, fontWeight: 800, color: N.gold, marginBottom: 8 }}>You lead the night — pick where the table's ${charity.total.toLocaleString()} goes:</div>
+              <input style={darkField} placeholder="charity name" maxLength={80} value={charityName} onChange={(e) => setCharityName(e.target.value)} />
+              <input style={darkField} placeholder="donation link (https://…)" maxLength={300} value={charityUrl} onChange={(e) => setCharityUrl(e.target.value)} />
+              <button style={darkBtn(true)} disabled={!charityName.trim()} onClick={() => post("charity", { name: charityName, url: charityUrl })}>SEND THE NIGHT TO {charityName.trim().toUpperCase() || "…"}</button>
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", fontSize: 12.5, fontWeight: 700, color: N.dim, padding: "10px 0" }}>
+              {state.players[charity.winnerSeat].name} leads the night and is choosing the charity…
+            </div>
+          )
+        ) : (
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
+            {isHost ? (
+              <>
+                {!(charity.picked && charity.picked.name) && (
+                  <button onClick={() => post("deal")}
+                    style={{ ...actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }), width: "auto", padding: "13px 42px" }}>
+                    {state.handNo === 0 ? "DEAL THE FIRST HAND" : "NEXT HAND"}
+                  </button>
+                )}
+                {charity.night && state.handNo > 0 && charity.winnerSeat == null && (
+                  <button onClick={() => post("end-night")} style={{ ...actBtn({ background: "#232733", color: N.gold, border: "1px solid rgba(255,213,79,0.35)" }), width: "auto", padding: "13px 22px" }}>
+                    END NIGHT
+                  </button>
+                )}
+              </>
+            ) : (
+              <div style={{ textAlign: "center", fontSize: 12.5, fontWeight: 700, color: N.dim, padding: "10px 0" }}>
+                {charity.picked && charity.picked.name ? "The night is complete — donate above, then brag." : `Waiting for ${state.players[0].name} to deal…`}
+              </div>
+            )}
+          </div>
+        )}
+       </div>
+      </div>
+    </div>
+  );
+}
+
+const roomCodeFromUrl = () => {
+  try { return new URLSearchParams(window.location.search).get("room"); } catch { return null; }
+};
+
+export default function PokerTable() {
+  const code = roomCodeFromUrl();
+  return code ? <RoomTable code={code.toUpperCase()} /> : <SoloTable />;
 }

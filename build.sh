@@ -32,7 +32,7 @@ build_one() {
   #    The import sed captures whatever hooks the file imports, so it is component-agnostic.
   #    The shared engine (src/engine.js) and UI chrome (src/chrome.jsx) are PREPENDED so each
   #    built page ships one self-contained copy of the math + theme.
-  cat "$ROOT/src/engine.js" "$ROOT/src/account.js" "$ROOT/src/chrome.jsx" > "$TMP/app.tsx"
+  cat "$ROOT/src/engine.js" "$ROOT/src/holdem.js" "$ROOT/src/account.js" "$ROOT/src/chrome.jsx" > "$TMP/app.tsx"
   sed -e 's#^import React, { \(.*\) } from "react";#const { \1 } = React;#' \
       -e "s#^export default function ${COMPONENT}(#function ${COMPONENT}(#" \
       "$ROOT/$SRC" >> "$TMP/app.tsx"
@@ -44,7 +44,7 @@ build_one() {
   #      name-resolution catches exactly that. Run it on the original $SRC (which imports
   #      React/hooks as names) so React/ReactDOM globals don't register as false positives.
   local NAMEERR
-  cat "$ROOT/src/engine.js" "$ROOT/src/account.js" "$ROOT/src/chrome.jsx" "$ROOT/$SRC" > "$TMP/guard.tsx"
+  cat "$ROOT/src/engine.js" "$ROOT/src/holdem.js" "$ROOT/src/account.js" "$ROOT/src/chrome.jsx" "$ROOT/$SRC" > "$TMP/guard.tsx"
   NAMEERR="$("${TSC[@]}" "$TMP/guard.tsx" \
       --jsx react --target es2020 --module none --removeComments \
       --skipLibCheck --noEmit 2>&1 \

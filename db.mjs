@@ -63,6 +63,16 @@ export function openDb(path = DB_PATH) {
       payload TEXT,
       at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS nights (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL,
+      ended_at TEXT NOT NULL,
+      charity_name TEXT NOT NULL,
+      charity_url TEXT,
+      winner_name TEXT NOT NULL,
+      total_pledged INTEGER NOT NULL DEFAULT 0,
+      players TEXT
+    );
     CREATE TABLE IF NOT EXISTS signup_attempts (ip TEXT NOT NULL, at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS signin_attempts (ip TEXT NOT NULL, email TEXT, success INTEGER NOT NULL, at INTEGER NOT NULL);
     CREATE INDEX IF NOT EXISTS idx_signup_ip ON signup_attempts (ip, at);
@@ -70,6 +80,8 @@ export function openDb(path = DB_PATH) {
     CREATE INDEX IF NOT EXISTS idx_signin_email ON signin_attempts (email, at);
     CREATE INDEX IF NOT EXISTS idx_users_lb ON users (leaderboard_ok, deleted);
   `);
+  // additive migration: charity-night tally on stats
+  try { db.exec("ALTER TABLE stats ADD COLUMN raised INTEGER NOT NULL DEFAULT 0"); } catch { /* exists */ }
   return db;
 }
 
@@ -84,8 +96,10 @@ export function purgeLedgers(now = Date.now()) {
   run("DELETE FROM signin_attempts WHERE at < ?", now - 2 * 3600 * 1000);
 }
 
-/* maybe.love's log_event: metadata only, never content. */
+/* maybe.love's log_event: metadata only, never content. No-op when the DB is
+ * closed (rooms run fine with accounts disabled). */
 export function logEvent(userId, name, payload = {}) {
+  if (!db) return;
   run("INSERT INTO events (user_id, name, payload, at) VALUES (?, ?, ?, ?)",
     userId, name, JSON.stringify(payload), new Date().toISOString());
 }

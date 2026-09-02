@@ -182,445 +182,6 @@ function analyze(hand5) {
 function bestHold(hand5) {
     return analyze(hand5)[0].idxs;
 }
-const PUBLIC_API_URL = "https://poker-trainer-production-52ff.up.railway.app";
-const ACCT_TOKEN_KEY = "poker_token_v1";
-const ACCT_MIRROR_KEY = "poker-trainer:statsMirror.v1";
-const STALE_AFTER_MS = 20 * 60 * 1000;
-const ACCT = {
-    base: null,
-    available: false,
-    checked: false,
-    user: null,
-    stats: null,
-    history: [],
-    fetchedAt: 0,
-    listeners: [],
-};
-let _acctToken;
-function acctGetToken() {
-    if (_acctToken !== undefined)
-        return _acctToken;
-    try {
-        _acctToken = window.localStorage.getItem(ACCT_TOKEN_KEY);
-    }
-    catch {
-        _acctToken = null;
-    }
-    return _acctToken;
-}
-function acctSetToken(t) {
-    _acctToken = t;
-    try {
-        t ? window.localStorage.setItem(ACCT_TOKEN_KEY, t) : window.localStorage.removeItem(ACCT_TOKEN_KEY);
-    }
-    catch { }
-}
-function acctNotify() { for (const fn of ACCT.listeners) {
-    try {
-        fn();
-    }
-    catch { }
-} }
-function acctSubscribe(fn) { ACCT.listeners.push(fn); return () => { ACCT.listeners = ACCT.listeners.filter((f) => f !== fn); }; }
-async function acctApi(path, opts = {}) {
-    const token = acctGetToken();
-    const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
-    if (token)
-        headers.Authorization = `Bearer ${token}`;
-    let res;
-    try {
-        res = await fetch(`${ACCT.base}/api${path}`, { ...opts, headers });
-    }
-    catch {
-        throw new Error("couldn't reach the poker server. check your connection and try again.");
-    }
-    const text = await res.text();
-    let data = null;
-    try {
-        data = text ? JSON.parse(text) : null;
-    }
-    catch {
-        data = { raw: text };
-    }
-    if (!res.ok) {
-        const ours = res.status >= 500;
-        const msg = (!ours && (data && (data.detail || data.message)))
-            || (ours ? "something broke on our end. try that again in a moment."
-                : `Request failed (${res.status})`);
-        const e = new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
-        e.status = res.status;
-        throw e;
-    }
-    return data;
-}
-async function acctProbe(base) {
-    try {
-        const res = await fetch(`${base}/api/health`, { cache: "no-store" });
-        if (!res.ok)
-            return false;
-        const j = await res.json();
-        return !!(j && j.ok && j.accounts);
-    }
-    catch {
-        return false;
-    }
-}
-function acctAdopt(payload) {
-    if (payload.user)
-        ACCT.user = payload.user;
-    if (payload.stats)
-        ACCT.stats = payload.stats;
-    if (payload.trainer_history)
-        ACCT.history = payload.trainer_history;
-    ACCT.fetchedAt = Date.now();
-    acctNotify();
-}
-async function acctRefresh() {
-    if (!ACCT.available || !acctGetToken())
-        return;
-    try {
-        acctAdopt(await acctApi("/auth/me"));
-        acctPushMirror();
-    }
-    catch {
-        acctSetToken(null);
-        ACCT.user = null;
-        ACCT.stats = null;
-        ACCT.history = [];
-        acctNotify();
-    }
-}
-async function acctInit() {
-    if (ACCT.checked || typeof window === "undefined")
-        return;
-    ACCT.checked = true;
-    if (await acctProbe("")) {
-        ACCT.base = "";
-        ACCT.available = true;
-    }
-    else if (await acctProbe(PUBLIC_API_URL)) {
-        ACCT.base = PUBLIC_API_URL;
-        ACCT.available = true;
-    }
-    acctNotify();
-    if (ACCT.available && acctGetToken())
-        await acctRefresh();
-    try {
-        document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "visible" && ACCT.user && Date.now() - ACCT.fetchedAt > STALE_AFTER_MS)
-                acctRefresh();
-            if (document.visibilityState === "hidden")
-                acctFlushNow();
-        });
-        window.addEventListener("pagehide", acctFlushNow);
-    }
-    catch { }
-}
-function acctFlushNow() {
-    if (!ACCT.available || !ACCT.user)
-        return;
-    clearTimeout(_pushTimer);
-    const m = acctMirror();
-    const today = new Date().toISOString().slice(0, 10);
-    try {
-        fetch(`${ACCT.base}/api/stats`, {
-            method: "PUT", keepalive: true,
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${acctGetToken()}` },
-            body: JSON.stringify({ ...m, today: m.todayDay === today ? { hands: m.todayHands, optimal: m.todayOptimal, ev_lost: m.todayEvLost } : undefined }),
-        });
-    }
-    catch { }
-}
-async function acctSignin(email, password) {
-    const out = await acctApi("/auth/signin", { method: "POST", body: JSON.stringify({ email, password }) });
-    acctSetToken(out.token);
-    acctAdopt(out);
-    acctPushMirror();
-    return out;
-}
-async function acctSignup(fields) {
-    const out = await acctApi("/auth/signup", { method: "POST", body: JSON.stringify(fields) });
-    acctSetToken(out.token);
-    acctAdopt(out);
-    acctPushMirror();
-    return out;
-}
-async function acctRestore(email, password) {
-    const out = await acctApi("/auth/restore", { method: "POST", body: JSON.stringify({ email, password }) });
-    acctSetToken(out.token);
-    acctAdopt(out);
-    return out;
-}
-function acctSignout() {
-    acctSetToken(null);
-    ACCT.user = null;
-    ACCT.stats = null;
-    ACCT.history = [];
-    acctNotify();
-}
-async function acctPatchProfile(patch) {
-    const out = await acctApi("/profile", { method: "PATCH", body: JSON.stringify(patch) });
-    acctAdopt(out);
-    return out;
-}
-async function acctDeleteMe() {
-    const out = await acctApi("/auth/me", { method: "DELETE" });
-    acctSignout();
-    return out;
-}
-const acctExport = () => acctApi("/auth/export");
-const acctLeaderboard = () => acctApi("/leaderboard");
-function acctMirror() {
-    try {
-        return JSON.parse(window.localStorage.getItem(ACCT_MIRROR_KEY)) || {};
-    }
-    catch {
-        return {};
-    }
-}
-function acctSaveMirror(m) {
-    try {
-        window.localStorage.setItem(ACCT_MIRROR_KEY, JSON.stringify(m));
-    }
-    catch { }
-}
-let _pushTimer = null;
-function acctPushMirror() {
-    if (!ACCT.available || !ACCT.user)
-        return;
-    clearTimeout(_pushTimer);
-    _pushTimer = setTimeout(async () => {
-        const m = acctMirror();
-        const today = new Date().toISOString().slice(0, 10);
-        try {
-            const out = await acctApi("/stats", {
-                method: "PUT",
-                body: JSON.stringify({ ...m, today: m.todayDay === today ? { hands: m.todayHands, optimal: m.todayOptimal, ev_lost: m.todayEvLost } : undefined }),
-            });
-            if (out.stats) {
-                ACCT.stats = out.stats;
-                acctNotify();
-            }
-        }
-        catch { }
-    }, 1200);
-}
-function reportStats({ set = {}, inc = {}, maxOf = {} } = {}) {
-    const m = acctMirror();
-    for (const k of Object.keys(set))
-        m[k] = set[k];
-    for (const k of Object.keys(inc))
-        m[k] = (m[k] || 0) + inc[k];
-    for (const k of Object.keys(maxOf))
-        m[k] = Math.max(m[k] || 0, maxOf[k]);
-    const today = new Date().toISOString().slice(0, 10);
-    if (m.todayDay !== today) {
-        m.todayDay = today;
-        m.todayHands = 0;
-        m.todayOptimal = 0;
-        m.todayEvLost = 0;
-    }
-    if (inc.trainer_hands)
-        m.todayHands += inc.trainer_hands;
-    if (inc.trainer_optimal)
-        m.todayOptimal += inc.trainer_optimal;
-    if (inc.trainer_ev_lost)
-        m.todayEvLost += inc.trainer_ev_lost;
-    acctSaveMirror(m);
-    acctPushMirror();
-}
-const T = {
-    baize: "#1F423A", baizeHi: "#28534A",
-    woodD: "#5E3F26", woodM: "#8A5E37", woodL: "#B9824B",
-    pegRed: "#C8412B", pegIvory: "#ECDCB4",
-    ivory: "#F6EFDE", ink: "#241D14", suitRed: "#A8362A",
-    cream: "#ECE0C6", muted: "#C9BC9A", line: "rgba(236,224,182,0.16)",
-    good: "#5FA47C", goodDeep: "#3F7E5E", selBlue: "#5B95C2", gold: "#D9A441",
-};
-const SUIT = ["♠", "♥", "♦", "♣"];
-const isRed = (s) => s === 1 || s === 2;
-const rankLabel = (r) => (r === 1 ? "A" : r === 11 ? "J" : r === 12 ? "Q" : r === 13 ? "K" : String(r));
-const tag = (c) => `${rankLabel(c.r)}${SUIT[c.s]}`;
-const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
-const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
-const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
-const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.2.0";
-const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
-const segStyle = (on) => ({
-    flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
-    background: on ? T.pegIvory : "rgba(0,0,0,0.2)", color: on ? "#2A1B0E" : T.cream,
-    border: `1px solid ${on ? T.pegIvory : T.line}`, fontWeight: on ? 700 : 400,
-});
-function Modal({ onBackdrop, maxWidth = 380, padding = "20px", scroll = false, zIndex = 220, children }) {
-    return (React.createElement("div", { onClick: onBackdrop, style: { position: "fixed", inset: 0, zIndex, background: "rgba(0,0,0,0.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 } },
-        React.createElement("div", { onClick: (e) => e.stopPropagation(), style: { maxWidth, width: "100%", background: T.baize, border: `1px solid ${T.line}`, borderRadius: 14, padding, boxShadow: "0 14px 44px rgba(0,0,0,0.55)", ...(scroll ? { maxHeight: "86vh", overflowY: "auto" } : null) } }, children)));
-}
-function ModalHeader({ title, onClose, closeLabel }) {
-    return (React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 } },
-        React.createElement("span", { style: { fontWeight: 700, fontSize: 17 } }, title),
-        React.createElement("button", { onClick: onClose, style: { padding: "6px 14px", borderRadius: 8, cursor: "pointer", border: `1px solid ${T.line}`, background: "rgba(0,0,0,0.25)", color: T.cream, fontFamily: mono, fontSize: 11.5, fontWeight: 700 } }, closeLabel || "Done")));
-}
-function AboutModal({ onClose }) {
-    return (React.createElement(Modal, { onBackdrop: onClose },
-        React.createElement(ModalHeader, { title: "About", onClose: onClose }),
-        React.createElement("div", { style: { fontSize: 13.5, lineHeight: 1.55, color: T.cream } },
-            React.createElement("p", { style: { marginTop: 0 } },
-                "A five-card-draw poker trainer and a playable Jacks-or-Better game, modeled on the open-source ",
-                React.createElement("a", { href: "https://github.com/ghug/cribbage-trainer", style: { color: T.pegIvory } }, "cribbage-trainer"),
-                ": every number on screen comes from enumeration over the deck, never from a strategy chart."),
-            React.createElement("p", null, "All client-side \u2014 no accounts, no tracking; practice stats and the play bankroll live only in this browser."),
-            React.createElement("p", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, marginBottom: 0 } },
-                "v",
-                APP_VERSION))));
-}
-function ChipTrack({ pct }) {
-    const CHIPS = 20;
-    const lit = Math.round((Math.max(0, Math.min(100, pct)) / 100) * CHIPS);
-    return (React.createElement("div", { style: { display: "flex", gap: 4, alignItems: "center" }, "aria-label": `Accuracy ${pct.toFixed(0)}%` }, Array.from({ length: CHIPS }, (_, i) => (React.createElement("span", { key: i, style: {
-            width: 10, height: 10, borderRadius: "50%", flex: "0 0 auto",
-            background: i < lit ? T.pegIvory : "rgba(0,0,0,0.28)",
-            boxShadow: i < lit ? "0 0 0 2px rgba(236,220,180,0.45)" : "inset 0 1px 2px rgba(0,0,0,0.6)",
-            transition: "all 200ms ease",
-        } })))));
-}
-function CardFace({ card, held, faceDown, disabled, onClick, badge }) {
-    return (React.createElement("button", { onClick: onClick, disabled: disabled, "aria-pressed": !!held, "aria-label": faceDown ? "Face-down card" : `${rankLabel(card.r)} of ${["spades", "hearts", "diamonds", "clubs"][card.s]}${held ? ", held" : ""}`, style: {
-            width: 64, height: 92, borderRadius: 9, padding: 0, position: "relative",
-            background: faceDown ? `repeating-linear-gradient(45deg, ${T.baizeHi}, ${T.baizeHi} 4px, ${T.baize} 4px, ${T.baize} 8px)` : T.ivory,
-            color: faceDown ? T.ivory : isRed(card.s) ? T.suitRed : T.ink,
-            border: "1px solid rgba(0,0,0,0.3)", cursor: disabled ? "default" : "pointer",
-            outline: held ? `3px solid ${T.pegIvory}` : "none", outlineOffset: 1,
-            transform: held ? "translateY(-8px)" : "none", transition: "transform 140ms ease, outline 140ms ease",
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 3px 8px rgba(0,0,0,0.35)", fontFamily: serif,
-        } },
-        !faceDown && React.createElement("span", { style: { fontSize: 26, fontWeight: 700, lineHeight: 1 } }, rankLabel(card.r)),
-        !faceDown && React.createElement("span", { style: { fontSize: 26, lineHeight: 1.1 } }, SUIT[card.s]),
-        held && React.createElement("span", { style: { position: "absolute", top: -22, left: 0, right: 0, textAlign: "center", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: T.pegIvory } }, "HELD"),
-        badge && React.createElement("span", { style: { position: "absolute", bottom: -19, left: 0, right: 0, textAlign: "center", fontFamily: mono, fontSize: 9.5, fontWeight: 700, color: T.gold } }, badge)));
-}
-function CatBars({ cats, color }) {
-    const rows = [];
-    for (let c = CAT_COUNT - 1; c >= 1; c--) {
-        if (cats[c] <= 0)
-            continue;
-        rows.push({ c, p: cats[c], evShare: cats[c] * PAY[c] });
-    }
-    if (!rows.length)
-        return React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.muted } }, "No paying draw exists for this hold.");
-    const maxShare = Math.max(...rows.map((r) => r.evShare));
-    return (React.createElement("div", { style: { display: "grid", gap: 4 } }, rows.map(({ c, p, evShare }) => (React.createElement("div", { key: c, style: { display: "grid", gridTemplateColumns: "118px 1fr 92px", gap: 8, alignItems: "center", fontFamily: mono, fontSize: 11 } },
-        React.createElement("span", { style: { color: T.cream } }, catName(c)),
-        React.createElement("span", { style: { height: 8, borderRadius: 4, background: "rgba(0,0,0,0.3)", overflow: "hidden" } },
-            React.createElement("span", { style: { display: "block", height: "100%", width: `${maxShare > 0 ? (evShare / maxShare) * 100 : 0}%`, background: color, borderRadius: 4 } })),
-        React.createElement("span", { style: { color: T.muted, textAlign: "right" } },
-            (p * 100).toFixed(p >= 0.01 ? 1 : 3),
-            "% \u00B7 ",
-            evShare.toFixed(3)))))));
-}
-function useAccount() {
-    const [, bump] = React.useState(0);
-    React.useEffect(() => {
-        const un = acctSubscribe(() => bump((v) => v + 1));
-        acctInit();
-        return un;
-    }, []);
-    return ACCT;
-}
-const fieldStyle = {
-    width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8,
-    border: `1px solid ${T.line}`, background: "rgba(0,0,0,0.25)", color: T.cream,
-    fontFamily: mono, fontSize: 13, marginBottom: 8, outline: "none",
-};
-function AuthModal({ onClose }) {
-    const [mode, setMode] = React.useState("signin");
-    const [email, setEmail] = React.useState("");
-    const [password, setPassword] = React.useState("");
-    const [displayName, setDisplayName] = React.useState("");
-    const [dob, setDob] = React.useState("");
-    const [ageOk, setAgeOk] = React.useState(false);
-    const [msg, setMsg] = React.useState(null);
-    const [busy, setBusy] = React.useState(false);
-    const [restorable, setRestorable] = React.useState(false);
-    const go = async () => {
-        setBusy(true);
-        setMsg(null);
-        setRestorable(false);
-        try {
-            if (mode === "signin")
-                await acctSignin(email, password);
-            else
-                await acctSignup({ email, password, display_name: displayName, date_of_birth: dob, age_confirmed: ageOk });
-            onClose();
-        }
-        catch (e) {
-            if (e.status === 410)
-                setRestorable(true);
-            setMsg({ err: true, text: e.message });
-        }
-        finally {
-            setBusy(false);
-        }
-    };
-    const doRestore = async () => {
-        setBusy(true);
-        setMsg(null);
-        try {
-            await acctRestore(email, password);
-            onClose();
-        }
-        catch (e) {
-            setMsg({ err: true, text: e.message });
-        }
-        finally {
-            setBusy(false);
-        }
-    };
-    return (React.createElement(Modal, { onBackdrop: onClose, scroll: true },
-        React.createElement(ModalHeader, { title: mode === "signin" ? "Sign in" : "Create account", onClose: onClose, closeLabel: "Close" }),
-        React.createElement("div", { style: { fontSize: 13 } },
-            React.createElement("input", { style: fieldStyle, type: "email", placeholder: "email", value: email, autoComplete: "email", onChange: (e) => setEmail(e.target.value) }),
-            React.createElement("input", { style: fieldStyle, type: "password", placeholder: "password (8+ characters)", value: password, autoComplete: mode === "signin" ? "current-password" : "new-password", onChange: (e) => setPassword(e.target.value) }),
-            mode === "signup" && (React.createElement(React.Fragment, null,
-                React.createElement("input", { style: fieldStyle, placeholder: "display name (shows at the table)", maxLength: 40, value: displayName, onChange: (e) => setDisplayName(e.target.value) }),
-                React.createElement("div", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, margin: "2px 0 4px" } }, "Date of birth"),
-                React.createElement("input", { style: fieldStyle, type: "date", value: dob, onChange: (e) => setDob(e.target.value) }),
-                React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "flex-start", fontFamily: mono, fontSize: 11.5, color: T.cream, margin: "4px 0 10px", cursor: "pointer" } },
-                    React.createElement("input", { type: "checkbox", checked: ageOk, onChange: (e) => setAgeOk(e.target.checked), style: { marginTop: 2 } }),
-                    React.createElement("span", null, "I confirm I am 18 or older.")),
-                React.createElement("div", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, lineHeight: 1.5, marginBottom: 10 } }, "We store: your email, display name, date of birth, avatar, and practice stats (chips, hands, trainer accuracy). Nothing else \u2014 no tracking, no analytics, practice chips only. Export or delete everything any time from your profile. Playing never requires an account."))),
-            msg && React.createElement("div", { style: { fontFamily: mono, fontSize: 11.5, color: msg.err ? T.pegRed : T.good, margin: "2px 0 8px", lineHeight: 1.4 } }, msg.text),
-            restorable && (React.createElement("button", { onClick: doRestore, disabled: busy, style: { ...segStyle(true), width: "100%", marginBottom: 8 } }, "Restore my account")),
-            React.createElement("button", { onClick: go, disabled: busy, style: { ...segStyle(true), width: "100%", padding: "11px 6px", fontSize: 13 } }, busy ? "…" : mode === "signin" ? "Sign in" : "Create account"),
-            React.createElement("button", { onClick: () => { setMode(mode === "signin" ? "signup" : "signin"); setMsg(null); }, style: {
-                    background: "none", border: "none", color: T.muted, textDecoration: "underline",
-                    cursor: "pointer", fontFamily: mono, fontSize: 11, marginTop: 10, padding: 0,
-                } }, mode === "signin" ? "No account? Create one" : "Have an account? Sign in"))));
-}
-function AccountArea({ dark }) {
-    const acct = useAccount();
-    const [open, setOpen] = React.useState(false);
-    if (!acct.available)
-        return null;
-    const skin = dark
-        ? { border: "1px solid #2c303c", background: "rgba(255,255,255,0.04)", color: "#c9cfda" }
-        : { border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)", color: "#2A1B0E" };
-    const h = dark ? 30 : 40;
-    return (React.createElement(React.Fragment, null,
-        acct.user ? (React.createElement("a", { href: "profile.html", title: "Your profile", style: {
-                display: "flex", alignItems: "center", gap: 6, textDecoration: "none",
-                borderRadius: 10, padding: "0 10px", height: h, maxWidth: 130,
-                fontFamily: mono, fontSize: dark ? 11 : 12, fontWeight: 700, ...skin,
-            } },
-            React.createElement("span", { style: { fontSize: dark ? 14 : 17 } }, acct.user.avatar),
-            React.createElement("span", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, acct.user.display_name))) : (React.createElement("button", { onClick: () => setOpen(true), style: {
-                height: h, borderRadius: 10, cursor: "pointer", padding: "0 12px",
-                fontFamily: mono, fontSize: dark ? 11 : 12, fontWeight: 700, ...skin,
-            } }, "Sign in")),
-        open && React.createElement(AuthModal, { onClose: () => setOpen(false) })));
-}
-const { useState, useEffect, useRef } = React;
 const HOLDEM_CATS = ["High Card", "Pair", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush"];
 const hiRank = (r) => (r === 1 ? 14 : r);
 const P16 = [1, 16, 256, 4096, 65536, 1048576];
@@ -1048,6 +609,452 @@ function botDecide(state, rng) {
         return { type: "raise", to: raiseTo(), ...quip() };
     return { type: "call" };
 }
+const PUBLIC_API_URL = "https://poker-trainer-production-52ff.up.railway.app";
+const ACCT_TOKEN_KEY = "poker_token_v1";
+const ACCT_MIRROR_KEY = "poker-trainer:statsMirror.v1";
+const STALE_AFTER_MS = 20 * 60 * 1000;
+const ACCT = {
+    base: null,
+    online: false,
+    available: false,
+    rooms: false,
+    checked: false,
+    user: null,
+    stats: null,
+    history: [],
+    fetchedAt: 0,
+    listeners: [],
+};
+let _acctToken;
+function acctGetToken() {
+    if (_acctToken !== undefined)
+        return _acctToken;
+    try {
+        _acctToken = window.localStorage.getItem(ACCT_TOKEN_KEY);
+    }
+    catch {
+        _acctToken = null;
+    }
+    return _acctToken;
+}
+function acctSetToken(t) {
+    _acctToken = t;
+    try {
+        t ? window.localStorage.setItem(ACCT_TOKEN_KEY, t) : window.localStorage.removeItem(ACCT_TOKEN_KEY);
+    }
+    catch { }
+}
+function acctNotify() { for (const fn of ACCT.listeners) {
+    try {
+        fn();
+    }
+    catch { }
+} }
+function acctSubscribe(fn) { ACCT.listeners.push(fn); return () => { ACCT.listeners = ACCT.listeners.filter((f) => f !== fn); }; }
+async function acctApi(path, opts = {}) {
+    const token = acctGetToken();
+    const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+    if (token)
+        headers.Authorization = `Bearer ${token}`;
+    let res;
+    try {
+        res = await fetch(`${ACCT.base}/api${path}`, { ...opts, headers });
+    }
+    catch {
+        throw new Error("couldn't reach the poker server. check your connection and try again.");
+    }
+    const text = await res.text();
+    let data = null;
+    try {
+        data = text ? JSON.parse(text) : null;
+    }
+    catch {
+        data = { raw: text };
+    }
+    if (!res.ok) {
+        const ours = res.status >= 500;
+        const msg = (!ours && (data && (data.detail || data.message)))
+            || (ours ? "something broke on our end. try that again in a moment."
+                : `Request failed (${res.status})`);
+        const e = new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+        e.status = res.status;
+        throw e;
+    }
+    return data;
+}
+async function acctProbe(base) {
+    try {
+        const res = await fetch(`${base}/api/health`, { cache: "no-store" });
+        if (!res.ok)
+            return null;
+        const j = await res.json();
+        return j && j.ok ? { accounts: !!j.accounts, rooms: !!j.rooms } : null;
+    }
+    catch {
+        return null;
+    }
+}
+function acctAdopt(payload) {
+    if (payload.user)
+        ACCT.user = payload.user;
+    if (payload.stats)
+        ACCT.stats = payload.stats;
+    if (payload.trainer_history)
+        ACCT.history = payload.trainer_history;
+    ACCT.fetchedAt = Date.now();
+    acctNotify();
+}
+async function acctRefresh() {
+    if (!ACCT.available || !acctGetToken())
+        return;
+    try {
+        acctAdopt(await acctApi("/auth/me"));
+        acctPushMirror();
+    }
+    catch {
+        acctSetToken(null);
+        ACCT.user = null;
+        ACCT.stats = null;
+        ACCT.history = [];
+        acctNotify();
+    }
+}
+async function acctInit() {
+    if (ACCT.checked || typeof window === "undefined")
+        return;
+    ACCT.checked = true;
+    let h = await acctProbe("");
+    if (h)
+        ACCT.base = "";
+    else {
+        h = await acctProbe(PUBLIC_API_URL);
+        if (h)
+            ACCT.base = PUBLIC_API_URL;
+    }
+    if (h) {
+        ACCT.online = true;
+        ACCT.available = h.accounts;
+        ACCT.rooms = h.rooms;
+    }
+    acctNotify();
+    if (ACCT.available && acctGetToken())
+        await acctRefresh();
+    try {
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible" && ACCT.user && Date.now() - ACCT.fetchedAt > STALE_AFTER_MS)
+                acctRefresh();
+            if (document.visibilityState === "hidden")
+                acctFlushNow();
+        });
+        window.addEventListener("pagehide", acctFlushNow);
+    }
+    catch { }
+}
+function acctFlushNow() {
+    if (!ACCT.available || !ACCT.user)
+        return;
+    clearTimeout(_pushTimer);
+    const m = acctMirror();
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+        fetch(`${ACCT.base}/api/stats`, {
+            method: "PUT", keepalive: true,
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${acctGetToken()}` },
+            body: JSON.stringify({ ...m, today: m.todayDay === today ? { hands: m.todayHands, optimal: m.todayOptimal, ev_lost: m.todayEvLost } : undefined }),
+        });
+    }
+    catch { }
+}
+async function acctSignin(email, password) {
+    const out = await acctApi("/auth/signin", { method: "POST", body: JSON.stringify({ email, password }) });
+    acctSetToken(out.token);
+    acctAdopt(out);
+    acctPushMirror();
+    return out;
+}
+async function acctSignup(fields) {
+    const out = await acctApi("/auth/signup", { method: "POST", body: JSON.stringify(fields) });
+    acctSetToken(out.token);
+    acctAdopt(out);
+    acctPushMirror();
+    return out;
+}
+async function acctRestore(email, password) {
+    const out = await acctApi("/auth/restore", { method: "POST", body: JSON.stringify({ email, password }) });
+    acctSetToken(out.token);
+    acctAdopt(out);
+    return out;
+}
+function acctSignout() {
+    acctSetToken(null);
+    ACCT.user = null;
+    ACCT.stats = null;
+    ACCT.history = [];
+    acctNotify();
+}
+async function acctPatchProfile(patch) {
+    const out = await acctApi("/profile", { method: "PATCH", body: JSON.stringify(patch) });
+    acctAdopt(out);
+    return out;
+}
+async function acctDeleteMe() {
+    const out = await acctApi("/auth/me", { method: "DELETE" });
+    acctSignout();
+    return out;
+}
+const acctExport = () => acctApi("/auth/export");
+const acctLeaderboard = () => acctApi("/leaderboard");
+function acctMirror() {
+    try {
+        return JSON.parse(window.localStorage.getItem(ACCT_MIRROR_KEY)) || {};
+    }
+    catch {
+        return {};
+    }
+}
+function acctSaveMirror(m) {
+    try {
+        window.localStorage.setItem(ACCT_MIRROR_KEY, JSON.stringify(m));
+    }
+    catch { }
+}
+let _pushTimer = null;
+function acctPushMirror() {
+    if (!ACCT.available || !ACCT.user)
+        return;
+    clearTimeout(_pushTimer);
+    _pushTimer = setTimeout(async () => {
+        const m = acctMirror();
+        const today = new Date().toISOString().slice(0, 10);
+        try {
+            const out = await acctApi("/stats", {
+                method: "PUT",
+                body: JSON.stringify({ ...m, today: m.todayDay === today ? { hands: m.todayHands, optimal: m.todayOptimal, ev_lost: m.todayEvLost } : undefined }),
+            });
+            if (out.stats) {
+                ACCT.stats = out.stats;
+                acctNotify();
+            }
+        }
+        catch { }
+    }, 1200);
+}
+function reportStats({ set = {}, inc = {}, maxOf = {} } = {}) {
+    const m = acctMirror();
+    for (const k of Object.keys(set))
+        m[k] = set[k];
+    for (const k of Object.keys(inc))
+        m[k] = (m[k] || 0) + inc[k];
+    for (const k of Object.keys(maxOf))
+        m[k] = Math.max(m[k] || 0, maxOf[k]);
+    const today = new Date().toISOString().slice(0, 10);
+    if (m.todayDay !== today) {
+        m.todayDay = today;
+        m.todayHands = 0;
+        m.todayOptimal = 0;
+        m.todayEvLost = 0;
+    }
+    if (inc.trainer_hands)
+        m.todayHands += inc.trainer_hands;
+    if (inc.trainer_optimal)
+        m.todayOptimal += inc.trainer_optimal;
+    if (inc.trainer_ev_lost)
+        m.todayEvLost += inc.trainer_ev_lost;
+    acctSaveMirror(m);
+    acctPushMirror();
+}
+const T = {
+    baize: "#1F423A", baizeHi: "#28534A",
+    woodD: "#5E3F26", woodM: "#8A5E37", woodL: "#B9824B",
+    pegRed: "#C8412B", pegIvory: "#ECDCB4",
+    ivory: "#F6EFDE", ink: "#241D14", suitRed: "#A8362A",
+    cream: "#ECE0C6", muted: "#C9BC9A", line: "rgba(236,224,182,0.16)",
+    good: "#5FA47C", goodDeep: "#3F7E5E", selBlue: "#5B95C2", gold: "#D9A441",
+};
+const SUIT = ["♠", "♥", "♦", "♣"];
+const isRed = (s) => s === 1 || s === 2;
+const rankLabel = (r) => (r === 1 ? "A" : r === 11 ? "J" : r === 12 ? "Q" : r === 13 ? "K" : String(r));
+const tag = (c) => `${rankLabel(c.r)}${SUIT[c.s]}`;
+const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
+const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
+const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
+const catName = (i) => CAT_NAMES[i];
+const APP_VERSION = "0.3.0";
+const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
+const segStyle = (on) => ({
+    flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
+    background: on ? T.pegIvory : "rgba(0,0,0,0.2)", color: on ? "#2A1B0E" : T.cream,
+    border: `1px solid ${on ? T.pegIvory : T.line}`, fontWeight: on ? 700 : 400,
+});
+function Modal({ onBackdrop, maxWidth = 380, padding = "20px", scroll = false, zIndex = 220, children }) {
+    return (React.createElement("div", { onClick: onBackdrop, style: { position: "fixed", inset: 0, zIndex, background: "rgba(0,0,0,0.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 } },
+        React.createElement("div", { onClick: (e) => e.stopPropagation(), style: { maxWidth, width: "100%", background: T.baize, border: `1px solid ${T.line}`, borderRadius: 14, padding, boxShadow: "0 14px 44px rgba(0,0,0,0.55)", ...(scroll ? { maxHeight: "86vh", overflowY: "auto" } : null) } }, children)));
+}
+function ModalHeader({ title, onClose, closeLabel }) {
+    return (React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 } },
+        React.createElement("span", { style: { fontWeight: 700, fontSize: 17 } }, title),
+        React.createElement("button", { onClick: onClose, style: { padding: "6px 14px", borderRadius: 8, cursor: "pointer", border: `1px solid ${T.line}`, background: "rgba(0,0,0,0.25)", color: T.cream, fontFamily: mono, fontSize: 11.5, fontWeight: 700 } }, closeLabel || "Done")));
+}
+function AboutModal({ onClose }) {
+    return (React.createElement(Modal, { onBackdrop: onClose },
+        React.createElement(ModalHeader, { title: "About", onClose: onClose }),
+        React.createElement("div", { style: { fontSize: 13.5, lineHeight: 1.55, color: T.cream } },
+            React.createElement("p", { style: { marginTop: 0 } },
+                "A five-card-draw poker trainer and a playable Jacks-or-Better game, modeled on the open-source ",
+                React.createElement("a", { href: "https://github.com/ghug/cribbage-trainer", style: { color: T.pegIvory } }, "cribbage-trainer"),
+                ": every number on screen comes from enumeration over the deck, never from a strategy chart."),
+            React.createElement("p", null, "All client-side \u2014 no accounts, no tracking; practice stats and the play bankroll live only in this browser."),
+            React.createElement("p", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, marginBottom: 0 } },
+                "v",
+                APP_VERSION))));
+}
+function ChipTrack({ pct }) {
+    const CHIPS = 20;
+    const lit = Math.round((Math.max(0, Math.min(100, pct)) / 100) * CHIPS);
+    return (React.createElement("div", { style: { display: "flex", gap: 4, alignItems: "center" }, "aria-label": `Accuracy ${pct.toFixed(0)}%` }, Array.from({ length: CHIPS }, (_, i) => (React.createElement("span", { key: i, style: {
+            width: 10, height: 10, borderRadius: "50%", flex: "0 0 auto",
+            background: i < lit ? T.pegIvory : "rgba(0,0,0,0.28)",
+            boxShadow: i < lit ? "0 0 0 2px rgba(236,220,180,0.45)" : "inset 0 1px 2px rgba(0,0,0,0.6)",
+            transition: "all 200ms ease",
+        } })))));
+}
+function CardFace({ card, held, faceDown, disabled, onClick, badge }) {
+    return (React.createElement("button", { onClick: onClick, disabled: disabled, "aria-pressed": !!held, "aria-label": faceDown ? "Face-down card" : `${rankLabel(card.r)} of ${["spades", "hearts", "diamonds", "clubs"][card.s]}${held ? ", held" : ""}`, style: {
+            width: 64, height: 92, borderRadius: 9, padding: 0, position: "relative",
+            background: faceDown ? `repeating-linear-gradient(45deg, ${T.baizeHi}, ${T.baizeHi} 4px, ${T.baize} 4px, ${T.baize} 8px)` : T.ivory,
+            color: faceDown ? T.ivory : isRed(card.s) ? T.suitRed : T.ink,
+            border: "1px solid rgba(0,0,0,0.3)", cursor: disabled ? "default" : "pointer",
+            outline: held ? `3px solid ${T.pegIvory}` : "none", outlineOffset: 1,
+            transform: held ? "translateY(-8px)" : "none", transition: "transform 140ms ease, outline 140ms ease",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 3px 8px rgba(0,0,0,0.35)", fontFamily: serif,
+        } },
+        !faceDown && React.createElement("span", { style: { fontSize: 26, fontWeight: 700, lineHeight: 1 } }, rankLabel(card.r)),
+        !faceDown && React.createElement("span", { style: { fontSize: 26, lineHeight: 1.1 } }, SUIT[card.s]),
+        held && React.createElement("span", { style: { position: "absolute", top: -22, left: 0, right: 0, textAlign: "center", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: T.pegIvory } }, "HELD"),
+        badge && React.createElement("span", { style: { position: "absolute", bottom: -19, left: 0, right: 0, textAlign: "center", fontFamily: mono, fontSize: 9.5, fontWeight: 700, color: T.gold } }, badge)));
+}
+function CatBars({ cats, color }) {
+    const rows = [];
+    for (let c = CAT_COUNT - 1; c >= 1; c--) {
+        if (cats[c] <= 0)
+            continue;
+        rows.push({ c, p: cats[c], evShare: cats[c] * PAY[c] });
+    }
+    if (!rows.length)
+        return React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.muted } }, "No paying draw exists for this hold.");
+    const maxShare = Math.max(...rows.map((r) => r.evShare));
+    return (React.createElement("div", { style: { display: "grid", gap: 4 } }, rows.map(({ c, p, evShare }) => (React.createElement("div", { key: c, style: { display: "grid", gridTemplateColumns: "118px 1fr 92px", gap: 8, alignItems: "center", fontFamily: mono, fontSize: 11 } },
+        React.createElement("span", { style: { color: T.cream } }, catName(c)),
+        React.createElement("span", { style: { height: 8, borderRadius: 4, background: "rgba(0,0,0,0.3)", overflow: "hidden" } },
+            React.createElement("span", { style: { display: "block", height: "100%", width: `${maxShare > 0 ? (evShare / maxShare) * 100 : 0}%`, background: color, borderRadius: 4 } })),
+        React.createElement("span", { style: { color: T.muted, textAlign: "right" } },
+            (p * 100).toFixed(p >= 0.01 ? 1 : 3),
+            "% \u00B7 ",
+            evShare.toFixed(3)))))));
+}
+function useAccount() {
+    const [, bump] = React.useState(0);
+    React.useEffect(() => {
+        const un = acctSubscribe(() => bump((v) => v + 1));
+        acctInit();
+        return un;
+    }, []);
+    return ACCT;
+}
+const fieldStyle = {
+    width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8,
+    border: `1px solid ${T.line}`, background: "rgba(0,0,0,0.25)", color: T.cream,
+    fontFamily: mono, fontSize: 13, marginBottom: 8, outline: "none",
+};
+function AuthModal({ onClose }) {
+    const [mode, setMode] = React.useState("signin");
+    const [email, setEmail] = React.useState("");
+    const [password, setPassword] = React.useState("");
+    const [displayName, setDisplayName] = React.useState("");
+    const [dob, setDob] = React.useState("");
+    const [ageOk, setAgeOk] = React.useState(false);
+    const [msg, setMsg] = React.useState(null);
+    const [busy, setBusy] = React.useState(false);
+    const [restorable, setRestorable] = React.useState(false);
+    const go = async () => {
+        setBusy(true);
+        setMsg(null);
+        setRestorable(false);
+        try {
+            if (mode === "signin")
+                await acctSignin(email, password);
+            else
+                await acctSignup({ email, password, display_name: displayName, date_of_birth: dob, age_confirmed: ageOk });
+            onClose();
+        }
+        catch (e) {
+            if (e.status === 410)
+                setRestorable(true);
+            setMsg({ err: true, text: e.message });
+        }
+        finally {
+            setBusy(false);
+        }
+    };
+    const doRestore = async () => {
+        setBusy(true);
+        setMsg(null);
+        try {
+            await acctRestore(email, password);
+            onClose();
+        }
+        catch (e) {
+            setMsg({ err: true, text: e.message });
+        }
+        finally {
+            setBusy(false);
+        }
+    };
+    return (React.createElement(Modal, { onBackdrop: onClose, scroll: true },
+        React.createElement(ModalHeader, { title: mode === "signin" ? "Sign in" : "Create account", onClose: onClose, closeLabel: "Close" }),
+        React.createElement("div", { style: { fontSize: 13 } },
+            React.createElement("input", { style: fieldStyle, type: "email", placeholder: "email", value: email, autoComplete: "email", onChange: (e) => setEmail(e.target.value) }),
+            React.createElement("input", { style: fieldStyle, type: "password", placeholder: "password (8+ characters)", value: password, autoComplete: mode === "signin" ? "current-password" : "new-password", onChange: (e) => setPassword(e.target.value) }),
+            mode === "signup" && (React.createElement(React.Fragment, null,
+                React.createElement("input", { style: fieldStyle, placeholder: "display name (shows at the table)", maxLength: 40, value: displayName, onChange: (e) => setDisplayName(e.target.value) }),
+                React.createElement("div", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, margin: "2px 0 4px" } }, "Date of birth"),
+                React.createElement("input", { style: fieldStyle, type: "date", value: dob, onChange: (e) => setDob(e.target.value) }),
+                React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "flex-start", fontFamily: mono, fontSize: 11.5, color: T.cream, margin: "4px 0 10px", cursor: "pointer" } },
+                    React.createElement("input", { type: "checkbox", checked: ageOk, onChange: (e) => setAgeOk(e.target.checked), style: { marginTop: 2 } }),
+                    React.createElement("span", null, "I confirm I am 18 or older.")),
+                React.createElement("div", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, lineHeight: 1.5, marginBottom: 10 } }, "We store: your email, display name, date of birth, avatar, and practice stats (chips, hands, trainer accuracy). Nothing else \u2014 no tracking, no analytics, practice chips only. Export or delete everything any time from your profile. Playing never requires an account."))),
+            msg && React.createElement("div", { style: { fontFamily: mono, fontSize: 11.5, color: msg.err ? T.pegRed : T.good, margin: "2px 0 8px", lineHeight: 1.4 } }, msg.text),
+            restorable && (React.createElement("button", { onClick: doRestore, disabled: busy, style: { ...segStyle(true), width: "100%", marginBottom: 8 } }, "Restore my account")),
+            React.createElement("button", { onClick: go, disabled: busy, style: { ...segStyle(true), width: "100%", padding: "11px 6px", fontSize: 13 } }, busy ? "…" : mode === "signin" ? "Sign in" : "Create account"),
+            React.createElement("button", { onClick: () => { setMode(mode === "signin" ? "signup" : "signin"); setMsg(null); }, style: {
+                    background: "none", border: "none", color: T.muted, textDecoration: "underline",
+                    cursor: "pointer", fontFamily: mono, fontSize: 11, marginTop: 10, padding: 0,
+                } }, mode === "signin" ? "No account? Create one" : "Have an account? Sign in"))));
+}
+function AccountArea({ dark }) {
+    const acct = useAccount();
+    const [open, setOpen] = React.useState(false);
+    if (!acct.available)
+        return null;
+    const skin = dark
+        ? { border: "1px solid #2c303c", background: "rgba(255,255,255,0.04)", color: "#c9cfda" }
+        : { border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)", color: "#2A1B0E" };
+    const h = dark ? 30 : 40;
+    return (React.createElement(React.Fragment, null,
+        acct.user ? (React.createElement("a", { href: "profile.html", title: "Your profile", style: {
+                display: "flex", alignItems: "center", gap: 6, textDecoration: "none",
+                borderRadius: 10, padding: "0 10px", height: h, maxWidth: 130,
+                fontFamily: mono, fontSize: dark ? 11 : 12, fontWeight: 700, ...skin,
+            } },
+            React.createElement("span", { style: { fontSize: dark ? 14 : 17 } }, acct.user.avatar),
+            React.createElement("span", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, acct.user.display_name))) : (React.createElement("button", { onClick: () => setOpen(true), style: {
+                height: h, borderRadius: 10, cursor: "pointer", padding: "0 12px",
+                fontFamily: mono, fontSize: dark ? 11 : 12, fontWeight: 700, ...skin,
+            } }, "Sign in")),
+        open && React.createElement(AuthModal, { onClose: () => setOpen(false) })));
+}
+const { useState, useEffect, useRef } = React;
 const money = (v) => `$${v.toLocaleString()}`;
 const N = {
     bg: "#0b0e11", panel: "#14171d", panelHi: "#1f2937", card: "#1a1d24",
@@ -1163,9 +1170,10 @@ function loadStack() {
         return START_STACK;
     }
 }
-function PokerTable() {
+function SoloTable() {
     const [state, setState] = useState(() => makeTable(loadStack()));
     const [raiseTo, setRaiseTo] = useState(BIG_BLIND * 3);
+    const [friendsOpen, setFriendsOpen] = useState(false);
     const rngRef = useRef(mulberry32((Math.random() * 2 ** 31) | 0));
     const you = state.players[USER_SEAT];
     const userTurn = state.phase === "betting" && state.toAct === USER_SEAT;
@@ -1303,8 +1311,14 @@ function PokerTable() {
                 React.createElement("span", { style: { fontSize: 12.5, fontWeight: 800, letterSpacing: "0.12em", color: N.dim } }, "vs ACE MERIDIAN \u00B7 WORLD #1"),
                 React.createElement("span", { style: { fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", color: N.faint, marginLeft: 8 } }, "PRACTICE CHIPS ONLY")),
             React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
+                React.createElement("button", { onClick: () => setFriendsOpen(true), style: {
+                        height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px",
+                        border: "1px solid rgba(0,230,118,0.4)", background: "rgba(0,230,118,0.08)",
+                        color: N.green, fontFamily: sans, fontSize: 11, fontWeight: 800,
+                    } }, "PLAY WITH FRIENDS"),
                 React.createElement(AccountArea, { dark: true }),
                 React.createElement("a", { href: "index.html", "aria-label": "Home", style: { color: N.dim, textDecoration: "none", fontSize: 16, lineHeight: 1, border: `1px solid ${N.line}`, borderRadius: 9, padding: "5px 9px", background: "rgba(255,255,255,0.02)" } }, "\u2302"))),
+        friendsOpen && React.createElement(CreateRoomModal, { onClose: () => setFriendsOpen(false) }),
         React.createElement("div", { style: { flex: "1 1 auto", position: "relative", minHeight: 0, cursor: state.phase === "runout" ? "pointer" : "default" }, onClick: state.phase === "runout" ? skipRunout : undefined },
             React.createElement("div", { style: { position: "absolute", left: "50%", top: 0, bottom: 0, transform: "translateX(-50%)", width: "min(100vw, 900px)" } },
                 React.createElement("div", { style: {
@@ -1387,6 +1401,312 @@ function PokerTable() {
                     "Felted \u2014 the next deal stakes you ",
                     money(START_STACK),
                     " in practice chips."))))))));
+}
+const roomIdentKey = (code) => `poker-room:${code}`;
+const readIdent = (code) => {
+    try {
+        return JSON.parse(window.sessionStorage.getItem(roomIdentKey(code)));
+    }
+    catch {
+        return null;
+    }
+};
+const saveIdent = (code, ident) => {
+    try {
+        window.sessionStorage.setItem(roomIdentKey(code), JSON.stringify(ident));
+    }
+    catch { }
+};
+const darkField = {
+    width: "100%", boxSizing: "border-box", padding: "11px 12px", borderRadius: 9,
+    border: `1px solid ${N.line2}`, background: "#101318", color: "#e8ebf2",
+    fontFamily: sans, fontSize: 14, marginBottom: 9, outline: "none",
+};
+const darkBtn = (primary) => ({
+    width: "100%", padding: "12px 10px", borderRadius: 10, cursor: "pointer",
+    fontFamily: sans, fontSize: 14, fontWeight: 800, border: "1px solid transparent",
+    background: primary ? `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)` : "#232733",
+    color: primary ? "#00230f" : "#e8ebf2",
+});
+function RoomCard({ children, title }) {
+    return (React.createElement("div", { style: { minHeight: "100vh", background: N.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: sans, color: "#e8ebf2" } },
+        React.createElement("div", { style: { width: "100%", maxWidth: 400, background: N.panel, border: `1px solid ${N.line}`, borderRadius: 16, padding: 22, boxShadow: "0 18px 50px rgba(0,0,0,0.6)" } },
+            React.createElement("div", { style: { fontSize: 17, fontWeight: 800, marginBottom: 12 } }, title),
+            children)));
+}
+function CreateRoomModal({ onClose }) {
+    const acct = useAccount();
+    const [name, setName] = React.useState((ACCT.user && ACCT.user.display_name) || "");
+    const [charity, setCharity] = React.useState(false);
+    const [pledge, setPledge] = React.useState("");
+    const [busy, setBusy] = React.useState(false);
+    const [error, setError] = React.useState(null);
+    const go = async () => {
+        setBusy(true);
+        setError(null);
+        try {
+            const out = await acctApi("/room", { method: "POST", body: JSON.stringify({ name, charity_night: charity, pledge: Number(pledge) || 0 }) });
+            saveIdent(out.code, { seat: out.seat, key: out.key });
+            window.location.search = `?room=${out.code}`;
+        }
+        catch (e) {
+            setError(e.message);
+            setBusy(false);
+        }
+    };
+    return (React.createElement(Modal, { onBackdrop: onClose },
+        React.createElement(ModalHeader, { title: "Play with friends", onClose: onClose, closeLabel: "Close" }),
+        React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.muted, lineHeight: 1.6, marginBottom: 10 } }, "You get a room link to text your friends \u2014 they take the bot seats from anywhere. Cards are dealt on the server, so nobody's browser ever sees another player's hand. Practice chips only."),
+        React.createElement("input", { style: fieldStyle, placeholder: "your name at the table", maxLength: 24, value: name, onChange: (e) => setName(e.target.value) }),
+        React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "flex-start", fontFamily: mono, fontSize: 11.5, color: T.cream, margin: "2px 0 8px", cursor: "pointer" } },
+            React.createElement("input", { type: "checkbox", checked: charity, onChange: (e) => setCharity(e.target.checked), style: { marginTop: 2 } }),
+            React.createElement("span", null, "Charity night \u2014 everyone pledges, the night's winner picks the charity, and everyone donates their own pledge directly on the charity's page. The app never touches money.")),
+        charity && React.createElement("input", { style: fieldStyle, type: "number", min: "1", placeholder: "your pledge (e.g. 50)", value: pledge, onChange: (e) => setPledge(e.target.value) }),
+        error && React.createElement("div", { style: { fontFamily: mono, fontSize: 11.5, color: T.pegRed, marginBottom: 8 } }, error),
+        React.createElement("button", { onClick: go, disabled: busy || !name.trim() || !acct.online, style: { ...segStyle(true), width: "100%", padding: "11px 6px", fontSize: 13 } }, busy ? "…" : "Create room")));
+}
+function RoomTable({ code }) {
+    const acct = useAccount();
+    const [ident, setIdent] = React.useState(() => readIdent(code));
+    const [info, setInfo] = React.useState(null);
+    const [payload, setPayload] = React.useState(null);
+    const [error, setError] = React.useState(null);
+    const [joinName, setJoinName] = React.useState("");
+    const [joinPledge, setJoinPledge] = React.useState("");
+    const [busy, setBusy] = React.useState(false);
+    const [raiseTo, setRaiseTo] = React.useState(BIG_BLIND * 3);
+    const [charityName, setCharityName] = React.useState("");
+    const [charityUrl, setCharityUrl] = React.useState("");
+    const esRef = React.useRef(null);
+    React.useEffect(() => {
+        if (!acct.checked || !acct.online || ident)
+            return;
+        acctApi(`/room/${code}/info`).then((i) => { setInfo(i); setJoinName((ACCT.user && ACCT.user.display_name) || ""); })
+            .catch((e) => setError(e.message));
+    }, [acct.checked, acct.online, ident]);
+    React.useEffect(() => {
+        if (!acct.online || !ident)
+            return;
+        const es = new EventSource(`${ACCT.base}/api/room/${code}/events?seat=${ident.seat}&key=${encodeURIComponent(ident.key)}`);
+        esRef.current = es;
+        es.onmessage = (ev) => { try {
+            setPayload(JSON.parse(ev.data));
+        }
+        catch { } };
+        es.onerror = () => { };
+        return () => es.close();
+    }, [acct.online, ident]);
+    const post = async (verb, body = {}) => {
+        setError(null);
+        try {
+            return await acctApi(`/room/${code}/${verb}`, { method: "POST", body: JSON.stringify({ seat: ident.seat, key: ident.key, ...body }) });
+        }
+        catch (e) {
+            setError(e.message);
+        }
+    };
+    const join = async () => {
+        setBusy(true);
+        setError(null);
+        try {
+            const out = await acctApi(`/room/${code}/join`, { method: "POST", body: JSON.stringify({ name: joinName, pledge: Number(joinPledge) || 0 }) });
+            saveIdent(code, { seat: out.seat, key: out.key });
+            setIdent({ seat: out.seat, key: out.key });
+        }
+        catch (e) {
+            setError(e.message);
+        }
+        finally {
+            setBusy(false);
+        }
+    };
+    const state = payload && payload.state;
+    const mySeat = payload ? payload.youSeat : -1;
+    const isHost = mySeat === 0;
+    const userTurn = state && state.phase === "betting" && state.toAct === mySeat;
+    const la = userTurn ? legalActions(state) : null;
+    React.useEffect(() => { if (userTurn && la)
+        setRaiseTo(clampN(la.minRaiseTo, state.pot, la.maxRaiseTo)); }, [userTurn]);
+    const reportedHand = React.useRef(0);
+    React.useEffect(() => {
+        if (!state || state.phase !== "over" || state.handNo === 0 || reportedHand.current === state.handNo)
+            return;
+        reportedHand.current = state.handNo;
+        const won = state.winners.includes(mySeat);
+        reportStats({ set: { table_stack: state.players[mySeat].stack }, inc: { table_hands: 1, table_wins: won ? 1 : 0 }, maxOf: won ? { biggest_pot: state.pot } : {} });
+    }, [state]);
+    if (!acct.checked)
+        return React.createElement(RoomCard, { title: "Connecting\u2026" },
+            React.createElement("div", { style: { color: N.dim, fontSize: 13 } }, "Finding the poker server."));
+    if (!acct.online)
+        return React.createElement(RoomCard, { title: "No table service here" },
+            React.createElement("div", { style: { color: N.dim, fontSize: 13, lineHeight: 1.6 } },
+                "This copy of the app can't reach the poker server, so shared rooms aren't available. Open the online version to join room ",
+                code,
+                "."));
+    if (!ident) {
+        return (React.createElement(RoomCard, { title: info ? `Join room ${code}` : error ? "Room unavailable" : "Looking up the room…" },
+            info && (React.createElement(React.Fragment, null,
+                React.createElement("div", { style: { color: N.dim, fontSize: 12.5, lineHeight: 1.6, marginBottom: 12 } },
+                    "At the table: ",
+                    info.players.join(", "),
+                    " \u00B7 ",
+                    info.openSeats,
+                    " open seat",
+                    info.openSeats === 1 ? "" : "s",
+                    info.charity_night ? " · CHARITY NIGHT" : ""),
+                React.createElement("input", { style: darkField, placeholder: "your name at the table", maxLength: 24, value: joinName, onChange: (e) => setJoinName(e.target.value) }),
+                info.charity_night && React.createElement("input", { style: darkField, type: "number", min: "1", placeholder: "your pledge (donated by you, directly, later)", value: joinPledge, onChange: (e) => setJoinPledge(e.target.value) }),
+                React.createElement("button", { style: darkBtn(true), disabled: busy || !joinName.trim(), onClick: join }, busy ? "…" : "Take a seat"))),
+            error && React.createElement("div", { style: { color: N.redSoft, fontSize: 12.5, marginTop: 8 } }, error)));
+    }
+    if (!state)
+        return React.createElement(RoomCard, { title: `Room ${code}` },
+            React.createElement("div", { style: { color: N.dim, fontSize: 13 } }, "Taking your seat\u2026"));
+    const you = state.players[mySeat];
+    const others = [1, 2, 3].map((k) => (mySeat + k) % 4);
+    const OPP_SPOTS = [{ x: 14, y: 26 }, { x: 50, y: 11 }, { x: 86, y: 26 }];
+    const equities = payload.equities;
+    const leadSeat = equities ? Number(Object.keys(equities).reduce((a, b) => (equities[a] >= equities[b] ? a : b))) : -1;
+    const vw2 = Math.min(typeof window !== "undefined" ? window.innerWidth : 400, 900);
+    const boardW = clampN(38, Math.round(vw2 * 0.115), 54);
+    const holeW = clampN(54, Math.round(vw2 * 0.16), 74);
+    const streetNames = ["Pre-flop", "Flop", "Turn", "River"];
+    const charity = payload.charity;
+    const shareUrl = typeof window !== "undefined" ? `${window.location.origin}${window.location.pathname}?room=${code}` : "";
+    const actBtn = (extra) => ({
+        padding: "13px 8px", borderRadius: 12, fontFamily: sans, fontSize: 14, fontWeight: 800,
+        letterSpacing: "0.04em", cursor: "pointer", border: "1px solid transparent", width: "100%", ...extra,
+    });
+    return (React.createElement("div", { style: { background: `radial-gradient(130% 70% at 50% -10%, #10151b, ${N.bg} 60%)`, minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: sans, color: N.text, overflow: "hidden" } },
+        React.createElement("style", null, `
+        html, body { background: ${N.bg}; }
+        button:active { filter: brightness(1.15); transform: translateY(1px); }
+        button:disabled { opacity: 0.4; cursor: default; }
+        input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px;
+          border-radius: 999px; background: linear-gradient(90deg, ${N.green} var(--fill, 0%), #2b2f3a var(--fill, 0%)); outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+          width: 24px; height: 24px; border-radius: 50%; border: none;
+          background: radial-gradient(circle at 35% 35%, #7dffb8, ${N.green} 65%);
+          box-shadow: 0 0 12px rgba(0,230,118,0.55), 0 2px 6px rgba(0,0,0,0.6); }
+        input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; border: none; background: ${N.green}; }
+        @keyframes cardIn { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+        .boardwrap > * { animation: cardIn 240ms ease both }
+      `),
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px 6px", flex: "0 0 auto", gap: 10, flexWrap: "wrap" } },
+            React.createElement("div", { style: { minWidth: 0 } },
+                React.createElement("span", { style: { fontSize: 12.5, fontWeight: 800, letterSpacing: "0.12em", color: N.dim } },
+                    "ROOM ",
+                    code),
+                React.createElement("span", { style: { fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", color: N.faint, marginLeft: 8 } }, "PRACTICE CHIPS ONLY"),
+                charity.night && (React.createElement("span", { style: { fontSize: 10.5, fontWeight: 800, color: N.gold, marginLeft: 8 } },
+                    "CHARITY NIGHT \u00B7 $",
+                    charity.total.toLocaleString(),
+                    " pledged"))),
+            React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
+                payload.openSeats > 0 && (React.createElement("button", { onClick: () => { try {
+                        navigator.clipboard.writeText(shareUrl);
+                        setError("Link copied — text it to a friend.");
+                        setTimeout(() => setError(null), 2000);
+                    }
+                    catch {
+                        setError(shareUrl);
+                    } }, style: { height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px", border: `1px solid rgba(0,230,118,0.4)`, background: "rgba(0,230,118,0.08)", color: N.green, fontFamily: sans, fontSize: 11, fontWeight: 800 } },
+                    "INVITE \u00B7 ",
+                    payload.openSeats,
+                    " seat",
+                    payload.openSeats === 1 ? "" : "s",
+                    " open")),
+                React.createElement(AccountArea, { dark: true }),
+                React.createElement("a", { href: "index.html", "aria-label": "Home", style: { color: N.dim, textDecoration: "none", fontSize: 16, lineHeight: 1, border: `1px solid ${N.line}`, borderRadius: 9, padding: "5px 9px", background: "rgba(255,255,255,0.02)" } }, "\u2302"))),
+        error && React.createElement("div", { style: { textAlign: "center", fontSize: 11.5, fontWeight: 700, color: N.gold, padding: "0 12px" } }, error),
+        React.createElement("div", { style: { flex: "1 1 auto", position: "relative", minHeight: 0 } },
+            React.createElement("div", { style: { position: "absolute", left: "50%", top: 0, bottom: 0, transform: "translateX(-50%)", width: "min(100vw, 900px)" } },
+                React.createElement("div", { style: {
+                        position: "absolute", inset: "5% 5% 3% 5%", borderRadius: "48% / 42%",
+                        background: `radial-gradient(75% 70% at 50% 32%, ${N.feltHi}, ${N.felt} 75%)`,
+                        border: `7px solid ${N.rail}`,
+                        boxShadow: "0 0 60px rgba(0,0,0,0.85), inset 0 0 46px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(0,230,118,0.07)",
+                    } }),
+                others.map((seat, i) => (React.createElement(OppSeat, { key: seat, player: state.players[seat], seat: seat, spot: OPP_SPOTS[i], state: state, cardW: boardW, equity: equities ? equities[seat] : null, lead: leadSeat === seat }))),
+                React.createElement("div", { style: { position: "absolute", left: "50%", top: "47%", transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 9, zIndex: 2, width: "100%" } },
+                    state.handNo > 0 && (React.createElement("div", { style: { fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", color: N.faint } },
+                        "HAND #",
+                        state.handNo,
+                        " \u00B7 ",
+                        state.phase === "over" ? "COMPLETE" : state.phase === "runout" ? "ALL IN" : streetNames[state.street].toUpperCase())),
+                    React.createElement("div", { style: { background: "rgba(0,0,0,0.6)", border: "1px solid rgba(0,230,118,0.3)", borderRadius: 999, padding: "4px 15px", fontSize: 13, fontWeight: 800, color: N.green, boxShadow: "0 0 18px rgba(0,230,118,0.12)" } },
+                        "POT\u00A0\u00A0",
+                        money(state.pot)),
+                    React.createElement("div", { className: "boardwrap", style: { display: "flex", gap: "clamp(4px, 1.5vw, 8px)", justifyContent: "center" } },
+                        state.board.map((c) => React.createElement(TableCard, { key: cardId(c), card: c, w: boardW })),
+                        Array.from({ length: 5 - state.board.length }, (_, i) => React.createElement(CardSlot, { key: `s${i}`, w: boardW }))),
+                    state.message && (React.createElement("div", { style: { marginTop: 2, background: "rgba(255,213,79,0.12)", border: "1px solid rgba(255,213,79,0.4)", borderRadius: 10, padding: "6px 14px", fontSize: 12.5, fontWeight: 700, color: N.gold, textAlign: "center", maxWidth: "88%" } }, state.message)),
+                    charity.picked && charity.picked.name && (React.createElement("div", { style: { background: "rgba(0,230,118,0.1)", border: "1px solid rgba(0,230,118,0.45)", borderRadius: 12, padding: "10px 16px", textAlign: "center", maxWidth: "90%" } },
+                        React.createElement("div", { style: { fontSize: 13.5, fontWeight: 800, color: N.green } },
+                            state.players[charity.winnerSeat].name,
+                            " picked ",
+                            charity.picked.name),
+                        React.createElement("div", { style: { fontSize: 12, color: "#c9cfda", marginTop: 3 } },
+                            "The table pledged $",
+                            charity.total.toLocaleString(),
+                            " \u2014 everyone donates their own pledge directly:"),
+                        charity.picked.url && (React.createElement("a", { href: charity.picked.url, target: "_blank", rel: "noreferrer", style: { color: N.gold, fontWeight: 800, fontSize: 13 } }, charity.picked.url))))),
+                React.createElement("div", { style: { position: "absolute", left: "50%", bottom: 0, transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", zIndex: 4, opacity: you.folded && state.phase === "betting" ? 0.5 : 1 } },
+                    you.hole.length > 0 && !you.folded && (React.createElement("div", { style: { display: "flex", marginBottom: -10 } }, you.hole.map((c, i) => (React.createElement("div", { key: cardId(c), style: { transform: `rotate(${i === 0 ? -6 : 6}deg) translateY(${i === 0 ? 2 : 0}px)`, marginLeft: i === 0 ? 0 : -Math.round(holeW * 0.24), zIndex: i } },
+                        React.createElement(TableCard, { card: c, w: holeW })))))),
+                    React.createElement("div", { style: {
+                            display: "flex", alignItems: "center", gap: 10, position: "relative", zIndex: 6,
+                            background: "rgba(13,16,20,0.97)",
+                            border: `2px solid ${state.winners.includes(mySeat) ? N.gold : userTurn ? N.green : N.line}`,
+                            boxShadow: userTurn ? "0 0 18px rgba(0,230,118,0.4)" : state.winners.includes(mySeat) ? "0 0 18px rgba(255,213,79,0.4)" : "0 6px 16px rgba(0,0,0,0.55)",
+                            borderRadius: 13, padding: "7px 14px",
+                        } },
+                        state.btn === mySeat && state.handNo > 0 && (React.createElement("span", { style: { width: 20, height: 20, borderRadius: "50%", background: "#e8ebf2", color: "#14171d", fontSize: 10, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center" } }, "D")),
+                        React.createElement("div", null,
+                            React.createElement("div", { style: { fontSize: 12.5, fontWeight: 800 } },
+                                you.name,
+                                you.folded && state.phase === "betting" ? " · FOLDED" : ""),
+                            React.createElement("div", { style: { fontSize: 12.5, fontWeight: 800, color: N.green } }, money(you.stack))),
+                        you.lastAct && React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: N.dim } }, you.lastAct),
+                        equities && equities[mySeat] != null && React.createElement(EquityBadge, { pct: equities[mySeat], lead: leadSeat === mySeat }),
+                        React.createElement(BetPill, { amount: you.streetBet }))))),
+        React.createElement("div", { style: { flex: "0 0 auto", background: `linear-gradient(180deg, ${N.panel}, #101318)`, borderTop: `1px solid ${N.line}`, padding: "12px 16px calc(12px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 11, alignItems: "center" } },
+            React.createElement("div", { style: { width: "100%", maxWidth: 620, display: "flex", flexDirection: "column", gap: 11 } }, state.phase === "betting" ? (React.createElement(React.Fragment, null,
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, opacity: userTurn && la && la.canRaise ? 1 : 0.35 } },
+                    React.createElement("span", { style: { fontSize: 10.5, fontWeight: 700, color: N.dim, flex: "0 0 auto" } }, la ? money(la.minRaiseTo) : ""),
+                    React.createElement("input", { type: "range", "aria-label": "Raise to", disabled: !userTurn || !la || !la.canRaise, min: la ? la.minRaiseTo : 0, max: la ? la.maxRaiseTo : 100, step: 25, value: la ? clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) : 0, style: { "--fill": la && la.maxRaiseTo > la.minRaiseTo ? `${((clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) - la.minRaiseTo) / (la.maxRaiseTo - la.minRaiseTo)) * 100}%` : "100%", flex: 1 }, onChange: (e) => setRaiseTo(Number(e.target.value)) }),
+                    React.createElement("span", { style: { fontSize: 10.5, fontWeight: 700, color: N.dim, flex: "0 0 auto" } }, la ? money(la.maxRaiseTo) : "")),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1.2fr 1.5fr", gap: 9 } },
+                    React.createElement("button", { disabled: !userTurn, onClick: () => post("act", { action: { type: "fold" } }), style: actBtn({ background: "#232733", color: N.redSoft, border: "1px solid rgba(255,82,82,0.25)" }) }, "FOLD"),
+                    React.createElement("button", { disabled: !userTurn, onClick: () => post("act", { action: { type: "call" } }), style: actBtn({ background: "#232733", color: N.text, border: `1px solid ${N.line2}` }) }, userTurn && la ? (la.canCheck ? "CHECK" : `CALL ${money(la.toCall)}`) : "CHECK"),
+                    React.createElement("button", { disabled: !userTurn || !la || !la.canRaise, onClick: () => post("act", { action: { type: "raise", to: raiseTo } }), style: actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }) }, la && clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) >= la.maxRaiseTo ? "ALL-IN" : `RAISE TO ${la ? money(clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo)) : ""}`)),
+                !userTurn && (React.createElement("div", { style: { textAlign: "center", fontSize: 11, fontWeight: 700, color: N.dim } }, state.toAct >= 0 ? `${state.players[state.toAct].name} is thinking…` : "…")))) : state.phase === "runout" ? (React.createElement("div", { style: { textAlign: "center", fontSize: 13, fontWeight: 800, letterSpacing: "0.08em", color: N.gold, padding: "13px 0" } }, "ALL IN \u2014 running it out\u2026")) : charity.night && charity.winnerSeat != null && !(charity.picked && charity.picked.name) ? (charity.winnerSeat === mySeat ? (React.createElement("div", null,
+                React.createElement("div", { style: { fontSize: 13.5, fontWeight: 800, color: N.gold, marginBottom: 8 } },
+                    "You lead the night \u2014 pick where the table's $",
+                    charity.total.toLocaleString(),
+                    " goes:"),
+                React.createElement("input", { style: darkField, placeholder: "charity name", maxLength: 80, value: charityName, onChange: (e) => setCharityName(e.target.value) }),
+                React.createElement("input", { style: darkField, placeholder: "donation link (https://\u2026)", maxLength: 300, value: charityUrl, onChange: (e) => setCharityUrl(e.target.value) }),
+                React.createElement("button", { style: darkBtn(true), disabled: !charityName.trim(), onClick: () => post("charity", { name: charityName, url: charityUrl }) },
+                    "SEND THE NIGHT TO ",
+                    charityName.trim().toUpperCase() || "…"))) : (React.createElement("div", { style: { textAlign: "center", fontSize: 12.5, fontWeight: 700, color: N.dim, padding: "10px 0" } },
+                state.players[charity.winnerSeat].name,
+                " leads the night and is choosing the charity\u2026"))) : (React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", alignItems: "center", flexWrap: "wrap" } }, isHost ? (React.createElement(React.Fragment, null,
+                !(charity.picked && charity.picked.name) && (React.createElement("button", { onClick: () => post("deal"), style: { ...actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }), width: "auto", padding: "13px 42px" } }, state.handNo === 0 ? "DEAL THE FIRST HAND" : "NEXT HAND")),
+                charity.night && state.handNo > 0 && charity.winnerSeat == null && (React.createElement("button", { onClick: () => post("end-night"), style: { ...actBtn({ background: "#232733", color: N.gold, border: "1px solid rgba(255,213,79,0.35)" }), width: "auto", padding: "13px 22px" } }, "END NIGHT")))) : (React.createElement("div", { style: { textAlign: "center", fontSize: 12.5, fontWeight: 700, color: N.dim, padding: "10px 0" } }, charity.picked && charity.picked.name ? "The night is complete — donate above, then brag." : `Waiting for ${state.players[0].name} to deal…`))))))));
+}
+const roomCodeFromUrl = () => {
+    try {
+        return new URLSearchParams(window.location.search).get("room");
+    }
+    catch {
+        return null;
+    }
+};
+function PokerTable() {
+    const code = roomCodeFromUrl();
+    return code ? React.createElement(RoomTable, { code: code.toUpperCase() }) : React.createElement(SoloTable, null);
 }
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(PokerTable));
 
