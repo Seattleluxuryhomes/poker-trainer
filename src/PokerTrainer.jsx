@@ -101,7 +101,10 @@ export default function PokerTrainer() {
     const final = hand.map((c, i) => (idxs.includes(i) ? c : pool[p++]));
     setDrawn({ final, cat: categorizeCards(final) });
     setChosenId(id); setExpanded(null); setPhase("revealed");
-    if (counted) setStats((s) => ({ hands: s.hands + 1, optimal: s.optimal + (delta < 1e-6 ? 1 : 0), lost: s.lost + delta }));
+    if (counted) {
+      setStats((s) => ({ hands: s.hands + 1, optimal: s.optimal + (delta < 1e-6 ? 1 : 0), lost: s.lost + delta }));
+      reportStats({ inc: { trainer_hands: 1, trainer_optimal: delta < 1e-6 ? 1 : 0, trainer_ev_lost: delta } });
+    }
   }, [hand]);
 
   const draw = useCallback(() => pick(held, true), [pick, held]);
@@ -155,11 +158,14 @@ export default function PokerTrainer() {
             <span style={{ fontFamily: mono, fontSize: 12, color: "rgba(42,27,14,0.8)", lineHeight: 1.3 }}>Hold Trainer — 9/6 Jacks or Better</span>
             {IS_DEV_VERSION && <span style={{ fontFamily: mono, fontSize: 10, color: "rgba(42,27,14,0.55)", whiteSpace: "nowrap" }}>v{APP_VERSION}</span>}
           </div>
-          <button onClick={() => setAboutOpen(true)} aria-label="About" style={{
-            width: 40, height: 40, borderRadius: 10, cursor: "pointer", flex: "0 0 auto",
-            border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)",
-            color: "#2A1B0E", fontSize: 19, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
-          }}>ⓘ</button>
+          <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
+            <AccountArea />
+            <button onClick={() => setAboutOpen(true)} aria-label="About" style={{
+              width: 40, height: 40, borderRadius: 10, cursor: "pointer",
+              border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)",
+              color: "#2A1B0E", fontSize: 19, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
+            }}>ⓘ</button>
+          </div>
         </div>
         <div style={{ marginTop: 12 }}><ChipTrack pct={acc} /></div>
         <div style={{ marginTop: 10, display: "flex", gap: 18, flexWrap: "wrap", fontFamily: mono, fontSize: 12, color: "#2A1B0E" }}>

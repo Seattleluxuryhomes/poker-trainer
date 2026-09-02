@@ -109,6 +109,42 @@ function equityVs(hole, board, nOpps, trials, rng) {
   return won / trials;
 }
 
+/* Broadcast equity: per-player win % when every live hole is known. EXACT
+ * enumeration when one or two board cards remain (the project's
+ * enumeration-first rule); Monte Carlo only preflop/on the flop. Ties count
+ * fractionally. Returns win probabilities in `holes` order. */
+function equityMulti(holes, board, rng) {
+  const seen = new Set([...holes.flat(), ...board].map(cardId));
+  const pool = fullDeck().filter((c) => !seen.has(cardId(c)));
+  const need = 5 - board.length;
+  const wins = new Array(holes.length).fill(0);
+  let total = 0;
+  const scoreOut = (fullBoard) => {
+    const scores = holes.map((h) => score7([...h, ...fullBoard]));
+    const best = Math.max(...scores);
+    const winners = scores.reduce((n, s) => n + (s === best ? 1 : 0), 0);
+    for (let i = 0; i < scores.length; i++) if (scores[i] === best) wins[i] += 1 / winners;
+    total++;
+  };
+  if (need === 0) scoreOut(board);
+  else if (need <= 2) {
+    for (let i = 0; i < pool.length; i++) {
+      if (need === 1) scoreOut([...board, pool[i]]);
+      else for (let j = i + 1; j < pool.length; j++) scoreOut([...board, pool[i], pool[j]]);
+    }
+  } else {
+    const buf = pool.slice();
+    for (let t = 0; t < 400; t++) {
+      for (let i = 0; i < need; i++) {
+        const j = i + ((rng() * (buf.length - i)) | 0);
+        [buf[i], buf[j]] = [buf[j], buf[i]];
+      }
+      scoreOut([...board, ...buf.slice(0, need)]);
+    }
+  }
+  return wins.map((w) => w / total);
+}
+
 /* ==================== TABLE CORE (pure functions) ==================== */
 
 const SMALL_BLIND = 25;
@@ -269,15 +305,32 @@ function endStreetOrShowdown(s) {
     if (s.street === 1) { s.board.push(s.deck.pop()); s.board.push(s.deck.pop()); } // flop is three
   };
   if (actors.length < 2) {
-    // everyone left is all-in (or only one can act): run it out to the river
-    while (s.street < 3) dealNext();
-    return settleShowdown(s);
+    // Everyone left is all-in (or only one can act): the broadcast moment.
+    // Hands flip up and the view steps the board out street by street with
+    // live win percentages (runoutStep below); nothing settles until the river.
+    if (s.street >= 3) return settleShowdown(s);
+    s.phase = "runout";
+    s.revealed = true;
+    s.toAct = -1; s.needs = [];
+    s.message = "ALL IN — running it out";
+    return s;
   }
   if (s.street === 3) return settleShowdown(s);
   dealNext();
   s.needs = seatsFrom((s.btn + 1) % 4, canStillAct, s.players);
   s.toAct = s.needs[0];
   if (live.length < 2) return settleShowdown(s); // defensive; folds are handled in applyAction
+  return s;
+}
+
+/* One broadcast tick: deal the next street; after the river, settle. Pure. */
+function runoutStep(state) {
+  const s = JSON.parse(JSON.stringify(state));
+  if (s.phase !== "runout") return s;
+  if (s.street >= 3) return settleShowdown(s);
+  s.street += 1;
+  s.board.push(s.deck.pop());
+  if (s.street === 1) { s.board.push(s.deck.pop()); s.board.push(s.deck.pop()); }
   return s;
 }
 
@@ -430,7 +483,21 @@ function BetPill({ amount }) {
   );
 }
 
-function OppSeat({ player, seat, spot, state, cardW }) {
+function EquityBadge({ pct, lead }) {
+  return (
+    <div style={{
+      marginTop: 4, fontFamily: sans, fontSize: 13, fontWeight: 900, letterSpacing: "0.02em",
+      borderRadius: 999, padding: "2px 11px",
+      background: lead ? N.gold : "rgba(0,0,0,0.7)", color: lead ? "#14171d" : "#e8ebf2",
+      border: `1px solid ${lead ? N.gold : N.line2}`,
+      boxShadow: lead ? "0 0 14px rgba(255,213,79,0.5)" : "none", transition: "all 300ms ease",
+    }}>
+      {(pct * 100).toFixed(pct > 0 && pct < 0.005 ? 1 : 0)}%
+    </div>
+  );
+}
+
+function OppSeat({ player, seat, spot, state, cardW, equity, lead }) {
   const isTurn = state.toAct === seat && state.phase === "betting";
   const isWinner = state.winners.includes(seat);
   const showCards = state.revealed && !player.folded;
@@ -478,6 +545,7 @@ function OppSeat({ player, seat, spot, state, cardW }) {
           </>
         )}
       </div>
+      {equity != null && <EquityBadge pct={equity} lead={lead} />}
       {player.lastAct && <div style={{ marginTop: 3, fontSize: 9.5, fontWeight: 700, color: N.dim, whiteSpace: "nowrap" }}>{player.lastAct}</div>}
       <BetPill amount={player.streetBet} />
     </div>
@@ -525,7 +593,40 @@ export default function PokerTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userTurn]);
 
-  const deal = () => setState((s) => startHand(s, rngRef.current));
+  // The broadcast: one street every ~1.4s while phase is "runout"; tap to skip.
+  useEffect(() => {
+    if (state.phase !== "runout") return;
+    const t = setTimeout(() => setState((s) => (s.phase === "runout" ? runoutStep(s) : s)), 1400);
+    return () => clearTimeout(t);
+  }, [state]);
+  const skipRunout = () => setState((s) => { let x = s, g = 0; while (x.phase === "runout" && g++ < 6) x = runoutStep(x); return x; });
+
+  // Live win % for every seat still in the hand (only during the broadcast).
+  const equities = React.useMemo(() => {
+    if (state.phase !== "runout") return null;
+    const liveSeats = state.players.map((_, i) => i).filter((i) => inHand(state.players[i]));
+    const pcts = equityMulti(liveSeats.map((i) => state.players[i].hole), state.board, rngRef.current);
+    const out = {};
+    liveSeats.forEach((i, k) => { out[i] = pcts[k]; });
+    return out;
+  }, [state]);
+  const leadSeat = equities ? Number(Object.keys(equities).reduce((a, b) => (equities[a] >= equities[b] ? a : b))) : -1;
+
+  // Report the finished hand to the account layer, once per hand.
+  const reportedHand = useRef(0);
+  useEffect(() => {
+    if (state.phase !== "over" || state.handNo === 0 || reportedHand.current === state.handNo) return;
+    reportedHand.current = state.handNo;
+    const won = state.winners.includes(USER_SEAT);
+    reportStats({
+      set: { table_stack: state.players[USER_SEAT].stack },
+      inc: { table_hands: 1, table_wins: won ? 1 : 0 },
+      maxOf: won ? { biggest_pot: state.pot } : {},
+    });
+  }, [state]);
+
+  // Only from idle/over: dealing mid-runout would vaporize a live pot.
+  const deal = () => setState((s) => (s.phase === "betting" || s.phase === "runout" ? s : startHand(s, rngRef.current)));
   const userAct = (action) => setState((s) => (s.phase === "betting" && s.toAct === USER_SEAT ? applyAction(s, action) : s));
 
   const OPP_SPOTS = [{ x: 14, y: 24 }, { x: 50, y: 9 }, { x: 86, y: 24 }];
@@ -565,10 +666,14 @@ export default function PokerTable() {
           <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: "0.12em", color: N.dim }}>vs ACE MERIDIAN · WORLD #1</span>
           <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", color: N.faint, marginLeft: 8 }}>PRACTICE CHIPS ONLY</span>
         </div>
-        <a href="index.html" aria-label="Home" style={{ color: N.dim, textDecoration: "none", fontSize: 16, lineHeight: 1, border: `1px solid ${N.line}`, borderRadius: 9, padding: "5px 9px", background: "rgba(255,255,255,0.02)" }}>⌂</a>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <AccountArea dark />
+          <a href="index.html" aria-label="Home" style={{ color: N.dim, textDecoration: "none", fontSize: 16, lineHeight: 1, border: `1px solid ${N.line}`, borderRadius: 9, padding: "5px 9px", background: "rgba(255,255,255,0.02)" }}>⌂</a>
+        </div>
       </div>
 
-      <div style={{ flex: "1 1 auto", position: "relative", minHeight: 0 }}>
+      <div style={{ flex: "1 1 auto", position: "relative", minHeight: 0, cursor: state.phase === "runout" ? "pointer" : "default" }}
+        onClick={state.phase === "runout" ? skipRunout : undefined}>
         <div style={{
           position: "absolute", inset: "5% 5% 3% 5%", borderRadius: "48% / 42%",
           background: `radial-gradient(75% 70% at 50% 32%, ${N.feltHi}, ${N.felt} 75%)`,
@@ -577,7 +682,8 @@ export default function PokerTable() {
         }} />
 
         {[1, 2, 3].map((seat, i) => (
-          <OppSeat key={seat} player={state.players[seat]} seat={seat} spot={OPP_SPOTS[i]} state={state} cardW={boardW} />
+          <OppSeat key={seat} player={state.players[seat]} seat={seat} spot={OPP_SPOTS[i]} state={state} cardW={boardW}
+            equity={equities ? equities[seat] : null} lead={leadSeat === seat} />
         ))}
 
         {/* center: street, pot, board */}
@@ -640,6 +746,7 @@ export default function PokerTable() {
               <div style={{ fontSize: 12.5, fontWeight: 800, color: N.green }}>{money(you.stack)}</div>
             </div>
             {you.lastAct && <span style={{ fontSize: 10, fontWeight: 700, color: N.dim }}>{you.lastAct}</span>}
+            {equities && equities[USER_SEAT] != null && <EquityBadge pct={equities[USER_SEAT]} lead={leadSeat === USER_SEAT} />}
             <BetPill amount={you.streetBet} />
           </div>
         </div>
@@ -681,6 +788,10 @@ export default function PokerTable() {
               </div>
             )}
           </>
+        ) : state.phase === "runout" ? (
+          <div style={{ textAlign: "center", fontFamily: sans, fontSize: 13, fontWeight: 800, letterSpacing: "0.08em", color: N.gold, padding: "13px 0" }}>
+            ALL IN — running it out… <span style={{ color: N.dim, fontWeight: 600, letterSpacing: 0 }}>(tap the table to skip)</span>
+          </div>
         ) : (
           <div style={{ display: "flex", gap: 10, justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
             <button onClick={deal}

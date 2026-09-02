@@ -1,16 +1,26 @@
-/* Zero-dependency static server for Railway (or any Node host): serves ONLY the
- * built app — the four pages, the icon/manifest, and the vendored React — never
- * src/, engine/, docs/, or the Android project. The deployment is public even
- * though the repo is private, so the whitelist is the security boundary.
- * Keeps the project's no-dependencies rule: platform Node, nothing else.
+/* Zero-dependency server for Railway (or any Node host). Two halves:
+ *   1. Static: serves ONLY the built app — the pages, icon/manifest, vendored
+ *      React — never src/, engine/, docs/, or the Android project. The
+ *      whitelist is the security boundary.
+ *   2. /api/*: the accounts API (api.mjs), a port of maybe.love's auth/profile
+ *      backend. If JWT_SECRET is unset the API answers 503 and the site still
+ *      serves — playing never requires an account.
+ * Keeps the project's no-dependencies rule: platform Node (≥22.5 for
+ * node:sqlite), nothing else.
  */
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { openDb } from "./db.mjs";
+import { handleApi, accountsEnabled, assertSecretStrength } from "./api.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
+
+assertSecretStrength();
+if (accountsEnabled()) openDb();
+else console.log("JWT_SECRET not set — accounts API disabled (503); static site unaffected");
 
 const FILES = new Map([
   ["/", "index.html"],
@@ -18,6 +28,7 @@ const FILES = new Map([
   ["/trainer.html", "trainer.html"],
   ["/play.html", "play.html"],
   ["/table.html", "table.html"],
+  ["/profile.html", "profile.html"],
   ["/favicon.svg", "favicon.svg"],
   ["/manifest.webmanifest", "manifest.webmanifest"],
   ["/vendor/react.production.min.js", "vendor/react.production.min.js"],
@@ -33,6 +44,7 @@ const TYPES = {
 
 const server = createServer(async (req, res) => {
   const path = new URL(req.url, "http://x").pathname;
+  if (path.startsWith("/api/")) return handleApi(req, res, path);
   const file = FILES.get(path);
   if (!file || (req.method !== "GET" && req.method !== "HEAD")) {
     res.writeHead(404, { "content-type": "text/plain" }).end("not found");

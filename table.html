@@ -182,6 +182,253 @@ function analyze(hand5) {
 function bestHold(hand5) {
     return analyze(hand5)[0].idxs;
 }
+const PUBLIC_API_URL = "https://poker-trainer-production-52ff.up.railway.app";
+const ACCT_TOKEN_KEY = "poker_token_v1";
+const ACCT_MIRROR_KEY = "poker-trainer:statsMirror.v1";
+const STALE_AFTER_MS = 20 * 60 * 1000;
+const ACCT = {
+    base: null,
+    available: false,
+    checked: false,
+    user: null,
+    stats: null,
+    history: [],
+    fetchedAt: 0,
+    listeners: [],
+};
+let _acctToken;
+function acctGetToken() {
+    if (_acctToken !== undefined)
+        return _acctToken;
+    try {
+        _acctToken = window.localStorage.getItem(ACCT_TOKEN_KEY);
+    }
+    catch {
+        _acctToken = null;
+    }
+    return _acctToken;
+}
+function acctSetToken(t) {
+    _acctToken = t;
+    try {
+        t ? window.localStorage.setItem(ACCT_TOKEN_KEY, t) : window.localStorage.removeItem(ACCT_TOKEN_KEY);
+    }
+    catch { }
+}
+function acctNotify() { for (const fn of ACCT.listeners) {
+    try {
+        fn();
+    }
+    catch { }
+} }
+function acctSubscribe(fn) { ACCT.listeners.push(fn); return () => { ACCT.listeners = ACCT.listeners.filter((f) => f !== fn); }; }
+async function acctApi(path, opts = {}) {
+    const token = acctGetToken();
+    const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+    if (token)
+        headers.Authorization = `Bearer ${token}`;
+    let res;
+    try {
+        res = await fetch(`${ACCT.base}/api${path}`, { ...opts, headers });
+    }
+    catch {
+        throw new Error("couldn't reach the poker server. check your connection and try again.");
+    }
+    const text = await res.text();
+    let data = null;
+    try {
+        data = text ? JSON.parse(text) : null;
+    }
+    catch {
+        data = { raw: text };
+    }
+    if (!res.ok) {
+        const ours = res.status >= 500;
+        const msg = (!ours && (data && (data.detail || data.message)))
+            || (ours ? "something broke on our end. try that again in a moment."
+                : `Request failed (${res.status})`);
+        const e = new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+        e.status = res.status;
+        throw e;
+    }
+    return data;
+}
+async function acctProbe(base) {
+    try {
+        const res = await fetch(`${base}/api/health`, { cache: "no-store" });
+        if (!res.ok)
+            return false;
+        const j = await res.json();
+        return !!(j && j.ok && j.accounts);
+    }
+    catch {
+        return false;
+    }
+}
+function acctAdopt(payload) {
+    if (payload.user)
+        ACCT.user = payload.user;
+    if (payload.stats)
+        ACCT.stats = payload.stats;
+    if (payload.trainer_history)
+        ACCT.history = payload.trainer_history;
+    ACCT.fetchedAt = Date.now();
+    acctNotify();
+}
+async function acctRefresh() {
+    if (!ACCT.available || !acctGetToken())
+        return;
+    try {
+        acctAdopt(await acctApi("/auth/me"));
+        acctPushMirror();
+    }
+    catch {
+        acctSetToken(null);
+        ACCT.user = null;
+        ACCT.stats = null;
+        ACCT.history = [];
+        acctNotify();
+    }
+}
+async function acctInit() {
+    if (ACCT.checked || typeof window === "undefined")
+        return;
+    ACCT.checked = true;
+    if (await acctProbe("")) {
+        ACCT.base = "";
+        ACCT.available = true;
+    }
+    else if (await acctProbe(PUBLIC_API_URL)) {
+        ACCT.base = PUBLIC_API_URL;
+        ACCT.available = true;
+    }
+    acctNotify();
+    if (ACCT.available && acctGetToken())
+        await acctRefresh();
+    try {
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible" && ACCT.user && Date.now() - ACCT.fetchedAt > STALE_AFTER_MS)
+                acctRefresh();
+            if (document.visibilityState === "hidden")
+                acctFlushNow();
+        });
+        window.addEventListener("pagehide", acctFlushNow);
+    }
+    catch { }
+}
+function acctFlushNow() {
+    if (!ACCT.available || !ACCT.user)
+        return;
+    clearTimeout(_pushTimer);
+    const m = acctMirror();
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+        fetch(`${ACCT.base}/api/stats`, {
+            method: "PUT", keepalive: true,
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${acctGetToken()}` },
+            body: JSON.stringify({ ...m, today: m.todayDay === today ? { hands: m.todayHands, optimal: m.todayOptimal, ev_lost: m.todayEvLost } : undefined }),
+        });
+    }
+    catch { }
+}
+async function acctSignin(email, password) {
+    const out = await acctApi("/auth/signin", { method: "POST", body: JSON.stringify({ email, password }) });
+    acctSetToken(out.token);
+    acctAdopt(out);
+    acctPushMirror();
+    return out;
+}
+async function acctSignup(fields) {
+    const out = await acctApi("/auth/signup", { method: "POST", body: JSON.stringify(fields) });
+    acctSetToken(out.token);
+    acctAdopt(out);
+    acctPushMirror();
+    return out;
+}
+async function acctRestore(email, password) {
+    const out = await acctApi("/auth/restore", { method: "POST", body: JSON.stringify({ email, password }) });
+    acctSetToken(out.token);
+    acctAdopt(out);
+    return out;
+}
+function acctSignout() {
+    acctSetToken(null);
+    ACCT.user = null;
+    ACCT.stats = null;
+    ACCT.history = [];
+    acctNotify();
+}
+async function acctPatchProfile(patch) {
+    const out = await acctApi("/profile", { method: "PATCH", body: JSON.stringify(patch) });
+    acctAdopt(out);
+    return out;
+}
+async function acctDeleteMe() {
+    const out = await acctApi("/auth/me", { method: "DELETE" });
+    acctSignout();
+    return out;
+}
+const acctExport = () => acctApi("/auth/export");
+const acctLeaderboard = () => acctApi("/leaderboard");
+function acctMirror() {
+    try {
+        return JSON.parse(window.localStorage.getItem(ACCT_MIRROR_KEY)) || {};
+    }
+    catch {
+        return {};
+    }
+}
+function acctSaveMirror(m) {
+    try {
+        window.localStorage.setItem(ACCT_MIRROR_KEY, JSON.stringify(m));
+    }
+    catch { }
+}
+let _pushTimer = null;
+function acctPushMirror() {
+    if (!ACCT.available || !ACCT.user)
+        return;
+    clearTimeout(_pushTimer);
+    _pushTimer = setTimeout(async () => {
+        const m = acctMirror();
+        const today = new Date().toISOString().slice(0, 10);
+        try {
+            const out = await acctApi("/stats", {
+                method: "PUT",
+                body: JSON.stringify({ ...m, today: m.todayDay === today ? { hands: m.todayHands, optimal: m.todayOptimal, ev_lost: m.todayEvLost } : undefined }),
+            });
+            if (out.stats) {
+                ACCT.stats = out.stats;
+                acctNotify();
+            }
+        }
+        catch { }
+    }, 1200);
+}
+function reportStats({ set = {}, inc = {}, maxOf = {} } = {}) {
+    const m = acctMirror();
+    for (const k of Object.keys(set))
+        m[k] = set[k];
+    for (const k of Object.keys(inc))
+        m[k] = (m[k] || 0) + inc[k];
+    for (const k of Object.keys(maxOf))
+        m[k] = Math.max(m[k] || 0, maxOf[k]);
+    const today = new Date().toISOString().slice(0, 10);
+    if (m.todayDay !== today) {
+        m.todayDay = today;
+        m.todayHands = 0;
+        m.todayOptimal = 0;
+        m.todayEvLost = 0;
+    }
+    if (inc.trainer_hands)
+        m.todayHands += inc.trainer_hands;
+    if (inc.trainer_optimal)
+        m.todayOptimal += inc.trainer_optimal;
+    if (inc.trainer_ev_lost)
+        m.todayEvLost += inc.trainer_ev_lost;
+    acctSaveMirror(m);
+    acctPushMirror();
+}
 const T = {
     baize: "#1F423A", baizeHi: "#28534A",
     woodD: "#5E3F26", woodM: "#8A5E37", woodL: "#B9824B",
@@ -198,7 +445,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.1.3";
+const APP_VERSION = "0.2.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -271,6 +518,107 @@ function CatBars({ cats, color }) {
             (p * 100).toFixed(p >= 0.01 ? 1 : 3),
             "% \u00B7 ",
             evShare.toFixed(3)))))));
+}
+function useAccount() {
+    const [, bump] = React.useState(0);
+    React.useEffect(() => {
+        const un = acctSubscribe(() => bump((v) => v + 1));
+        acctInit();
+        return un;
+    }, []);
+    return ACCT;
+}
+const fieldStyle = {
+    width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8,
+    border: `1px solid ${T.line}`, background: "rgba(0,0,0,0.25)", color: T.cream,
+    fontFamily: mono, fontSize: 13, marginBottom: 8, outline: "none",
+};
+function AuthModal({ onClose }) {
+    const [mode, setMode] = React.useState("signin");
+    const [email, setEmail] = React.useState("");
+    const [password, setPassword] = React.useState("");
+    const [displayName, setDisplayName] = React.useState("");
+    const [dob, setDob] = React.useState("");
+    const [ageOk, setAgeOk] = React.useState(false);
+    const [msg, setMsg] = React.useState(null);
+    const [busy, setBusy] = React.useState(false);
+    const [restorable, setRestorable] = React.useState(false);
+    const go = async () => {
+        setBusy(true);
+        setMsg(null);
+        setRestorable(false);
+        try {
+            if (mode === "signin")
+                await acctSignin(email, password);
+            else
+                await acctSignup({ email, password, display_name: displayName, date_of_birth: dob, age_confirmed: ageOk });
+            onClose();
+        }
+        catch (e) {
+            if (e.status === 410)
+                setRestorable(true);
+            setMsg({ err: true, text: e.message });
+        }
+        finally {
+            setBusy(false);
+        }
+    };
+    const doRestore = async () => {
+        setBusy(true);
+        setMsg(null);
+        try {
+            await acctRestore(email, password);
+            onClose();
+        }
+        catch (e) {
+            setMsg({ err: true, text: e.message });
+        }
+        finally {
+            setBusy(false);
+        }
+    };
+    return (React.createElement(Modal, { onBackdrop: onClose, scroll: true },
+        React.createElement(ModalHeader, { title: mode === "signin" ? "Sign in" : "Create account", onClose: onClose, closeLabel: "Close" }),
+        React.createElement("div", { style: { fontSize: 13 } },
+            React.createElement("input", { style: fieldStyle, type: "email", placeholder: "email", value: email, autoComplete: "email", onChange: (e) => setEmail(e.target.value) }),
+            React.createElement("input", { style: fieldStyle, type: "password", placeholder: "password (8+ characters)", value: password, autoComplete: mode === "signin" ? "current-password" : "new-password", onChange: (e) => setPassword(e.target.value) }),
+            mode === "signup" && (React.createElement(React.Fragment, null,
+                React.createElement("input", { style: fieldStyle, placeholder: "display name (shows at the table)", maxLength: 40, value: displayName, onChange: (e) => setDisplayName(e.target.value) }),
+                React.createElement("div", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, margin: "2px 0 4px" } }, "Date of birth"),
+                React.createElement("input", { style: fieldStyle, type: "date", value: dob, onChange: (e) => setDob(e.target.value) }),
+                React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "flex-start", fontFamily: mono, fontSize: 11.5, color: T.cream, margin: "4px 0 10px", cursor: "pointer" } },
+                    React.createElement("input", { type: "checkbox", checked: ageOk, onChange: (e) => setAgeOk(e.target.checked), style: { marginTop: 2 } }),
+                    React.createElement("span", null, "I confirm I am 18 or older.")),
+                React.createElement("div", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, lineHeight: 1.5, marginBottom: 10 } }, "We store: your email, display name, date of birth, avatar, and practice stats (chips, hands, trainer accuracy). Nothing else \u2014 no tracking, no analytics, practice chips only. Export or delete everything any time from your profile. Playing never requires an account."))),
+            msg && React.createElement("div", { style: { fontFamily: mono, fontSize: 11.5, color: msg.err ? T.pegRed : T.good, margin: "2px 0 8px", lineHeight: 1.4 } }, msg.text),
+            restorable && (React.createElement("button", { onClick: doRestore, disabled: busy, style: { ...segStyle(true), width: "100%", marginBottom: 8 } }, "Restore my account")),
+            React.createElement("button", { onClick: go, disabled: busy, style: { ...segStyle(true), width: "100%", padding: "11px 6px", fontSize: 13 } }, busy ? "…" : mode === "signin" ? "Sign in" : "Create account"),
+            React.createElement("button", { onClick: () => { setMode(mode === "signin" ? "signup" : "signin"); setMsg(null); }, style: {
+                    background: "none", border: "none", color: T.muted, textDecoration: "underline",
+                    cursor: "pointer", fontFamily: mono, fontSize: 11, marginTop: 10, padding: 0,
+                } }, mode === "signin" ? "No account? Create one" : "Have an account? Sign in"))));
+}
+function AccountArea({ dark }) {
+    const acct = useAccount();
+    const [open, setOpen] = React.useState(false);
+    if (!acct.available)
+        return null;
+    const skin = dark
+        ? { border: "1px solid #2c303c", background: "rgba(255,255,255,0.04)", color: "#c9cfda" }
+        : { border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)", color: "#2A1B0E" };
+    const h = dark ? 30 : 40;
+    return (React.createElement(React.Fragment, null,
+        acct.user ? (React.createElement("a", { href: "profile.html", title: "Your profile", style: {
+                display: "flex", alignItems: "center", gap: 6, textDecoration: "none",
+                borderRadius: 10, padding: "0 10px", height: h, maxWidth: 130,
+                fontFamily: mono, fontSize: dark ? 11 : 12, fontWeight: 700, ...skin,
+            } },
+            React.createElement("span", { style: { fontSize: dark ? 14 : 17 } }, acct.user.avatar),
+            React.createElement("span", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, acct.user.display_name))) : (React.createElement("button", { onClick: () => setOpen(true), style: {
+                height: h, borderRadius: 10, cursor: "pointer", padding: "0 12px",
+                fontFamily: mono, fontSize: dark ? 11 : 12, fontWeight: 700, ...skin,
+            } }, "Sign in")),
+        open && React.createElement(AuthModal, { onClose: () => setOpen(false) })));
 }
 const { useState, useEffect, useRef } = React;
 const HOLDEM_CATS = ["High Card", "Pair", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush"];
@@ -366,6 +714,44 @@ function equityVs(hole, board, nOpps, trials, rng) {
             won += ties ? 1 / (ties + 1) : 1;
     }
     return won / trials;
+}
+function equityMulti(holes, board, rng) {
+    const seen = new Set([...holes.flat(), ...board].map(cardId));
+    const pool = fullDeck().filter((c) => !seen.has(cardId(c)));
+    const need = 5 - board.length;
+    const wins = new Array(holes.length).fill(0);
+    let total = 0;
+    const scoreOut = (fullBoard) => {
+        const scores = holes.map((h) => score7([...h, ...fullBoard]));
+        const best = Math.max(...scores);
+        const winners = scores.reduce((n, s) => n + (s === best ? 1 : 0), 0);
+        for (let i = 0; i < scores.length; i++)
+            if (scores[i] === best)
+                wins[i] += 1 / winners;
+        total++;
+    };
+    if (need === 0)
+        scoreOut(board);
+    else if (need <= 2) {
+        for (let i = 0; i < pool.length; i++) {
+            if (need === 1)
+                scoreOut([...board, pool[i]]);
+            else
+                for (let j = i + 1; j < pool.length; j++)
+                    scoreOut([...board, pool[i], pool[j]]);
+        }
+    }
+    else {
+        const buf = pool.slice();
+        for (let t = 0; t < 400; t++) {
+            for (let i = 0; i < need; i++) {
+                const j = i + ((rng() * (buf.length - i)) | 0);
+                [buf[i], buf[j]] = [buf[j], buf[i]];
+            }
+            scoreOut([...board, ...buf.slice(0, need)]);
+        }
+    }
+    return wins.map((w) => w / total);
 }
 const SMALL_BLIND = 25;
 const BIG_BLIND = 50;
@@ -541,9 +927,14 @@ function endStreetOrShowdown(s) {
         }
     };
     if (actors.length < 2) {
-        while (s.street < 3)
-            dealNext();
-        return settleShowdown(s);
+        if (s.street >= 3)
+            return settleShowdown(s);
+        s.phase = "runout";
+        s.revealed = true;
+        s.toAct = -1;
+        s.needs = [];
+        s.message = "ALL IN — running it out";
+        return s;
     }
     if (s.street === 3)
         return settleShowdown(s);
@@ -552,6 +943,20 @@ function endStreetOrShowdown(s) {
     s.toAct = s.needs[0];
     if (live.length < 2)
         return settleShowdown(s);
+    return s;
+}
+function runoutStep(state) {
+    const s = JSON.parse(JSON.stringify(state));
+    if (s.phase !== "runout")
+        return s;
+    if (s.street >= 3)
+        return settleShowdown(s);
+    s.street += 1;
+    s.board.push(s.deck.pop());
+    if (s.street === 1) {
+        s.board.push(s.deck.pop());
+        s.board.push(s.deck.pop());
+    }
     return s;
 }
 function applyAction(state, action) {
@@ -696,7 +1101,18 @@ function BetPill({ amount }) {
         React.createElement("span", { style: { width: 9, height: 9, borderRadius: "50%", flex: "0 0 auto", background: `radial-gradient(circle at 35% 35%, #ffd54f, ${N.amber} 70%)`, boxShadow: "0 0 0 1.5px rgba(0,0,0,0.5) inset" } }),
         money(amount)));
 }
-function OppSeat({ player, seat, spot, state, cardW }) {
+function EquityBadge({ pct, lead }) {
+    return (React.createElement("div", { style: {
+            marginTop: 4, fontFamily: sans, fontSize: 13, fontWeight: 900, letterSpacing: "0.02em",
+            borderRadius: 999, padding: "2px 11px",
+            background: lead ? N.gold : "rgba(0,0,0,0.7)", color: lead ? "#14171d" : "#e8ebf2",
+            border: `1px solid ${lead ? N.gold : N.line2}`,
+            boxShadow: lead ? "0 0 14px rgba(255,213,79,0.5)" : "none", transition: "all 300ms ease",
+        } },
+        (pct * 100).toFixed(pct > 0 && pct < 0.005 ? 1 : 0),
+        "%"));
+}
+function OppSeat({ player, seat, spot, state, cardW, equity, lead }) {
     const isTurn = state.toAct === seat && state.phase === "betting";
     const isWinner = state.winners.includes(seat);
     const showCards = state.revealed && !player.folded;
@@ -730,6 +1146,7 @@ function OppSeat({ player, seat, spot, state, cardW }) {
         React.createElement("div", { style: { marginTop: 4, display: "flex", gap: 3, minHeight: Math.round(cardW * 1.42) * 0.62 } }, state.handNo === 0 ? null : player.folded ? (React.createElement("span", { style: { fontSize: 9, fontWeight: 800, letterSpacing: "0.14em", color: N.dim, alignSelf: "center" } }, "FOLDED")) : showCards ? (player.hole.map((c) => React.createElement(TableCard, { key: cardId(c), card: c, w: Math.round(cardW * 0.62) }))) : (React.createElement(React.Fragment, null,
             React.createElement(CardBack, { w: Math.round(cardW * 0.55) }),
             React.createElement(CardBack, { w: Math.round(cardW * 0.55) })))),
+        equity != null && React.createElement(EquityBadge, { pct: equity, lead: lead }),
         player.lastAct && React.createElement("div", { style: { marginTop: 3, fontSize: 9.5, fontWeight: 700, color: N.dim, whiteSpace: "nowrap" } }, player.lastAct),
         React.createElement(BetPill, { amount: player.streetBet })));
 }
@@ -776,7 +1193,37 @@ function PokerTable() {
         if (userTurn && la)
             setRaiseTo(clampN(la.minRaiseTo, state.pot, la.maxRaiseTo));
     }, [userTurn]);
-    const deal = () => setState((s) => startHand(s, rngRef.current));
+    useEffect(() => {
+        if (state.phase !== "runout")
+            return;
+        const t = setTimeout(() => setState((s) => (s.phase === "runout" ? runoutStep(s) : s)), 1400);
+        return () => clearTimeout(t);
+    }, [state]);
+    const skipRunout = () => setState((s) => { let x = s, g = 0; while (x.phase === "runout" && g++ < 6)
+        x = runoutStep(x); return x; });
+    const equities = React.useMemo(() => {
+        if (state.phase !== "runout")
+            return null;
+        const liveSeats = state.players.map((_, i) => i).filter((i) => inHand(state.players[i]));
+        const pcts = equityMulti(liveSeats.map((i) => state.players[i].hole), state.board, rngRef.current);
+        const out = {};
+        liveSeats.forEach((i, k) => { out[i] = pcts[k]; });
+        return out;
+    }, [state]);
+    const leadSeat = equities ? Number(Object.keys(equities).reduce((a, b) => (equities[a] >= equities[b] ? a : b))) : -1;
+    const reportedHand = useRef(0);
+    useEffect(() => {
+        if (state.phase !== "over" || state.handNo === 0 || reportedHand.current === state.handNo)
+            return;
+        reportedHand.current = state.handNo;
+        const won = state.winners.includes(USER_SEAT);
+        reportStats({
+            set: { table_stack: state.players[USER_SEAT].stack },
+            inc: { table_hands: 1, table_wins: won ? 1 : 0 },
+            maxOf: won ? { biggest_pot: state.pot } : {},
+        });
+    }, [state]);
+    const deal = () => setState((s) => (s.phase === "betting" || s.phase === "runout" ? s : startHand(s, rngRef.current)));
     const userAct = (action) => setState((s) => (s.phase === "betting" && s.toAct === USER_SEAT ? applyAction(s, action) : s));
     const OPP_SPOTS = [{ x: 14, y: 24 }, { x: 50, y: 9 }, { x: 86, y: 24 }];
     const vw = useViewportWidth();
@@ -810,15 +1257,17 @@ function PokerTable() {
             React.createElement("div", null,
                 React.createElement("span", { style: { fontSize: 12.5, fontWeight: 800, letterSpacing: "0.12em", color: N.dim } }, "vs ACE MERIDIAN \u00B7 WORLD #1"),
                 React.createElement("span", { style: { fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", color: N.faint, marginLeft: 8 } }, "PRACTICE CHIPS ONLY")),
-            React.createElement("a", { href: "index.html", "aria-label": "Home", style: { color: N.dim, textDecoration: "none", fontSize: 16, lineHeight: 1, border: `1px solid ${N.line}`, borderRadius: 9, padding: "5px 9px", background: "rgba(255,255,255,0.02)" } }, "\u2302")),
-        React.createElement("div", { style: { flex: "1 1 auto", position: "relative", minHeight: 0 } },
+            React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
+                React.createElement(AccountArea, { dark: true }),
+                React.createElement("a", { href: "index.html", "aria-label": "Home", style: { color: N.dim, textDecoration: "none", fontSize: 16, lineHeight: 1, border: `1px solid ${N.line}`, borderRadius: 9, padding: "5px 9px", background: "rgba(255,255,255,0.02)" } }, "\u2302"))),
+        React.createElement("div", { style: { flex: "1 1 auto", position: "relative", minHeight: 0, cursor: state.phase === "runout" ? "pointer" : "default" }, onClick: state.phase === "runout" ? skipRunout : undefined },
             React.createElement("div", { style: {
                     position: "absolute", inset: "5% 5% 3% 5%", borderRadius: "48% / 42%",
                     background: `radial-gradient(75% 70% at 50% 32%, ${N.feltHi}, ${N.felt} 75%)`,
                     border: `7px solid ${N.rail}`,
                     boxShadow: "0 0 60px rgba(0,0,0,0.85), inset 0 0 46px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(0,230,118,0.07)",
                 } }),
-            [1, 2, 3].map((seat, i) => (React.createElement(OppSeat, { key: seat, player: state.players[seat], seat: seat, spot: OPP_SPOTS[i], state: state, cardW: boardW }))),
+            [1, 2, 3].map((seat, i) => (React.createElement(OppSeat, { key: seat, player: state.players[seat], seat: seat, spot: OPP_SPOTS[i], state: state, cardW: boardW, equity: equities ? equities[seat] : null, lead: leadSeat === seat }))),
             React.createElement("div", { style: {
                     position: "absolute", left: "50%", top: "47%", transform: "translate(-50%, -50%)",
                     display: "flex", flexDirection: "column", alignItems: "center", gap: 9, zIndex: 2, width: "100%",
@@ -862,6 +1311,7 @@ function PokerTable() {
                             you.folded && state.phase === "betting" ? " · FOLDED" : ""),
                         React.createElement("div", { style: { fontSize: 12.5, fontWeight: 800, color: N.green } }, money(you.stack))),
                     you.lastAct && React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: N.dim } }, you.lastAct),
+                    equities && equities[USER_SEAT] != null && React.createElement(EquityBadge, { pct: equities[USER_SEAT], lead: leadSeat === USER_SEAT }),
                     React.createElement(BetPill, { amount: you.streetBet })))),
         React.createElement("div", { style: {
                 flex: "0 0 auto", background: `linear-gradient(180deg, ${N.panel}, #101318)`,
@@ -876,7 +1326,9 @@ function PokerTable() {
                 React.createElement("button", { disabled: !userTurn, onClick: () => userAct({ type: "fold" }), style: actBtn({ background: "#232733", color: N.redSoft, border: "1px solid rgba(255,82,82,0.25)" }) }, "FOLD"),
                 React.createElement("button", { disabled: !userTurn, onClick: () => userAct({ type: "call" }), style: actBtn({ background: "#232733", color: N.text, border: `1px solid ${N.line2}` }) }, userTurn && la ? (la.canCheck ? "CHECK" : `CALL ${money(la.toCall)}`) : "CHECK"),
                 React.createElement("button", { disabled: !userTurn || !la || !la.canRaise, onClick: () => userAct({ type: "raise", to: raiseTo }), style: actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }) }, la && clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) >= la.maxRaiseTo ? "ALL-IN" : `RAISE TO ${la ? money(clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo)) : ""}`)),
-            !userTurn && (React.createElement("div", { style: { textAlign: "center", fontSize: 11, fontWeight: 700, color: N.dim } }, state.toAct >= 0 ? `${state.players[state.toAct].name} is thinking…` : "…")))) : (React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", alignItems: "center", flexWrap: "wrap" } },
+            !userTurn && (React.createElement("div", { style: { textAlign: "center", fontSize: 11, fontWeight: 700, color: N.dim } }, state.toAct >= 0 ? `${state.players[state.toAct].name} is thinking…` : "…")))) : state.phase === "runout" ? (React.createElement("div", { style: { textAlign: "center", fontFamily: sans, fontSize: 13, fontWeight: 800, letterSpacing: "0.08em", color: N.gold, padding: "13px 0" } },
+            "ALL IN \u2014 running it out\u2026 ",
+            React.createElement("span", { style: { color: N.dim, fontWeight: 600, letterSpacing: 0 } }, "(tap the table to skip)"))) : (React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", alignItems: "center", flexWrap: "wrap" } },
             React.createElement("button", { onClick: deal, style: { ...actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }), width: "auto", padding: "13px 42px" } }, state.handNo === 0 ? "SIT DOWN & DEAL" : "NEXT HAND"),
             you.stack < BIG_BLIND && state.handNo > 0 && (React.createElement("span", { style: { fontSize: 11, color: N.dim, fontWeight: 700 } },
                 "Felted \u2014 the next deal stakes you ",

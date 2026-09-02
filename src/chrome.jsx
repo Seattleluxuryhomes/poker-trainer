@@ -143,3 +143,133 @@ function CatBars({ cats, color }) {
     </div>
   );
 }
+
+/* ---- account chrome: the auth widget + modals, shared by every page ----
+ * Renders NOTHING until acctInit() finds a live accounts backend, so the
+ * Pages-without-CORS mirror, the offline APK, and file:// opens stay pure
+ * guest surfaces. */
+
+function useAccount() {
+  const [, bump] = React.useState(0);
+  React.useEffect(() => {
+    const un = acctSubscribe(() => bump((v) => v + 1));
+    acctInit();
+    return un;
+  }, []);
+  return ACCT;
+}
+
+const fieldStyle = {
+  width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8,
+  border: `1px solid ${T.line}`, background: "rgba(0,0,0,0.25)", color: T.cream,
+  fontFamily: mono, fontSize: 13, marginBottom: 8, outline: "none",
+};
+
+/* Sign in + sign up (with the ported 18+ fields) in one modal. */
+function AuthModal({ onClose }) {
+  const [mode, setMode] = React.useState("signin"); // signin | signup
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [displayName, setDisplayName] = React.useState("");
+  const [dob, setDob] = React.useState("");
+  const [ageOk, setAgeOk] = React.useState(false);
+  const [msg, setMsg] = React.useState(null);       // {err|note, text}
+  const [busy, setBusy] = React.useState(false);
+  const [restorable, setRestorable] = React.useState(false);
+
+  const go = async () => {
+    setBusy(true); setMsg(null); setRestorable(false);
+    try {
+      if (mode === "signin") await acctSignin(email, password);
+      else await acctSignup({ email, password, display_name: displayName, date_of_birth: dob, age_confirmed: ageOk });
+      onClose();
+    } catch (e) {
+      if (e.status === 410) setRestorable(true);
+      setMsg({ err: true, text: e.message });
+    } finally { setBusy(false); }
+  };
+  const doRestore = async () => {
+    setBusy(true); setMsg(null);
+    try { await acctRestore(email, password); onClose(); }
+    catch (e) { setMsg({ err: true, text: e.message }); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Modal onBackdrop={onClose} scroll>
+      <ModalHeader title={mode === "signin" ? "Sign in" : "Create account"} onClose={onClose} closeLabel="Close" />
+      <div style={{ fontSize: 13 }}>
+        <input style={fieldStyle} type="email" placeholder="email" value={email} autoComplete="email"
+          onChange={(e) => setEmail(e.target.value)} />
+        <input style={fieldStyle} type="password" placeholder="password (8+ characters)" value={password}
+          autoComplete={mode === "signin" ? "current-password" : "new-password"}
+          onChange={(e) => setPassword(e.target.value)} />
+        {mode === "signup" && (
+          <>
+            <input style={fieldStyle} placeholder="display name (shows at the table)" maxLength={40}
+              value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            <div style={{ fontFamily: mono, fontSize: 10.5, color: T.muted, margin: "2px 0 4px" }}>Date of birth</div>
+            <input style={fieldStyle} type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
+            <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontFamily: mono, fontSize: 11.5, color: T.cream, margin: "4px 0 10px", cursor: "pointer" }}>
+              <input type="checkbox" checked={ageOk} onChange={(e) => setAgeOk(e.target.checked)} style={{ marginTop: 2 }} />
+              <span>I confirm I am 18 or older.</span>
+            </label>
+            <div style={{ fontFamily: mono, fontSize: 10.5, color: T.muted, lineHeight: 1.5, marginBottom: 10 }}>
+              We store: your email, display name, date of birth, avatar, and practice
+              stats (chips, hands, trainer accuracy). Nothing else — no tracking, no
+              analytics, practice chips only. Export or delete everything any time
+              from your profile. Playing never requires an account.
+            </div>
+          </>
+        )}
+        {msg && <div style={{ fontFamily: mono, fontSize: 11.5, color: msg.err ? T.pegRed : T.good, margin: "2px 0 8px", lineHeight: 1.4 }}>{msg.text}</div>}
+        {restorable && (
+          <button onClick={doRestore} disabled={busy} style={{ ...segStyle(true), width: "100%", marginBottom: 8 }}>
+            Restore my account
+          </button>
+        )}
+        <button onClick={go} disabled={busy} style={{ ...segStyle(true), width: "100%", padding: "11px 6px", fontSize: 13 }}>
+          {busy ? "…" : mode === "signin" ? "Sign in" : "Create account"}
+        </button>
+        <button onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setMsg(null); }} style={{
+          background: "none", border: "none", color: T.muted, textDecoration: "underline",
+          cursor: "pointer", fontFamily: mono, fontSize: 11, marginTop: 10, padding: 0,
+        }}>
+          {mode === "signin" ? "No account? Create one" : "Have an account? Sign in"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/* Header widget: hidden with no backend; "Sign in" as a guest; avatar+name when
+ * in. `dark` restyles it for the table page's neon room. */
+function AccountArea({ dark }) {
+  const acct = useAccount();
+  const [open, setOpen] = React.useState(false);
+  if (!acct.available) return null;
+  const skin = dark
+    ? { border: "1px solid #2c303c", background: "rgba(255,255,255,0.04)", color: "#c9cfda" }
+    : { border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)", color: "#2A1B0E" };
+  const h = dark ? 30 : 40;
+  return (
+    <>
+      {acct.user ? (
+        <a href="profile.html" title="Your profile" style={{
+          display: "flex", alignItems: "center", gap: 6, textDecoration: "none",
+          borderRadius: 10, padding: "0 10px", height: h, maxWidth: 130,
+          fontFamily: mono, fontSize: dark ? 11 : 12, fontWeight: 700, ...skin,
+        }}>
+          <span style={{ fontSize: dark ? 14 : 17 }}>{acct.user.avatar}</span>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{acct.user.display_name}</span>
+        </a>
+      ) : (
+        <button onClick={() => setOpen(true)} style={{
+          height: h, borderRadius: 10, cursor: "pointer", padding: "0 12px",
+          fontFamily: mono, fontSize: dark ? 11 : 12, fontWeight: 700, ...skin,
+        }}>Sign in</button>
+      )}
+      {open && <AuthModal onClose={() => setOpen(false)} />}
+    </>
+  );
+}

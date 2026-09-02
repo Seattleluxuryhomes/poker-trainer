@@ -42,13 +42,29 @@ build, sign, and attach the APK to a GitHub Release, which Obtainium installs
 and updates from. Setup, signing, and the details:
 [docs/ANDROID.md](docs/ANDROID.md).
 
+## Accounts (optional, trust-first)
+
+Profiles sync practice stats across devices and power the opt-in leaderboard;
+there's a TV-style all-in equity broadcast at the hold'em table. The accounts
+backend is a faithful port of the founder's maybe.love auth (provenance and
+the verbatim-behavior list: `CLAUDE.md`): zero-dependency Node + node:sqlite,
+JWT bearer sessions, an 18+ gate, rate limiting, one-tap export and delete.
+Playing NEVER requires an account; without `JWT_SECRET` the API answers 503
+and the site is guest-only.
+
+Server env: `JWT_SECRET` (required for accounts, 32+ chars), `DB_PATH` (put it
+on a persistent volume — Railway: mount a volume at `/data` and set
+`DB_PATH=/data/poker.db`), `CORS_ORIGINS` (e.g. the Pages origin),
+`ACCESS_TOKEN_EXPIRE_HOURS` (default 168). Node ≥ 22.5.
+
 ## Verify the engine
 
 ```bash
 node engine/verify_rank.js      # all 2,598,960 hands vs the published frequency table
 node engine/verify_trainer.js   # trainer.html: exact EVs vs hand-derived facts
 node engine/verify_play.js      # play.html: paytable math + hint == analysis
-node engine/verify_table.js     # table.html: the Elmish reducer's supplied semantics
+node engine/verify_table.js     # table.html: game core, side pots, runout broadcast, equities
+node engine/verify_auth.js      # the accounts API, driven over HTTP against a temp database
 ```
 
 The verify scripts eval the **compiled pages** in a Node vm — they test what

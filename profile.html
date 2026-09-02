@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'" />
 <meta name="theme-color" content="#0f2417" />
-<meta name="description" content="Practice optimal video-poker holds: every possible hold ranked by exact expected value, fully explained. Free and open-source." />
+<meta name="description" content="Your poker profile: synced practice stats, trainer accuracy trend, and the opt-in leaderboard. Free and open-source." />
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Poker Hold Trainer" />
-<meta property="og:description" content="Practice optimal video-poker holds: every possible hold ranked by exact expected value, fully explained. Free and open-source." />
-<title>Poker Hold Trainer</title>
+<meta property="og:title" content="Poker — Profile" />
+<meta property="og:description" content="Your poker profile: synced practice stats, trainer accuracy trend, and the opt-in leaderboard. Free and open-source." />
+<title>Poker — Profile</title>
 <style>html,body{margin:0;background:#0f2417;min-height:100%;-webkit-user-select:none;user-select:none}#root{min-height:100vh}input,textarea{-webkit-user-select:text;user-select:text}</style>
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
@@ -620,230 +620,183 @@ function AccountArea({ dark }) {
             } }, "Sign in")),
         open && React.createElement(AuthModal, { onClose: () => setOpen(false) })));
 }
-const { useState, useMemo, useCallback, useEffect, useRef } = React;
-function randomHand() {
-    return shuffledDeck().slice(0, 5);
+const { useState, useEffect } = React;
+const AVATAR_CHOICES = ["🂠", "♠️", "♥️", "♦️", "♣️", "🎩", "🦊", "🦈", "🐺", "🃏", "🤠", "👑"];
+function StatTile({ label, value }) {
+    return (React.createElement("div", { style: { background: "rgba(0,0,0,0.22)", border: `1px solid ${T.line}`, borderRadius: 10, padding: "10px 12px" } },
+        React.createElement("div", { style: { fontFamily: mono, fontSize: 10, color: T.muted, letterSpacing: "0.08em", textTransform: "uppercase" } }, label),
+        React.createElement("div", { style: { fontFamily: mono, fontSize: 18, fontWeight: 700, color: T.cream, marginTop: 3 } }, value)));
 }
-function Explain({ opt }) {
-    const floor = opt.min > 0
-        ? `Guaranteed at least ${opt.min} — the held cards already pay no matter the draw.`
-        : "No guaranteed payout — this hold can finish with nothing.";
-    return (React.createElement("div", { style: { padding: "12px 12px 14px", background: "rgba(0,0,0,0.26)", borderRadius: 9, marginTop: 6, lineHeight: 1.5 } },
-        React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.muted, marginBottom: 6 } },
-            "EXACT \u2014 enumerated all ",
-            opt.draws.toLocaleString(),
-            " possible ",
-            opt.draws === 1 ? "outcome" : "draws",
-            " of the ",
-            5 - opt.idxs.length,
-            " replacement card",
-            5 - opt.idxs.length === 1 ? "" : "s"),
-        React.createElement("div", { style: { fontSize: 13.5, marginBottom: 8 } },
-            floor,
-            " Some winning hand arrives ",
-            (opt.hitRate * 100).toFixed(1),
-            "% of the time."),
-        React.createElement(CatBars, { cats: opt.cats, color: T.good }),
-        React.createElement("div", { style: { height: 1, background: T.line, margin: "12px 0" } }),
-        React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.cream, lineHeight: 1.7 } },
-            React.createElement("div", null,
-                "EV ",
-                React.createElement("b", null, opt.ev.toFixed(4)),
-                " \u00A0 sd ",
-                opt.sd.toFixed(2),
-                " \u00A0 floor ",
-                opt.min,
-                " \u00A0 ceiling ",
-                opt.max),
-            React.createElement("div", { style: { color: T.muted } }, "Bars show each category's share of the EV (probability \u00D7 payout)."))));
+function TrendSpark({ history }) {
+    const days = history.filter((d) => d.hands > 0);
+    if (days.length < 2)
+        return React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.muted } }, "Play the trainer on a couple of days and your accuracy trend appears here.");
+    const W = 320, H = 64, P = 4;
+    const pts = days.map((d, i) => {
+        const x = P + (i / (days.length - 1)) * (W - 2 * P);
+        const y = H - P - (d.optimal / d.hands) * (H - 2 * P);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    const last = days[days.length - 1];
+    return (React.createElement("div", null,
+        React.createElement("svg", { viewBox: `0 0 ${W} ${H}`, style: { width: "100%", maxWidth: 360, height: "auto", display: "block" }, role: "img", "aria-label": `Trainer accuracy over ${days.length} days` },
+            React.createElement("polyline", { points: pts.join(" "), fill: "none", stroke: T.good, strokeWidth: "2.5", strokeLinejoin: "round", strokeLinecap: "round" }),
+            React.createElement("circle", { cx: pts[pts.length - 1].split(",")[0], cy: pts[pts.length - 1].split(",")[1], r: "3.5", fill: T.pegIvory })),
+        React.createElement("div", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, marginTop: 4 } },
+            days.length,
+            " day",
+            days.length > 1 ? "s" : "",
+            " \u00B7 latest ",
+            ((last.optimal / last.hands) * 100).toFixed(0),
+            "% optimal")));
 }
-function buildNote(best, chosen, delta) {
-    const optimal = delta < 1e-6;
-    const bestLabel = best.idxs.length === 0 ? "drawing five" : `holding ${best.cards.map(tag).join(" ")}`;
-    if (optimal) {
-        if (best.idxs.length === 5)
-            return "Optimal — the made hand is worth more than any chase.";
-        if (best.min > 0)
-            return "Optimal — you kept the sure payout and the best upside.";
-        return "Optimal — that's the highest-EV hold in the deal.";
+function Leaderboard({ meName }) {
+    const [board, setBoard] = useState(null);
+    useEffect(() => { acctLeaderboard().then(setBoard).catch(() => setBoard({ players: [] })); }, []);
+    if (!board)
+        return React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.muted } }, "Loading\u2026");
+    if (!board.players.length)
+        return React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.muted } }, "Nobody has opted in yet. Be the first.");
+    return (React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontFamily: mono, fontSize: 12 } },
+        React.createElement("tbody", null, board.players.map((p, i) => (React.createElement("tr", { key: i, style: { background: p.display_name === meName ? "rgba(236,220,180,0.12)" : "transparent" } },
+            React.createElement("td", { style: { padding: "5px 6px", color: T.muted, width: 26 } }, i + 1),
+            React.createElement("td", { style: { padding: "5px 4px", width: 26, fontSize: 15 } }, p.avatar),
+            React.createElement("td", { style: { padding: "5px 6px", color: T.cream, fontWeight: p.display_name === meName ? 700 : 400, overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120, whiteSpace: "nowrap" } }, p.display_name),
+            React.createElement("td", { style: { padding: "5px 6px", textAlign: "right", color: T.good, fontWeight: 700 } },
+                "$",
+                (p.table_stack || 0).toLocaleString()),
+            React.createElement("td", { style: { padding: "5px 6px", textAlign: "right", color: T.muted } },
+                p.table_hands,
+                " hands")))))));
+}
+function Profile() {
+    const acct = useAccount();
+    const [authOpen, setAuthOpen] = useState(false);
+    const [name, setName] = useState("");
+    const [note, setNote] = useState(null);
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    useEffect(() => { if (acct.user)
+        setName(acct.user.display_name); }, [acct.user && acct.user.display_name]);
+    const saveName = async () => {
+        try {
+            await acctPatchProfile({ display_name: name });
+            setNote("Saved.");
+            setTimeout(() => setNote(null), 1500);
+        }
+        catch (e) {
+            setNote(e.message);
+        }
+    };
+    const pickAvatar = async (a) => { try {
+        await acctPatchProfile({ avatar: a });
     }
-    if (chosen.min > 0 && best.min === 0)
-        return `You kept the sure ${catName(PAY.indexOf(chosen.min))}, but ${bestLabel} is worth ${delta.toFixed(4)} more per coin — the chase pays better than the lock here.`;
-    if (chosen.idxs.length > best.idxs.length)
-        return `Too many keepers — ${bestLabel} frees better draws, worth ${delta.toFixed(4)} more per coin.`;
-    return `Close, but ${bestLabel} is worth ${delta.toFixed(4)} more per coin.`;
-}
-function InlineSetup({ autoBest, onAutoBest }) {
-    return (React.createElement("div", { style: { background: "rgba(0,0,0,0.22)", border: `1px solid ${T.line}`, borderRadius: 10, padding: "12px 14px" } },
-        React.createElement("div", { style: { fontWeight: 700, fontSize: 13.5, marginBottom: 10 } }, "Setup"),
-        React.createElement("div", { style: { marginBottom: 10, fontFamily: mono, fontSize: 11, color: T.muted, lineHeight: 1.6 } }, "EV is coins per coin bet at max coins (royal = 800). On a new hand:"),
-        React.createElement("div", { style: { display: "flex", gap: 6 } },
-            React.createElement("button", { onClick: () => onAutoBest(false), style: segStyle(!autoBest) }, "I choose"),
-            React.createElement("button", { onClick: () => onAutoBest(true), style: segStyle(autoBest) }, "Show me the best"))));
-}
-function PokerTrainer() {
-    const [hand, setHand] = useState(randomHand);
-    const [held, setHeld] = useState([]);
-    const [phase, setPhase] = useState("choose");
-    const [chosenId, setChosenId] = useState(null);
-    const [drawn, setDrawn] = useState(null);
-    const [expanded, setExpanded] = useState(null);
-    const [stats, setStats] = useState({ hands: 0, optimal: 0, lost: 0 });
-    const [autoBest, setAutoBest] = useState(false);
-    const [aboutOpen, setAboutOpen] = useState(false);
-    const opts = useMemo(() => (phase === "revealed" ? analyze(hand) : null), [phase, hand]);
-    const deal = useCallback(() => {
-        setHand(randomHand());
-        setHeld([]);
-        setChosenId(null);
-        setDrawn(null);
-        setExpanded(null);
-        setPhase("choose");
-    }, []);
-    const pick = useCallback((idxs, counted) => {
-        const id = idxs.slice().sort((a, b) => a - b).join(",");
-        const res = analyze(hand);
-        const best = res[0];
-        const chosen = res.find((o) => o.id === id);
-        const delta = best.ev - chosen.ev;
-        const pool = deckExcluding(hand);
-        for (let i = pool.length - 1; i > 0; i--) {
-            const j = (Math.random() * (i + 1)) | 0;
-            [pool[i], pool[j]] = [pool[j], pool[i]];
+    catch (e) {
+        setNote(e.message);
+    } };
+    const toggleBoard = async () => {
+        const want = !acct.user.leaderboard_ok;
+        ACCT.user = { ...ACCT.user, leaderboard_ok: want };
+        acctNotify();
+        try {
+            await acctPatchProfile({ leaderboard_ok: want });
         }
-        let p = 0;
-        const final = hand.map((c, i) => (idxs.includes(i) ? c : pool[p++]));
-        setDrawn({ final, cat: categorizeCards(final) });
-        setChosenId(id);
-        setExpanded(null);
-        setPhase("revealed");
-        if (counted) {
-            setStats((s) => ({ hands: s.hands + 1, optimal: s.optimal + (delta < 1e-6 ? 1 : 0), lost: s.lost + delta }));
-            reportStats({ inc: { trainer_hands: 1, trainer_optimal: delta < 1e-6 ? 1 : 0, trainer_ev_lost: delta } });
+        catch (e) {
+            ACCT.user = { ...ACCT.user, leaderboard_ok: !want };
+            acctNotify();
+            setNote(e.message);
         }
-    }, [hand]);
-    const draw = useCallback(() => pick(held, true), [pick, held]);
-    useEffect(() => {
-        if (phase !== "choose" || !autoBest)
-            return;
-        pick(analyze(hand)[0].idxs, false);
-    }, [autoBest, phase, hand, pick]);
-    const toggleHold = useCallback((i) => {
-        setHeld((h) => (h.includes(i) ? h.filter((x) => x !== i) : [...h, i]));
-    }, []);
-    const best = opts ? opts[0] : null;
-    const chosen = opts ? opts.find((o) => o.id === chosenId) : null;
-    const acc = stats.hands ? (stats.optimal / stats.hands) * 100 : 0;
-    const avgLost = stats.hands ? stats.lost / stats.hands : 0;
-    const maxEV = opts ? opts[0].ev : 1;
-    const delta = best && chosen ? best.ev - chosen.ev : 0;
+    };
+    const doExport = async () => {
+        try {
+            const data = await acctExport();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "poker-trainer-export.json";
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+        catch (e) {
+            setNote(e.message);
+        }
+    };
+    const doDelete = async () => {
+        try {
+            const out = await acctDeleteMe();
+            setConfirmDelete(false);
+            setNote(out.note);
+        }
+        catch (e) {
+            setNote(e.message);
+        }
+    };
+    const s = acct.stats;
+    const secHead = { fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: T.muted, margin: "22px 0 10px" };
     return (React.createElement("div", { style: {
             minHeight: "100%", background: `radial-gradient(120% 90% at 50% 0%, ${T.baizeHi}, ${T.baize})`,
-            color: T.cream, fontFamily: serif, padding: "0 0 28px",
+            color: T.cream, fontFamily: serif, padding: "0 0 40px",
         } },
-        React.createElement("style", null, `
-        @keyframes dealIn {from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-        .dealwrap > * {animation:dealIn 260ms ease both}
-        .dealwrap > *:nth-child(2){animation-delay:40ms}
-        .dealwrap > *:nth-child(3){animation-delay:80ms}
-        .dealwrap > *:nth-child(4){animation-delay:120ms}
-        .dealwrap > *:nth-child(5){animation-delay:160ms}
-        button{font-family:inherit}
-        button:focus-visible{outline:2px solid ${T.pegIvory}}
-        @media (prefers-reduced-motion: reduce){.dealwrap > *{animation:none}}
-      `),
+        React.createElement("style", null, `button{font-family:inherit} button:focus-visible{outline:2px solid ${T.pegIvory}}`),
         React.createElement("header", { style: {
                 background: `linear-gradient(180deg, ${T.woodL}, ${T.woodM} 55%, ${T.woodD})`,
                 padding: "14px 18px 16px", boxShadow: "0 6px 18px rgba(0,0,0,0.4)", borderBottom: "2px solid rgba(0,0,0,0.3)",
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
             } },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 } },
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, minWidth: 0 } },
-                    React.createElement("a", { href: "index.html", "aria-label": "Home", title: "Home", style: {
-                            flex: "0 0 auto", width: 34, height: 34, borderRadius: 8, background: T.baize, color: T.ivory, textDecoration: "none",
-                            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, lineHeight: 1,
-                            boxShadow: "inset 0 1px 2px rgba(255,255,255,0.12), 0 2px 5px rgba(0,0,0,0.35)",
-                        } }, "\u2660"),
-                    React.createElement("span", { style: { fontFamily: mono, fontSize: 12, color: "rgba(42,27,14,0.8)", lineHeight: 1.3 } }, "Hold Trainer \u2014 9/6 Jacks or Better"),
-                    IS_DEV_VERSION && React.createElement("span", { style: { fontFamily: mono, fontSize: 10, color: "rgba(42,27,14,0.55)", whiteSpace: "nowrap" } },
-                        "v",
-                        APP_VERSION)),
-                React.createElement("div", { style: { display: "flex", gap: 8, flex: "0 0 auto" } },
-                    React.createElement(AccountArea, null),
-                    React.createElement("button", { onClick: () => setAboutOpen(true), "aria-label": "About", style: {
-                            width: 40, height: 40, borderRadius: 10, cursor: "pointer",
-                            border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)",
-                            color: "#2A1B0E", fontSize: 19, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                        } }, "\u24D8"))),
-            React.createElement("div", { style: { marginTop: 12 } },
-                React.createElement(ChipTrack, { pct: acc })),
-            React.createElement("div", { style: { marginTop: 10, display: "flex", gap: 18, flexWrap: "wrap", fontFamily: mono, fontSize: 12, color: "#2A1B0E" } },
-                React.createElement("span", null,
-                    React.createElement("b", { style: { fontSize: 15 } }, stats.hands),
-                    " hands"),
-                React.createElement("span", null,
-                    React.createElement("b", { style: { fontSize: 15 } },
-                        stats.hands ? acc.toFixed(0) : "–",
-                        "%"),
-                    " optimal"),
-                React.createElement("span", null,
-                    React.createElement("b", { style: { fontSize: 15 } }, stats.hands ? avgLost.toFixed(4) : "–"),
-                    " avg EV lost"))),
-        React.createElement("main", { style: { maxWidth: 560, margin: "0 auto", padding: "18px 16px 0" } },
-            aboutOpen && React.createElement(AboutModal, { onClose: () => setAboutOpen(false) }),
-            React.createElement("p", { style: { fontFamily: mono, fontSize: 12, color: T.muted, margin: "2px 2px 10px" } }, phase === "choose"
-                ? `Tap the cards to HOLD (${held.length} held), then Draw.`
-                : "Every hold, ranked by exact expected value — tap a row for the full explanation."),
-            React.createElement("div", { className: phase === "choose" ? "dealwrap" : "", style: { display: "flex", gap: 8, justifyContent: "center", paddingTop: 22, paddingBottom: phase === "choose" ? 4 : 20 } }, hand.map((card, i) => (React.createElement(CardFace, { key: cardId(card), card: card, held: phase === "choose" ? held.includes(i) : chosen && chosen.idxs.includes(i), disabled: phase !== "choose", onClick: () => toggleHold(i), badge: phase === "revealed" && best && best.idxs.includes(i) ? "BEST" : null })))),
-            phase === "choose" && (React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", margin: "16px 0 18px" } },
-                React.createElement("button", { onClick: draw, style: {
-                        padding: "12px 34px", borderRadius: 10, cursor: "pointer", fontFamily: mono, fontSize: 15, fontWeight: 700,
-                        background: `linear-gradient(180deg, ${T.good}, ${T.goodDeep})`, color: "#0d2417", border: "1px solid rgba(0,0,0,0.3)",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-                    } }, "Draw"),
-                React.createElement("button", { onClick: deal, style: {
-                        padding: "12px 22px", borderRadius: 10, cursor: "pointer", fontFamily: mono, fontSize: 13,
-                        background: "rgba(0,0,0,0.22)", color: T.cream, border: `1px solid ${T.line}`,
-                    } }, "New hand"))),
-            phase === "choose" && React.createElement(InlineSetup, { autoBest: autoBest, onAutoBest: setAutoBest }),
-            phase === "revealed" && opts && chosen && (React.createElement(React.Fragment, null,
-                React.createElement("div", { style: {
-                        padding: "12px 14px", borderRadius: 10, marginBottom: 8,
-                        background: delta < 1e-6 ? "rgba(95,164,124,0.16)" : "rgba(200,65,43,0.14)",
-                        border: `1px solid ${delta < 1e-6 ? "rgba(95,164,124,0.5)" : "rgba(200,65,43,0.45)"}`,
-                    } },
-                    React.createElement("div", { style: { fontWeight: 700, fontSize: 15 } }, buildNote(best, chosen, delta)),
-                    drawn && (React.createElement("div", { style: { fontFamily: mono, fontSize: 11.5, color: T.muted, marginTop: 5 } },
-                        "Drew ",
-                        drawn.final.map(tag).join(" "),
-                        " \u2014 ",
-                        catName(drawn.cat),
-                        PAY[drawn.cat] > 0 ? ` (pays ${PAY[drawn.cat]}/coin)` : ""))),
-                React.createElement("div", { style: { display: "grid", gap: 5 } }, opts.map((o, rank) => {
-                    const isChosen = o.id === chosenId;
-                    const isOpen = expanded === o.id;
-                    return (React.createElement("div", { key: o.id },
-                        React.createElement("button", { onClick: () => setExpanded(isOpen ? null : o.id), "aria-expanded": isOpen, style: {
-                                width: "100%", textAlign: "left", display: "grid", gridTemplateColumns: "22px 128px 1fr 64px 34px", gap: 8, alignItems: "center",
-                                padding: "8px 10px", borderRadius: 8, cursor: "pointer",
-                                background: isChosen ? "rgba(236,220,180,0.14)" : "rgba(0,0,0,0.18)",
-                                border: `1px solid ${isChosen ? "rgba(236,220,180,0.5)" : T.line}`, color: T.cream,
-                            } },
-                            React.createElement("span", { style: { fontFamily: mono, fontSize: 11, color: rank === 0 ? T.pegIvory : T.muted } }, rank + 1),
-                            React.createElement("span", { style: { fontFamily: mono, fontSize: 12.5, fontWeight: rank === 0 || isChosen ? 700 : 400 } }, o.idxs.length === 0 ? "Draw 5" : o.cards.map(tag).join(" ")),
-                            React.createElement("span", { style: { height: 9, borderRadius: 5, background: "rgba(0,0,0,0.3)", overflow: "hidden" } },
-                                React.createElement("span", { style: { display: "block", height: "100%", width: `${maxEV > 0 ? (o.ev / maxEV) * 100 : 0}%`, background: rank === 0 ? T.pegIvory : T.good, borderRadius: 5 } })),
-                            React.createElement("span", { style: { fontFamily: mono, fontSize: 12, textAlign: "right" } }, o.ev.toFixed(4)),
-                            React.createElement("span", { style: { fontFamily: mono, fontSize: 10, color: T.gold, textAlign: "right" } }, isChosen ? "YOU" : "")),
-                        isOpen && React.createElement(Explain, { opt: o })));
-                })),
-                React.createElement("div", { style: { display: "flex", justifyContent: "center", margin: "18px 0 6px" } },
-                    React.createElement("button", { onClick: deal, style: {
-                            padding: "12px 34px", borderRadius: 10, cursor: "pointer", fontFamily: mono, fontSize: 15, fontWeight: 700,
-                            background: `linear-gradient(180deg, ${T.good}, ${T.goodDeep})`, color: "#0d2417", border: "1px solid rgba(0,0,0,0.3)",
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-                        } }, "Next hand")))))));
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+                React.createElement("a", { href: "index.html", "aria-label": "Home", style: {
+                        width: 34, height: 34, borderRadius: 8, background: T.baize, color: T.ivory, textDecoration: "none",
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19,
+                        boxShadow: "inset 0 1px 2px rgba(255,255,255,0.12), 0 2px 5px rgba(0,0,0,0.35)",
+                    } }, "\u2660"),
+                React.createElement("span", { style: { fontFamily: mono, fontSize: 12, color: "rgba(42,27,14,0.8)" } }, "Your profile")),
+            React.createElement(AccountArea, null)),
+        React.createElement("main", { style: { maxWidth: 560, margin: "0 auto", padding: "18px 16px 0" } }, !acct.checked || (!acct.available && !acct.checked) ? null : !acct.available ? (React.createElement("div", { style: { background: "rgba(0,0,0,0.22)", border: `1px solid ${T.line}`, borderRadius: 10, padding: 16, fontSize: 14, lineHeight: 1.55 } }, "Accounts aren't reachable from this copy of the app \u2014 you're in guest mode, and everything still works: stats and bankroll live in this browser only. The online version at the Railway site has profiles and the leaderboard.")) : !acct.user ? (React.createElement("div", { style: { background: "rgba(0,0,0,0.22)", border: `1px solid ${T.line}`, borderRadius: 10, padding: 16 } },
+            React.createElement("div", { style: { fontSize: 15, fontWeight: 700, marginBottom: 6 } }, "Play as a guest, or bring your stats with you."),
+            React.createElement("div", { style: { fontFamily: mono, fontSize: 11.5, color: T.muted, lineHeight: 1.6, marginBottom: 12 } }, "An account syncs your practice chips, table results, and trainer accuracy across devices, and can join the leaderboard (opt-in). We store the minimum, you can export or delete it all any time, and playing never requires signing in."),
+            React.createElement("button", { onClick: () => setAuthOpen(true), style: { ...segStyle(true), width: "100%", padding: "11px 6px", fontSize: 13 } }, "Sign in / create account"),
+            authOpen && React.createElement(AuthModal, { onClose: () => setAuthOpen(false) }),
+            React.createElement("h2", { style: secHead }, "Leaderboard"),
+            React.createElement(Leaderboard, { meName: null }))) : (React.createElement(React.Fragment, null,
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14, background: "rgba(0,0,0,0.22)", border: `1px solid ${T.line}`, borderRadius: 10, padding: 14 } },
+                React.createElement("span", { style: { fontSize: 40, lineHeight: 1 } }, acct.user.avatar),
+                React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                    React.createElement("div", { style: { display: "flex", gap: 6 } },
+                        React.createElement("input", { value: name, maxLength: 40, onChange: (e) => setName(e.target.value), style: {
+                                flex: 1, minWidth: 0, padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.line}`,
+                                background: "rgba(0,0,0,0.25)", color: T.cream, fontFamily: mono, fontSize: 13,
+                            } }),
+                        name !== acct.user.display_name && React.createElement("button", { onClick: saveName, style: segStyle(true) }, "Save")),
+                    React.createElement("div", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, marginTop: 5 } }, acct.user.email))),
+            React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 } }, AVATAR_CHOICES.map((a) => (React.createElement("button", { key: a, onClick: () => pickAvatar(a), "aria-pressed": acct.user.avatar === a, style: {
+                    width: 40, height: 40, fontSize: 19, borderRadius: 9, cursor: "pointer",
+                    background: acct.user.avatar === a ? T.pegIvory : "rgba(0,0,0,0.22)",
+                    border: `1px solid ${acct.user.avatar === a ? T.pegIvory : T.line}`,
+                } }, a)))),
+            note && React.createElement("div", { style: { fontFamily: mono, fontSize: 11.5, color: T.good, marginTop: 8 } }, note),
+            s && (React.createElement(React.Fragment, null,
+                React.createElement("h2", { style: secHead }, "Your numbers"),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 } },
+                    React.createElement(StatTile, { label: "Table stack", value: `$${s.table_stack.toLocaleString()}` }),
+                    React.createElement(StatTile, { label: "Machine credits", value: s.bankroll.toLocaleString() }),
+                    React.createElement(StatTile, { label: "Biggest pot", value: `$${s.biggest_pot.toLocaleString()}` }),
+                    React.createElement(StatTile, { label: "Table hands", value: s.table_hands.toLocaleString() }),
+                    React.createElement(StatTile, { label: "Hands won", value: s.table_wins.toLocaleString() }),
+                    React.createElement(StatTile, { label: "Trainer optimal", value: s.trainer_hands ? `${((s.trainer_optimal / s.trainer_hands) * 100).toFixed(0)}%` : "–" })),
+                React.createElement("h2", { style: secHead }, "Trainer trend"),
+                React.createElement(TrendSpark, { history: acct.history }))),
+            React.createElement("h2", { style: secHead }, "Leaderboard"),
+            React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center", fontFamily: mono, fontSize: 11.5, marginBottom: 10, cursor: "pointer" } },
+                React.createElement("input", { type: "checkbox", checked: !!acct.user.leaderboard_ok, onChange: toggleBoard }),
+                React.createElement("span", null, "Show me on the public leaderboard (display name, avatar, and table stats only \u2014 never your email)")),
+            React.createElement(Leaderboard, { meName: acct.user.display_name }),
+            React.createElement("h2", { style: secHead }, "Your data"),
+            React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.muted, lineHeight: 1.6, marginBottom: 10 } }, "We hold: email, display name, date of birth, avatar, practice stats, and a metadata-only event log. No tracking, no analytics, practice chips only."),
+            React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+                React.createElement("button", { onClick: doExport, style: segStyle(false) }, "Export everything (JSON)"),
+                React.createElement("button", { onClick: acctSignout, style: segStyle(false) }, "Sign out"),
+                confirmDelete ? (React.createElement("button", { onClick: doDelete, style: { ...segStyle(false), color: T.pegRed, borderColor: "rgba(200,65,43,0.5)" } }, "Really delete \u2014 30-day undo, then gone")) : (React.createElement("button", { onClick: () => setConfirmDelete(true), style: { ...segStyle(false), color: T.pegRed } }, "Delete account\u2026"))))))));
 }
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(PokerTrainer));
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(Profile));
 
 </script>
 </body>

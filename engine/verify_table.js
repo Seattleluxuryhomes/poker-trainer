@@ -35,10 +35,10 @@ const sandbox = {
 vm.createContext(sandbox);
 vm.runInContext(body, sandbox);
 const api = vm.runInContext(
-  "({ score5H, score7, equityVs, makeTable, startHand, legalActions, applyAction, botDecide, settleShowdown, mulberry32, cardId, SMALL_BLIND, BIG_BLIND, START_STACK })",
+  "({ score5H, score7, equityVs, equityMulti, makeTable, startHand, legalActions, applyAction, botDecide, settleShowdown, runoutStep, mulberry32, cardId, SMALL_BLIND, BIG_BLIND, START_STACK })",
   sandbox,
 );
-const { score5H, score7, equityVs, makeTable, startHand, legalActions, applyAction, botDecide, settleShowdown, mulberry32, cardId, SMALL_BLIND, BIG_BLIND, START_STACK } = api;
+const { score5H, score7, equityVs, equityMulti, makeTable, startHand, legalActions, applyAction, botDecide, settleShowdown, runoutStep, mulberry32, cardId, SMALL_BLIND, BIG_BLIND, START_STACK } = api;
 
 const c = (r, s) => ({ r, s });
 /* The pot value is kept for display after settlement, so conservation counts it
@@ -167,6 +167,46 @@ const totalChips = (st) => st.players.reduce((a, p) => a + p.stack, 0) + (st.pha
   check(eq > 0.78 && eq < 0.92, `AA vs one random hand ≈ 85% (simulated ${Math.round(eq * 100)}%)`);
   const eq72 = equityVs([c(7, 0), c(2, 1)], [], 3, 400, rng);
   check(eq72 < 0.35, `7-2 offsuit vs three hands is weak (simulated ${Math.round(eq72 * 100)}%)`);
+}
+
+/* ---- the all-in broadcast: runout phase settles like an instant runout ---- */
+{
+  // Preflop double all-in: UTG shoves, everyone calls all-in / folds until two
+  // players remain unable to act -> phase "runout", then runoutStep to the end.
+  const rng = mulberry32(77);
+  let st = startHand(makeTable(0), rng);
+  st = applyAction(st, { type: "raise", to: START_STACK });            // UTG all-in
+  st = applyAction(st, { type: "call" });                              // next calls all-in
+  st = applyAction(st, { type: "fold" });
+  st = applyAction(st, { type: "fold" });
+  check(st.phase === "runout" && st.revealed === true, `two all-ins enter the broadcast runout (phase ${st.phase})`);
+  check(st.board.length === 0, "runout starts before any board card");
+  let steps = 0;
+  while (st.phase === "runout" && steps++ < 6) st = runoutStep(st);
+  check(st.phase === "over" && st.board.length === 5, "runout deals flop/turn/river then settles");
+  check(st.players.reduce((a, p) => a + p.stack, 0) === 4 * START_STACK, "runout conserves chips");
+  check(st.winners.length >= 1 && /win/.test(st.message), "runout produces a winner via showdown");
+}
+
+/* ---- equityMulti: broadcast percentages ---- */
+{
+  const rng = mulberry32(5150);
+  // AA vs KK preflop ≈ 80/20 (Monte Carlo, wide band)
+  const [aa, kk] = equityMulti([[c(1, 0), c(1, 1)], [c(13, 0), c(13, 1)]], [], rng);
+  check(aa > 0.72 && aa < 0.9 && Math.abs(aa + kk - 1) < 1e-9, `AA vs KK ≈ 80/20 and sums to 1 (got ${(aa * 100).toFixed(1)}%)`);
+  // River: fully determined — exactly 1 / 0
+  const river = [c(2, 0), c(7, 1), c(9, 2), c(11, 3), c(4, 0)];
+  const [win, lose] = equityMulti([[c(1, 0), c(1, 1)], [c(13, 0), c(13, 2)]], river, rng);
+  check(win === 1 && lose === 0, "river equity is exact (1/0)");
+  // Turn: exact enumeration — two calls agree bit-for-bit despite different rngs
+  const turn = [c(2, 0), c(7, 1), c(9, 2), c(11, 3)];
+  const a = equityMulti([[c(1, 0), c(1, 1)], [c(13, 0), c(13, 2)]], turn, mulberry32(1));
+  const b = equityMulti([[c(1, 0), c(1, 1)], [c(13, 0), c(13, 2)]], turn, mulberry32(999));
+  check(a[0] === b[0] && a[1] === b[1], "turn equity is exact enumeration (rng-independent)");
+  // Split pot: identical hands on a played board -> 50/50 exactly
+  const board4 = [c(2, 0), c(7, 1), c(9, 2), c(11, 3)];
+  const [s1, s2] = equityMulti([[c(3, 0), c(3, 1)], [c(3, 2), c(3, 3)]], board4, mulberry32(2));
+  check(Math.abs(s1 - 0.5) < 1e-9 && Math.abs(s2 - 0.5) < 1e-9, "mirrored hands split exactly 50/50");
 }
 
 /* ---- bots only take legal actions ---- */

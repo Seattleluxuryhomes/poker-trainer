@@ -32,7 +32,7 @@ build_one() {
   #    The import sed captures whatever hooks the file imports, so it is component-agnostic.
   #    The shared engine (src/engine.js) and UI chrome (src/chrome.jsx) are PREPENDED so each
   #    built page ships one self-contained copy of the math + theme.
-  cat "$ROOT/src/engine.js" "$ROOT/src/chrome.jsx" > "$TMP/app.tsx"
+  cat "$ROOT/src/engine.js" "$ROOT/src/account.js" "$ROOT/src/chrome.jsx" > "$TMP/app.tsx"
   sed -e 's#^import React, { \(.*\) } from "react";#const { \1 } = React;#' \
       -e "s#^export default function ${COMPONENT}(#function ${COMPONENT}(#" \
       "$ROOT/$SRC" >> "$TMP/app.tsx"
@@ -44,7 +44,7 @@ build_one() {
   #      name-resolution catches exactly that. Run it on the original $SRC (which imports
   #      React/hooks as names) so React/ReactDOM globals don't register as false positives.
   local NAMEERR
-  cat "$ROOT/src/engine.js" "$ROOT/src/chrome.jsx" "$ROOT/$SRC" > "$TMP/guard.tsx"
+  cat "$ROOT/src/engine.js" "$ROOT/src/account.js" "$ROOT/src/chrome.jsx" "$ROOT/$SRC" > "$TMP/guard.tsx"
   NAMEERR="$("${TSC[@]}" "$TMP/guard.tsx" \
       --jsx react --target es2020 --module none --removeComments \
       --skipLibCheck --noEmit 2>&1 \
@@ -110,12 +110,13 @@ echo "built index.html (landing)"
 build_one "src/PokerTrainer.jsx" "trainer.html" "Poker Hold Trainer"      "PokerTrainer" "Practice optimal video-poker holds: every possible hold ranked by exact expected value, fully explained. Free and open-source."
 build_one "src/PokerPlay.jsx"    "play.html"    "Poker — Play"            "PokerPlay"    "Play 9/6 Jacks or Better with a practice bankroll; hints come from the trainer's exact-enumeration engine. Free, open-source, works offline."
 build_one "src/PokerTable.jsx"   "table.html"   "Poker — Hold'em Table"   "PokerTable"   "A no-limit hold'em table UI with fold, call, and a raise slider. Practice chips only. Free and open-source."
+build_one "src/Profile.jsx"       "profile.html"  "Poker — Profile"         "Profile"      "Your poker profile: synced practice stats, trainer accuracy trend, and the opt-in leaderboard. Free and open-source."
 
 # Stamp the version (read from the VERSION file) into each page's __APP_VERSION__
 # placeholder. VERSION is the single source of truth: "<x.y.z>-dev.<n>" during
 # development, "<major.minor.patch>" on a release.
 VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION" 2>/dev/null)"
-for f in index.html trainer.html play.html table.html; do
+for f in index.html trainer.html play.html table.html profile.html; do
   sed -i "s/__APP_VERSION__/${VERSION}/g" "$ROOT/$f"
 done
 echo "stamped version v${VERSION}"

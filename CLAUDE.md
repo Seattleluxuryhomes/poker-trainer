@@ -64,24 +64,53 @@ cribbage-trainer." The port keeps that project's architecture verbatim:
 engine's shape, kept so ports stay literal. The ace is stored low; `categorize`
 special-cases the ace-high straight (A-10-J-Q-K) and the royal.
 
-## Honesty rules (inherited from both parents)
+## Honesty rules (inherited from both parents; amended 2026-09-02 for accounts)
 
 - Practice chips only, everywhere, always. No real wagering, no purchases, no
   "buy credits" — if a change adds monetary value flow, stop and ask the founder.
 - No fake states: never show a win, a payout, or a saved bankroll unless it
   actually happened.
-- Stats and bankroll stay in this browser (localStorage); nothing is sent
-  anywhere. No analytics, no tracking.
+- GUEST data stays in this browser (localStorage); playing never requires an
+  account, on any surface, ever. ACCOUNT data (deliberate amendment, founder
+  ruling "trust is the most important") syncs to the poker backend and is:
+  minimal (email, display name, DOB, avatar, practice stats, metadata-only
+  events), one-tap exportable, one-tap deletable (30-day restore window, then
+  gone), never analyzed, never sold, no tracking. The leaderboard is OPT-IN
+  (default off) and its endpoint serializes through an explicit allowlist —
+  a field not on the list cannot leak.
+
+## The accounts backend (a maybe.love port)
+
+`db.mjs` + `api.mjs` + the /api half of `server.mjs` are a port of the
+founder's maybe.love auth/profile backend (`app` repo, backend/server.py
+L991–2400, frontend/src/api.ts + auth.tsx), per the "copy it, don't rebuild
+it" doctrine: same routes, same fields, same defaults, same rulings —
+7-day HS256 bearer JWT, no refresh/logout endpoints, iat vs
+password_changed_at global logout, the 18+ gate before any DB write, their
+exact rate-limit ledger thresholds, the deleted→410-with-days-left offer
+gated on a correct password, uuid ids, and the two-serializer invariant
+(ownerView for every self-response; publicView from PROFILE_PUBLIC_FIELDS).
+Documented translations: bcrypt→node:crypto scrypt, PyJWT→hand-rolled
+pinned HS256, Mongo→node:sqlite (the BidVoice precedent). Deferred until
+email infra exists: forgot/reset-password, email verification, Google.
+Porting gotchas carried from their recorded bugs: ownerView EVERYWHERE a
+user goes back to its owner; the public allowlist; never leak a DB id.
+`engine/verify_auth.js` boots the real server and re-proves all of it.
+Env: JWT_SECRET (required for accounts; absent = API answers 503 and the
+site stays guest-only), DB_PATH (Railway volume at /data), CORS_ORIGINS,
+ACCESS_TOKEN_EXPIRE_HOURS, REQUIRE_STRONG_SECRETS. Node ≥22.5 (node:sqlite).
 
 ## Known limitations / next steps (in order)
 
-1. The Hold'em table needs its engine: dealing, blinds, betting rounds, bot
-   seats, showdown (7-card evaluation — extend `categorize` or add a
-   `best5of7`), then hook the supplied UI to it.
-2. The trainer's "Deal custom" card picker (the reference has one; not ported yet).
-3. i18n: the reference ships a full locale system; this port is English-only.
-4. PWA service worker for offline (manifest exists; no SW yet).
-5. Multi-paytable support (8/5, 7/5) — PAY is already the single source of truth.
+1. Accounts phase 2: forgot/reset-password + email verification (needs Resend
+   or similar), Google sign-in — all mapped in the maybe.love source.
+2. Short all-ins reopen betting (casino rules say they shouldn't) — tighten
+   when it matters.
+3. The trainer's "Deal custom" card picker (the reference has one; not ported yet).
+4. i18n: the reference ships a full locale system; this port is English-only.
+5. PWA service worker for offline (manifest exists; no SW yet).
+6. Multi-paytable support (8/5, 7/5) — PAY is already the single source of truth.
+7. httpOnly cookie session for the web token (their parked fix, inherited).
 
 ## Android
 

@@ -84,7 +84,8 @@ export default function PokerPlay() {
     setBank((b) => b + win);
     setStats((s) => ({ hands: s.hands + 1, net: s.net + win - bet }));
     setResult({ cat, win }); setHint(null); setPhase("result");
-  }, [hand, held, rest, bet]);
+    reportStats({ set: { bankroll: bank + win } }); // bank already had the bet deducted at deal
+  }, [hand, held, rest, bet, bank]);
 
   const askHint = useCallback(() => { setHint(bestHold(hand)); }, [hand]);
 
@@ -92,7 +93,7 @@ export default function PokerPlay() {
     setHeld((h) => (h.includes(i) ? h.filter((x) => x !== i) : [...h, i]));
   }, []);
 
-  const resetBank = useCallback(() => { setBank(BANK_START); setStats({ hands: 0, net: 0 }); }, []);
+  const resetBank = useCallback(() => { setBank(BANK_START); setStats({ hands: 0, net: 0 }); reportStats({ set: { bankroll: BANK_START } }); }, []);
 
   const bigBtn = (bg, fg) => ({
     padding: "12px 34px", borderRadius: 10, cursor: "pointer", fontFamily: mono, fontSize: 15, fontWeight: 700,
@@ -130,11 +131,14 @@ export default function PokerPlay() {
             <span style={{ fontFamily: mono, fontSize: 12, color: "rgba(42,27,14,0.8)", lineHeight: 1.3 }}>Play — 9/6 Jacks or Better</span>
             {IS_DEV_VERSION && <span style={{ fontFamily: mono, fontSize: 10, color: "rgba(42,27,14,0.55)", whiteSpace: "nowrap" }}>v{APP_VERSION}</span>}
           </div>
-          <button onClick={() => setAboutOpen(true)} aria-label="About" style={{
-            width: 40, height: 40, borderRadius: 10, cursor: "pointer", flex: "0 0 auto",
-            border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)",
-            color: "#2A1B0E", fontSize: 19, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
-          }}>ⓘ</button>
+          <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
+            <AccountArea />
+            <button onClick={() => setAboutOpen(true)} aria-label="About" style={{
+              width: 40, height: 40, borderRadius: 10, cursor: "pointer",
+              border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)",
+              color: "#2A1B0E", fontSize: 19, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
+            }}>ⓘ</button>
+          </div>
         </div>
         <div style={{ marginTop: 10, display: "flex", gap: 18, flexWrap: "wrap", fontFamily: mono, fontSize: 12, color: "#2A1B0E" }}>
           <span><b style={{ fontSize: 15 }}>{bank}</b> credits</span>
