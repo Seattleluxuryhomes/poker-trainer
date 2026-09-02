@@ -9,6 +9,8 @@ import React, { useState, useCallback, useEffect } from "react";
    engine the trainer uses (bestHold = exact enumeration), so
    advice here and analysis there can never disagree.
    The bankroll lives in this browser's localStorage only.
+   Dressed by the casino design kit (v0.9.0) — same law as the
+   whole floor: gold for money moments only, losses stay quiet.
    ============================================================ */
 
 const BANK_KEY = "poker-trainer:bank";
@@ -26,21 +28,23 @@ function saveBank(v) {
   try { window.localStorage.setItem(BANK_KEY, String(v)); } catch { /* private mode: no persistence */ }
 }
 
-/* ---- the classic paytable panel ---- */
+/* ---- the classic paytable panel, in the house dark ---- */
 function Paytable({ bet, wonCat }) {
   const rows = [];
   for (let c = CAT_COUNT - 1; c >= 1; c--) rows.push(c);
   return (
-    <div style={{ background: "rgba(0,0,0,0.24)", border: `1px solid ${T.line}`, borderRadius: 10, padding: "10px 12px", overflowX: "auto" }}>
-      <table style={{ borderCollapse: "collapse", width: "100%", fontFamily: mono, fontSize: 11.5 }}>
+    <div style={{ background: CAS.panel, border: `1px solid ${CAS.line}`, borderRadius: 12, padding: "10px 12px", overflowX: "auto" }}>
+      <table style={{ borderCollapse: "collapse", width: "100%", fontFamily: casMono, fontSize: 11.5 }}>
         <tbody>
           {rows.map((c) => (
-            <tr key={c} style={{ background: wonCat === c ? "rgba(217,164,65,0.28)" : "transparent" }}>
-              <td style={{ padding: "3px 6px", color: wonCat === c ? T.gold : T.cream, whiteSpace: "nowrap", fontWeight: wonCat === c ? 700 : 400 }}>{catName(c)}</td>
+            <tr key={c} style={{ background: wonCat === c ? "rgba(245,197,66,0.16)" : "transparent" }}>
+              <td style={{ padding: "3px 6px", color: wonCat === c ? CAS.gold : CAS.text, whiteSpace: "nowrap", fontWeight: wonCat === c ? 700 : 400 }}>{catName(c)}</td>
               {[1, 2, 3, 4, 5].map((b) => (
                 <td key={b} style={{
-                  padding: "3px 8px", textAlign: "right", color: b === bet ? "#2A1B0E" : T.muted,
-                  background: b === bet ? T.pegIvory : "transparent", fontWeight: b === bet ? 700 : 400,
+                  padding: "3px 8px", textAlign: "right",
+                  color: b === bet ? CAS.gold : CAS.faint,
+                  background: b === bet ? "rgba(245,197,66,0.09)" : "transparent",
+                  fontWeight: b === bet ? 700 : 400,
                 }}>{payoutFor(c, b)}</td>
               ))}
             </tr>
@@ -48,6 +52,40 @@ function Paytable({ bet, wonCat }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/* A machine card: face, HELD flag riding on top, BEST-hold gold ring. */
+function VpCard({ card, w, held, best, faceDown, onClick, delay = 0 }) {
+  const red = isRed(card.s);
+  return (
+    <button onClick={onClick} disabled={!onClick} style={{
+      width: w, height: Math.round(w * 1.42), borderRadius: Math.max(8, w * 0.13), padding: 0, flex: "0 0 auto",
+      background: faceDown
+        ? "repeating-linear-gradient(45deg, #1c2733, #1c2733 5px, #141b24 5px, #141b24 10px)"
+        : "linear-gradient(160deg, #fdfcf7, #efece1 70%, #ddd8c8)",
+      border: held ? `2.5px solid ${CAS.gold}` : best ? `2px dashed rgba(245,197,66,0.65)` : "1px solid rgba(0,0,0,0.35)",
+      color: red ? "#c62828" : "#161a22", cursor: onClick ? "pointer" : "default",
+      boxShadow: held ? `0 0 14px ${CAS.goldFaint}, 0 6px 12px rgba(0,0,0,0.5)` : "0 5px 12px rgba(0,0,0,0.5)",
+      transform: held ? "translateY(-10px)" : "none", transition: "transform 140ms ease, box-shadow 140ms ease",
+      position: "relative", fontFamily: casSans,
+      animation: `casChipDrop 280ms ease ${delay}ms both`,
+    }}>
+      {!faceDown && (
+        <>
+          <span style={{ position: "absolute", top: w * 0.07, left: w * 0.1, fontSize: w * 0.3, fontWeight: 900, lineHeight: 1 }}>{rankLabel(card.r)}</span>
+          <span style={{ position: "absolute", bottom: w * 0.06, right: w * 0.08, fontSize: w * 0.44, lineHeight: 1 }}>{SUIT[card.s]}</span>
+          {held && (
+            <span style={{
+              position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)",
+              fontSize: 8.5, fontWeight: 900, letterSpacing: "0.12em", padding: "2px 7px", borderRadius: 999,
+              background: CAS.gold, color: "#14171d", boxShadow: "0 2px 6px rgba(0,0,0,0.5)",
+              animation: "casPop 180ms ease both", whiteSpace: "nowrap",
+            }}>HELD</span>
+          )}
+        </>
+      )}
+    </button>
   );
 }
 
@@ -62,6 +100,7 @@ export default function PokerPlay() {
   const [hint, setHint] = useState(null);
   const [stats, setStats] = useState({ hands: 0, net: 0 });
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [winKey, setWinKey] = useState(0);
 
   useEffect(() => { saveBank(bank); }, [bank]);
 
@@ -87,7 +126,7 @@ export default function PokerPlay() {
     setBank((b) => b + win);
     setStats((s) => ({ hands: s.hands + 1, net: s.net + win - bet }));
     setResult({ cat, win }); setHint(null); setPhase("result");
-    if (win > 0) setTimeout(() => sfx.win(win >= 25), 320);
+    if (win > 0) { setWinKey((k) => k + 1); setTimeout(() => sfx.win(win >= 25), 320); }
     reportStats({ set: { bankroll: bank + win } }); // bank already had the bet deducted at deal
   }, [hand, held, rest, bet, bank]);
 
@@ -100,131 +139,85 @@ export default function PokerPlay() {
 
   const resetBank = useCallback(() => { setBank(BANK_START); setStats({ hands: 0, net: 0 }); reportStats({ set: { bankroll: BANK_START } }); }, []);
 
-  const bigBtn = (bg, fg) => ({
-    padding: "12px 34px", borderRadius: 10, cursor: "pointer", fontFamily: mono, fontSize: 15, fontWeight: 700,
-    background: bg, color: fg, border: "1px solid rgba(0,0,0,0.3)", boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-  });
+  const w = Math.min(74, Math.round(((typeof window !== "undefined" ? window.innerWidth : 400) - 80) / 5));
 
   return (
-    <div style={{
-      minHeight: "100%", background: `radial-gradient(120% 90% at 50% 0%, ${T.baizeHi}, ${T.baize})`,
-      color: T.cream, fontFamily: serif, padding: "0 0 28px",
-    }}>
-      <style>{`
-        @keyframes dealIn {from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-        .dealwrap > * {animation:dealIn 260ms ease both}
-        .dealwrap > *:nth-child(2){animation-delay:40ms}
-        .dealwrap > *:nth-child(3){animation-delay:80ms}
-        .dealwrap > *:nth-child(4){animation-delay:120ms}
-        .dealwrap > *:nth-child(5){animation-delay:160ms}
-        button{font-family:inherit}
-        button:focus-visible{outline:2px solid ${T.pegIvory}}
-        @media (prefers-reduced-motion: reduce){.dealwrap > *{animation:none}}
-      `}</style>
+    <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "100vh", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
+      <style>{CAS_CSS}</style>
+      <CasinoHeader title="VIDEO POKER" sub="9/6 JACKS OR BETTER · ROYAL PAYS 4000 AT MAX BET · PRACTICE CHIPS" bank={bank} />
 
-      <header style={{
-        background: `linear-gradient(180deg, ${T.woodL}, ${T.woodM} 55%, ${T.woodD})`,
-        padding: "14px 18px 16px", boxShadow: "0 6px 18px rgba(0,0,0,0.4)", borderBottom: "2px solid rgba(0,0,0,0.3)",
-      }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-            <a href="index.html" aria-label="Home" title="Home" style={{
-              flex: "0 0 auto", width: 34, height: 34, borderRadius: 8, background: T.baize, color: T.ivory, textDecoration: "none",
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, lineHeight: 1,
-              boxShadow: "inset 0 1px 2px rgba(255,255,255,0.12), 0 2px 5px rgba(0,0,0,0.35)",
-            }}>♠</a>
-            <span style={{ fontFamily: mono, fontSize: 12, color: "rgba(42,27,14,0.8)", lineHeight: 1.3 }}>Play — 9/6 Jacks or Better</span>
-            {IS_DEV_VERSION && <span style={{ fontFamily: mono, fontSize: 10, color: "rgba(42,27,14,0.55)", whiteSpace: "nowrap" }}>v{APP_VERSION}</span>}
-          </div>
-          <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
-            <SoundToggle />
-            <AccountArea />
-            <button onClick={() => setAboutOpen(true)} aria-label="About" style={{
-              width: 40, height: 40, borderRadius: 10, cursor: "pointer",
-              border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)",
-              color: "#2A1B0E", fontSize: 19, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
-            }}>ⓘ</button>
-          </div>
-        </div>
-        <div style={{ marginTop: 10, display: "flex", gap: 18, flexWrap: "wrap", fontFamily: mono, fontSize: 12, color: "#2A1B0E" }}>
-          <span><b style={{ fontSize: 15 }}>{bank}</b> credits</span>
-          <span><b style={{ fontSize: 15 }}>{stats.hands}</b> hands</span>
-          <span><b style={{ fontSize: 15 }}>{stats.net >= 0 ? "+" : ""}{stats.net}</b> session</span>
-        </div>
-      </header>
-
-      <main style={{ maxWidth: 560, margin: "0 auto", padding: "18px 16px 0" }}>
+      <div style={{ flex: 1, maxWidth: 620, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 }}>
         {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
 
         <Paytable bet={bet} wonCat={result && result.win > 0 ? result.cat : null} />
 
-        {phase === "bet" && (
-          <div style={{ margin: "14px 0 4px" }}>
-            <div style={{ fontFamily: mono, fontSize: 11, color: T.muted, marginBottom: 6 }}>Bet (coins) — the royal pays 4000 only at 5</div>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[1, 2, 3, 4, 5].map((b) => (
-                <button key={b} onClick={() => setBet(b)} style={segStyle(bet === b)}>{b}</button>
-              ))}
-            </div>
-          </div>
-        )}
+        <div style={{ ...feltPanel("20px 14px"), display: "flex", flexDirection: "column", alignItems: "center", gap: 12, overflow: "hidden" }}>
+          <MarqueeLights />
+          <BigWin amount={result && result.win > 0 ? result.win : 0} fireKey={winKey} />
 
-        {hand ? (
-          <div className={phase === "hold" ? "dealwrap" : ""} style={{ display: "flex", gap: 8, justifyContent: "center", paddingTop: 30, paddingBottom: 24 }}>
-            {hand.map((card, i) => (
-              <CardFace key={cardId(card)} card={card} held={phase === "hold" && held.includes(i)}
-                disabled={phase !== "hold"} onClick={() => toggleHold(i)}
-                badge={phase === "hold" && hint && hint.includes(i) ? "BEST" : null} />
-            ))}
+          <div style={{ display: "flex", gap: 7, justifyContent: "center", paddingTop: 8 }}>
+            {hand
+              ? hand.map((card, i) => (
+                  <VpCard key={cardId(card)} card={card} w={w}
+                    held={phase === "hold" && held.includes(i)}
+                    best={phase === "hold" && hint && hint.includes(i)}
+                    onClick={phase === "hold" ? () => toggleHold(i) : undefined}
+                    delay={i * 55} />
+                ))
+              : [0, 1, 2, 3, 4].map((i) => <VpCard key={i} card={{ r: 1, s: 0 }} faceDown w={w} />)}
           </div>
-        ) : (
-          <div style={{ display: "flex", gap: 8, justifyContent: "center", paddingTop: 30, paddingBottom: 24 }}>
-            {[0, 1, 2, 3, 4].map((i) => <CardFace key={i} card={{ r: 1, s: 0 }} faceDown disabled />)}
-          </div>
-        )}
 
-        {phase === "result" && result && (
-          <div style={{
-            padding: "12px 14px", borderRadius: 10, marginBottom: 14, textAlign: "center",
-            background: result.win > 0 ? "rgba(95,164,124,0.16)" : "rgba(0,0,0,0.2)",
-            border: `1px solid ${result.win > 0 ? "rgba(95,164,124,0.5)" : T.line}`,
-          }}>
-            <div style={{ fontWeight: 700, fontSize: 16 }}>
-              {result.win > 0 ? `${catName(result.cat)} — you win ${result.win}` : "No pair of jacks or better — no payout"}
-            </div>
+          <div style={{ fontFamily: casMono, fontSize: 11.5, minHeight: 17, textAlign: "center", color: phase === "hold" ? CAS.gold : CAS.dim, fontWeight: phase === "hold" ? 700 : 400 }}>
+            {phase === "hold"
+              ? hint ? "dashed gold = the enumerated best hold" : "tap the cards to HOLD, then draw"
+              : phase === "result" && result
+                ? result.win > 0 ? `${catName(result.cat)} — you win ${result.win}` : "no pair of jacks or better"
+                : "five cards, one draw — the machine that started this whole casino"}
           </div>
-        )}
-
-        <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-          {phase === "hold" ? (
-            <>
-              <button onClick={draw} style={bigBtn(`linear-gradient(180deg, ${T.good}, ${T.goodDeep})`, "#0d2417")}>Draw</button>
-              <button onClick={askHint} style={{
-                padding: "12px 22px", borderRadius: 10, cursor: "pointer", fontFamily: mono, fontSize: 13,
-                background: "rgba(0,0,0,0.22)", color: T.cream, border: `1px solid ${T.line}`,
-              }}>Hint</button>
-            </>
-          ) : (
-            <button onClick={deal} disabled={broke} style={{ ...bigBtn(`linear-gradient(180deg, ${T.good}, ${T.goodDeep})`, "#0d2417"), opacity: broke ? 0.5 : 1, cursor: broke ? "default" : "pointer" }}>
-              Deal — bet {bet}
-            </button>
-          )}
         </div>
 
+        {phase !== "hold" && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontFamily: casMono, fontSize: 11, color: CAS.faint }}>BET</span>
+            {[1, 2, 3, 4, 5].map((b) => (
+              <button key={b} onClick={() => { sfx.click(); setBet(b); }} style={{
+                width: 38, height: 38, borderRadius: 10, cursor: "pointer", fontFamily: casSans, fontWeight: 900, fontSize: 14,
+                border: `1px solid ${bet === b ? "rgba(245,197,66,0.7)" : CAS.line}`,
+                background: bet === b ? "linear-gradient(180deg, rgba(245,197,66,0.25), rgba(245,197,66,0.1))" : "rgba(255,255,255,0.04)",
+                color: bet === b ? CAS.goldHi : CAS.text,
+              }}>{b}</button>
+            ))}
+            <div style={{ marginLeft: "auto", fontFamily: casMono, fontSize: 11.5, color: CAS.dim, textAlign: "right" }}>
+              {stats.hands} hands · {stats.net >= 0 ? "+" : ""}{stats.net}
+            </div>
+          </div>
+        )}
+
+        {phase === "hold" ? (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={draw} style={{ ...casCta(false, true), flex: 2 }}>DRAW</button>
+            <button onClick={askHint} style={{ ...casGhost(), flex: 1 }}>HINT</button>
+          </div>
+        ) : (
+          <button onClick={deal} disabled={broke} style={casCta(broke, !broke)}>DEAL · {bet} {bet === 1 ? "COIN" : "COINS"}</button>
+        )}
+
         {broke && (
-          <div style={{ marginTop: 16, textAlign: "center", fontFamily: mono, fontSize: 12, color: T.muted }}>
+          <div style={{ textAlign: "center", fontFamily: casMono, fontSize: 12, color: CAS.dim }}>
             Out of credits.{" "}
-            <button onClick={resetBank} style={{ background: "none", border: "none", color: T.pegIvory, textDecoration: "underline", cursor: "pointer", fontFamily: mono, fontSize: 12 }}>
+            <button onClick={resetBank} style={{ background: "none", border: "none", color: CAS.gold, textDecoration: "underline", cursor: "pointer", fontFamily: casMono, fontSize: 12 }}>
               Reset bankroll to {BANK_START}
             </button>
           </div>
         )}
 
-        <p style={{ fontFamily: mono, fontSize: 10.5, color: T.muted, lineHeight: 1.6, marginTop: 22 }}>
+        <div style={{ background: CAS.panel, border: `1px solid ${CAS.line}`, borderRadius: 12, padding: "12px 14px", fontFamily: casMono, fontSize: 11, lineHeight: 1.7, color: CAS.dim }}>
           Practice credits only — nothing is wagered, bought, or sent anywhere. Hint uses the trainer's
-          exact-enumeration engine. Want the full analysis? Take the hand to the <a href="trainer.html" style={{ color: T.pegIvory }}>Hold Trainer</a>.
-        </p>
-      </main>
+          exact-enumeration engine, so advice here and analysis there can never disagree. Want the full
+          ranked list? Take the hand to the <a href="trainer.html" style={{ color: CAS.gold }}>Hold Trainer</a>.
+          {" "}<button onClick={() => setAboutOpen(true)} style={{ background: "none", border: "none", color: CAS.gold, textDecoration: "underline", cursor: "pointer", fontFamily: casMono, fontSize: 11, padding: 0 }}>About</button>
+        </div>
+      </div>
     </div>
   );
 }

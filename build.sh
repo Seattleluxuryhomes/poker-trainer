@@ -114,12 +114,13 @@ build_one "src/Profile.jsx"       "profile.html"  "Poker — Profile"         "P
 build_one "src/Roulette.jsx"      "roulette.html" "Roulette"                "Roulette"     "American roulette with every probability enumerated and every house edge printed on the felt. Practice chips only."
 build_one "src/Craps.jsx"         "craps.html"    "Craps"                   "Craps"        "Craps with pass, don't pass, field, and true-odds free odds - the zero-edge bet, labeled. Practice chips only."
 build_one "src/PaiGow.jsx"        "paigow.html"   "Pai Gow Poker"           "PaiGow"       "Pai Gow Poker: set five high, two low, 5% commission printed, the edge simulated honestly on your device. Practice chips only."
+build_one "src/Blackjack.jsx"     "bj.html"       "Blackjack"               "Blackjack"    "Single-deck blackjack where every decision's expected value is enumerated exactly from the cards left and printed on the button. Practice chips only."
 
 # Stamp the version (read from the VERSION file) into each page's __APP_VERSION__
 # placeholder. VERSION is the single source of truth: "<x.y.z>-dev.<n>" during
 # development, "<major.minor.patch>" on a release.
 VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION" 2>/dev/null)"
-for f in index.html trainer.html play.html table.html profile.html roulette.html craps.html paigow.html; do
+for f in index.html trainer.html play.html table.html profile.html roulette.html craps.html paigow.html bj.html; do
   sed -i "s/__APP_VERSION__/${VERSION}/g" "$ROOT/$f"
 done
 echo "stamped version v${VERSION}"

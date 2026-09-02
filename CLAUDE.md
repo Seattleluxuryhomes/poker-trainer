@@ -226,3 +226,21 @@ taps on adjacent controls (picking two Pai Gow cards) read as a double-tap
 zoom gesture and Chrome swallows BOTH clicks. Never remove it. Guarded
 primary buttons (Pai Gow SET HANDS) use aria-disabled + a guidance nudge
 instead of disabled, so an early tap teaches instead of doing nothing.
+
+## Blackjack (v0.9.0)
+
+src/Blackjack.jsx (bj.html) is the philosophy made playable: single deck,
+S17, 3:2, double any two, split once (aces one card). STAND / HIT / DOUBLE
+each print their EXACT expected value, recomputed live by full recursion over
+the cards actually face up on the table, conditioned on the dealer's peek
+(bjDealerDist skips the natural-completing hole card and renormalizes). No
+strategy charts anywhere - the enumeration IS the advice (the ★). SPLIT is
+the one label marked "≈": it prices one split hand exactly and doubles it,
+ignoring the second hand's draw on the first's cards - the page says so.
+engine/verify_blackjack.js (65 checks) re-proves it with hand-derivable
+facts: rigged all-tens decks give exact ±1/0/±2 EVs, distributions sum to 1,
+settlement conservation, and the universal basic-strategy poles (11v6 double,
+20v10 stand, 5v10 hit, 88v6 split) must fall out of our own enumeration.
+The suite caught a real bug on first run: bjSettle returned the stake on a
+plain loss. Also v0.9.0: play.html (video poker) moved onto the casino design
+kit - same engine, same paytable law, new room.

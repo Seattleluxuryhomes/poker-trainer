@@ -1066,7 +1066,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.8.0";
+const APP_VERSION = "0.9.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1474,14 +1474,39 @@ function Paytable({ bet, wonCat }) {
     const rows = [];
     for (let c = CAT_COUNT - 1; c >= 1; c--)
         rows.push(c);
-    return (React.createElement("div", { style: { background: "rgba(0,0,0,0.24)", border: `1px solid ${T.line}`, borderRadius: 10, padding: "10px 12px", overflowX: "auto" } },
-        React.createElement("table", { style: { borderCollapse: "collapse", width: "100%", fontFamily: mono, fontSize: 11.5 } },
-            React.createElement("tbody", null, rows.map((c) => (React.createElement("tr", { key: c, style: { background: wonCat === c ? "rgba(217,164,65,0.28)" : "transparent" } },
-                React.createElement("td", { style: { padding: "3px 6px", color: wonCat === c ? T.gold : T.cream, whiteSpace: "nowrap", fontWeight: wonCat === c ? 700 : 400 } }, catName(c)),
+    return (React.createElement("div", { style: { background: CAS.panel, border: `1px solid ${CAS.line}`, borderRadius: 12, padding: "10px 12px", overflowX: "auto" } },
+        React.createElement("table", { style: { borderCollapse: "collapse", width: "100%", fontFamily: casMono, fontSize: 11.5 } },
+            React.createElement("tbody", null, rows.map((c) => (React.createElement("tr", { key: c, style: { background: wonCat === c ? "rgba(245,197,66,0.16)" : "transparent" } },
+                React.createElement("td", { style: { padding: "3px 6px", color: wonCat === c ? CAS.gold : CAS.text, whiteSpace: "nowrap", fontWeight: wonCat === c ? 700 : 400 } }, catName(c)),
                 [1, 2, 3, 4, 5].map((b) => (React.createElement("td", { key: b, style: {
-                        padding: "3px 8px", textAlign: "right", color: b === bet ? "#2A1B0E" : T.muted,
-                        background: b === bet ? T.pegIvory : "transparent", fontWeight: b === bet ? 700 : 400,
+                        padding: "3px 8px", textAlign: "right",
+                        color: b === bet ? CAS.gold : CAS.faint,
+                        background: b === bet ? "rgba(245,197,66,0.09)" : "transparent",
+                        fontWeight: b === bet ? 700 : 400,
                     } }, payoutFor(c, b)))))))))));
+}
+function VpCard({ card, w, held, best, faceDown, onClick, delay = 0 }) {
+    const red = isRed(card.s);
+    return (React.createElement("button", { onClick: onClick, disabled: !onClick, style: {
+            width: w, height: Math.round(w * 1.42), borderRadius: Math.max(8, w * 0.13), padding: 0, flex: "0 0 auto",
+            background: faceDown
+                ? "repeating-linear-gradient(45deg, #1c2733, #1c2733 5px, #141b24 5px, #141b24 10px)"
+                : "linear-gradient(160deg, #fdfcf7, #efece1 70%, #ddd8c8)",
+            border: held ? `2.5px solid ${CAS.gold}` : best ? `2px dashed rgba(245,197,66,0.65)` : "1px solid rgba(0,0,0,0.35)",
+            color: red ? "#c62828" : "#161a22", cursor: onClick ? "pointer" : "default",
+            boxShadow: held ? `0 0 14px ${CAS.goldFaint}, 0 6px 12px rgba(0,0,0,0.5)` : "0 5px 12px rgba(0,0,0,0.5)",
+            transform: held ? "translateY(-10px)" : "none", transition: "transform 140ms ease, box-shadow 140ms ease",
+            position: "relative", fontFamily: casSans,
+            animation: `casChipDrop 280ms ease ${delay}ms both`,
+        } }, !faceDown && (React.createElement(React.Fragment, null,
+        React.createElement("span", { style: { position: "absolute", top: w * 0.07, left: w * 0.1, fontSize: w * 0.3, fontWeight: 900, lineHeight: 1 } }, rankLabel(card.r)),
+        React.createElement("span", { style: { position: "absolute", bottom: w * 0.06, right: w * 0.08, fontSize: w * 0.44, lineHeight: 1 } }, SUIT[card.s]),
+        held && (React.createElement("span", { style: {
+                position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)",
+                fontSize: 8.5, fontWeight: 900, letterSpacing: "0.12em", padding: "2px 7px", borderRadius: 999,
+                background: CAS.gold, color: "#14171d", boxShadow: "0 2px 6px rgba(0,0,0,0.5)",
+                animation: "casPop 180ms ease both", whiteSpace: "nowrap",
+            } }, "HELD"))))));
 }
 function PokerPlay() {
     const [bank, setBank] = useState(loadBank);
@@ -1494,6 +1519,7 @@ function PokerPlay() {
     const [hint, setHint] = useState(null);
     const [stats, setStats] = useState({ hands: 0, net: 0 });
     const [aboutOpen, setAboutOpen] = useState(false);
+    const [winKey, setWinKey] = useState(0);
     useEffect(() => { saveBank(bank); }, [bank]);
     const broke = bank < bet && phase === "bet";
     const deal = useCallback(() => {
@@ -1522,8 +1548,10 @@ function PokerPlay() {
         setResult({ cat, win });
         setHint(null);
         setPhase("result");
-        if (win > 0)
+        if (win > 0) {
+            setWinKey((k) => k + 1);
             setTimeout(() => sfx.win(win >= 25), 320);
+        }
         reportStats({ set: { bankroll: bank + win } });
     }, [hand, held, rest, bet, bank]);
     const askHint = useCallback(() => { setHint(bestHold(hand)); }, [hand]);
@@ -1532,91 +1560,56 @@ function PokerPlay() {
         setHeld((h) => (h.includes(i) ? h.filter((x) => x !== i) : [...h, i]));
     }, []);
     const resetBank = useCallback(() => { setBank(BANK_START); setStats({ hands: 0, net: 0 }); reportStats({ set: { bankroll: BANK_START } }); }, []);
-    const bigBtn = (bg, fg) => ({
-        padding: "12px 34px", borderRadius: 10, cursor: "pointer", fontFamily: mono, fontSize: 15, fontWeight: 700,
-        background: bg, color: fg, border: "1px solid rgba(0,0,0,0.3)", boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-    });
-    return (React.createElement("div", { style: {
-            minHeight: "100%", background: `radial-gradient(120% 90% at 50% 0%, ${T.baizeHi}, ${T.baize})`,
-            color: T.cream, fontFamily: serif, padding: "0 0 28px",
-        } },
-        React.createElement("style", null, `
-        @keyframes dealIn {from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-        .dealwrap > * {animation:dealIn 260ms ease both}
-        .dealwrap > *:nth-child(2){animation-delay:40ms}
-        .dealwrap > *:nth-child(3){animation-delay:80ms}
-        .dealwrap > *:nth-child(4){animation-delay:120ms}
-        .dealwrap > *:nth-child(5){animation-delay:160ms}
-        button{font-family:inherit}
-        button:focus-visible{outline:2px solid ${T.pegIvory}}
-        @media (prefers-reduced-motion: reduce){.dealwrap > *{animation:none}}
-      `),
-        React.createElement("header", { style: {
-                background: `linear-gradient(180deg, ${T.woodL}, ${T.woodM} 55%, ${T.woodD})`,
-                padding: "14px 18px 16px", boxShadow: "0 6px 18px rgba(0,0,0,0.4)", borderBottom: "2px solid rgba(0,0,0,0.3)",
-            } },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 } },
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, minWidth: 0 } },
-                    React.createElement("a", { href: "index.html", "aria-label": "Home", title: "Home", style: {
-                            flex: "0 0 auto", width: 34, height: 34, borderRadius: 8, background: T.baize, color: T.ivory, textDecoration: "none",
-                            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, lineHeight: 1,
-                            boxShadow: "inset 0 1px 2px rgba(255,255,255,0.12), 0 2px 5px rgba(0,0,0,0.35)",
-                        } }, "\u2660"),
-                    React.createElement("span", { style: { fontFamily: mono, fontSize: 12, color: "rgba(42,27,14,0.8)", lineHeight: 1.3 } }, "Play \u2014 9/6 Jacks or Better"),
-                    IS_DEV_VERSION && React.createElement("span", { style: { fontFamily: mono, fontSize: 10, color: "rgba(42,27,14,0.55)", whiteSpace: "nowrap" } },
-                        "v",
-                        APP_VERSION)),
-                React.createElement("div", { style: { display: "flex", gap: 8, flex: "0 0 auto" } },
-                    React.createElement(SoundToggle, null),
-                    React.createElement(AccountArea, null),
-                    React.createElement("button", { onClick: () => setAboutOpen(true), "aria-label": "About", style: {
-                            width: 40, height: 40, borderRadius: 10, cursor: "pointer",
-                            border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)",
-                            color: "#2A1B0E", fontSize: 19, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                        } }, "\u24D8"))),
-            React.createElement("div", { style: { marginTop: 10, display: "flex", gap: 18, flexWrap: "wrap", fontFamily: mono, fontSize: 12, color: "#2A1B0E" } },
-                React.createElement("span", null,
-                    React.createElement("b", { style: { fontSize: 15 } }, bank),
-                    " credits"),
-                React.createElement("span", null,
-                    React.createElement("b", { style: { fontSize: 15 } }, stats.hands),
-                    " hands"),
-                React.createElement("span", null,
-                    React.createElement("b", { style: { fontSize: 15 } },
-                        stats.net >= 0 ? "+" : "",
-                        stats.net),
-                    " session"))),
-        React.createElement("main", { style: { maxWidth: 560, margin: "0 auto", padding: "18px 16px 0" } },
+    const w = Math.min(74, Math.round(((typeof window !== "undefined" ? window.innerWidth : 400) - 80) / 5));
+    return (React.createElement("div", { style: { background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "100vh", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" } },
+        React.createElement("style", null, CAS_CSS),
+        React.createElement(CasinoHeader, { title: "VIDEO POKER", sub: "9/6 JACKS OR BETTER \u00B7 ROYAL PAYS 4000 AT MAX BET \u00B7 PRACTICE CHIPS", bank: bank }),
+        React.createElement("div", { style: { flex: 1, maxWidth: 620, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 } },
             aboutOpen && React.createElement(AboutModal, { onClose: () => setAboutOpen(false) }),
             React.createElement(Paytable, { bet: bet, wonCat: result && result.win > 0 ? result.cat : null }),
-            phase === "bet" && (React.createElement("div", { style: { margin: "14px 0 4px" } },
-                React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.muted, marginBottom: 6 } }, "Bet (coins) \u2014 the royal pays 4000 only at 5"),
-                React.createElement("div", { style: { display: "flex", gap: 6 } }, [1, 2, 3, 4, 5].map((b) => (React.createElement("button", { key: b, onClick: () => setBet(b), style: segStyle(bet === b) }, b)))))),
-            hand ? (React.createElement("div", { className: phase === "hold" ? "dealwrap" : "", style: { display: "flex", gap: 8, justifyContent: "center", paddingTop: 30, paddingBottom: 24 } }, hand.map((card, i) => (React.createElement(CardFace, { key: cardId(card), card: card, held: phase === "hold" && held.includes(i), disabled: phase !== "hold", onClick: () => toggleHold(i), badge: phase === "hold" && hint && hint.includes(i) ? "BEST" : null }))))) : (React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "center", paddingTop: 30, paddingBottom: 24 } }, [0, 1, 2, 3, 4].map((i) => React.createElement(CardFace, { key: i, card: { r: 1, s: 0 }, faceDown: true, disabled: true })))),
-            phase === "result" && result && (React.createElement("div", { style: {
-                    padding: "12px 14px", borderRadius: 10, marginBottom: 14, textAlign: "center",
-                    background: result.win > 0 ? "rgba(95,164,124,0.16)" : "rgba(0,0,0,0.2)",
-                    border: `1px solid ${result.win > 0 ? "rgba(95,164,124,0.5)" : T.line}`,
-                } },
-                React.createElement("div", { style: { fontWeight: 700, fontSize: 16 } }, result.win > 0 ? `${catName(result.cat)} — you win ${result.win}` : "No pair of jacks or better — no payout"))),
-            React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" } }, phase === "hold" ? (React.createElement(React.Fragment, null,
-                React.createElement("button", { onClick: draw, style: bigBtn(`linear-gradient(180deg, ${T.good}, ${T.goodDeep})`, "#0d2417") }, "Draw"),
-                React.createElement("button", { onClick: askHint, style: {
-                        padding: "12px 22px", borderRadius: 10, cursor: "pointer", fontFamily: mono, fontSize: 13,
-                        background: "rgba(0,0,0,0.22)", color: T.cream, border: `1px solid ${T.line}`,
-                    } }, "Hint"))) : (React.createElement("button", { onClick: deal, disabled: broke, style: { ...bigBtn(`linear-gradient(180deg, ${T.good}, ${T.goodDeep})`, "#0d2417"), opacity: broke ? 0.5 : 1, cursor: broke ? "default" : "pointer" } },
-                "Deal \u2014 bet ",
-                bet))),
-            broke && (React.createElement("div", { style: { marginTop: 16, textAlign: "center", fontFamily: mono, fontSize: 12, color: T.muted } },
+            React.createElement("div", { style: { ...feltPanel("20px 14px"), display: "flex", flexDirection: "column", alignItems: "center", gap: 12, overflow: "hidden" } },
+                React.createElement(MarqueeLights, null),
+                React.createElement(BigWin, { amount: result && result.win > 0 ? result.win : 0, fireKey: winKey }),
+                React.createElement("div", { style: { display: "flex", gap: 7, justifyContent: "center", paddingTop: 8 } }, hand
+                    ? hand.map((card, i) => (React.createElement(VpCard, { key: cardId(card), card: card, w: w, held: phase === "hold" && held.includes(i), best: phase === "hold" && hint && hint.includes(i), onClick: phase === "hold" ? () => toggleHold(i) : undefined, delay: i * 55 })))
+                    : [0, 1, 2, 3, 4].map((i) => React.createElement(VpCard, { key: i, card: { r: 1, s: 0 }, faceDown: true, w: w }))),
+                React.createElement("div", { style: { fontFamily: casMono, fontSize: 11.5, minHeight: 17, textAlign: "center", color: phase === "hold" ? CAS.gold : CAS.dim, fontWeight: phase === "hold" ? 700 : 400 } }, phase === "hold"
+                    ? hint ? "dashed gold = the enumerated best hold" : "tap the cards to HOLD, then draw"
+                    : phase === "result" && result
+                        ? result.win > 0 ? `${catName(result.cat)} — you win ${result.win}` : "no pair of jacks or better"
+                        : "five cards, one draw — the machine that started this whole casino")),
+            phase !== "hold" && (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                React.createElement("span", { style: { fontFamily: casMono, fontSize: 11, color: CAS.faint } }, "BET"),
+                [1, 2, 3, 4, 5].map((b) => (React.createElement("button", { key: b, onClick: () => { sfx.click(); setBet(b); }, style: {
+                        width: 38, height: 38, borderRadius: 10, cursor: "pointer", fontFamily: casSans, fontWeight: 900, fontSize: 14,
+                        border: `1px solid ${bet === b ? "rgba(245,197,66,0.7)" : CAS.line}`,
+                        background: bet === b ? "linear-gradient(180deg, rgba(245,197,66,0.25), rgba(245,197,66,0.1))" : "rgba(255,255,255,0.04)",
+                        color: bet === b ? CAS.goldHi : CAS.text,
+                    } }, b))),
+                React.createElement("div", { style: { marginLeft: "auto", fontFamily: casMono, fontSize: 11.5, color: CAS.dim, textAlign: "right" } },
+                    stats.hands,
+                    " hands \u00B7 ",
+                    stats.net >= 0 ? "+" : "",
+                    stats.net))),
+            phase === "hold" ? (React.createElement("div", { style: { display: "flex", gap: 8 } },
+                React.createElement("button", { onClick: draw, style: { ...casCta(false, true), flex: 2 } }, "DRAW"),
+                React.createElement("button", { onClick: askHint, style: { ...casGhost(), flex: 1 } }, "HINT"))) : (React.createElement("button", { onClick: deal, disabled: broke, style: casCta(broke, !broke) },
+                "DEAL \u00B7 ",
+                bet,
+                " ",
+                bet === 1 ? "COIN" : "COINS")),
+            broke && (React.createElement("div", { style: { textAlign: "center", fontFamily: casMono, fontSize: 12, color: CAS.dim } },
                 "Out of credits.",
                 " ",
-                React.createElement("button", { onClick: resetBank, style: { background: "none", border: "none", color: T.pegIvory, textDecoration: "underline", cursor: "pointer", fontFamily: mono, fontSize: 12 } },
+                React.createElement("button", { onClick: resetBank, style: { background: "none", border: "none", color: CAS.gold, textDecoration: "underline", cursor: "pointer", fontFamily: casMono, fontSize: 12 } },
                     "Reset bankroll to ",
                     BANK_START))),
-            React.createElement("p", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, lineHeight: 1.6, marginTop: 22 } },
-                "Practice credits only \u2014 nothing is wagered, bought, or sent anywhere. Hint uses the trainer's exact-enumeration engine. Want the full analysis? Take the hand to the ",
-                React.createElement("a", { href: "trainer.html", style: { color: T.pegIvory } }, "Hold Trainer"),
-                "."))));
+            React.createElement("div", { style: { background: CAS.panel, border: `1px solid ${CAS.line}`, borderRadius: 12, padding: "12px 14px", fontFamily: casMono, fontSize: 11, lineHeight: 1.7, color: CAS.dim } },
+                "Practice credits only \u2014 nothing is wagered, bought, or sent anywhere. Hint uses the trainer's exact-enumeration engine, so advice here and analysis there can never disagree. Want the full ranked list? Take the hand to the ",
+                React.createElement("a", { href: "trainer.html", style: { color: CAS.gold } }, "Hold Trainer"),
+                ".",
+                " ",
+                React.createElement("button", { onClick: () => setAboutOpen(true), style: { background: "none", border: "none", color: CAS.gold, textDecoration: "underline", cursor: "pointer", fontFamily: casMono, fontSize: 11, padding: 0 } }, "About")))));
 }
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(PokerPlay));
 

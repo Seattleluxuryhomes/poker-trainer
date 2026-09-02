@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'" />
 <meta name="theme-color" content="#0a0c10" />
-<meta name="description" content="A practice casino where every probability is enumerated and every house edge is printed on the felt. Poker vs a fictional world champion, rooms for friends, roulette, craps, Pai Gow. Free, open-source, practice chips only." />
+<meta name="description" content="A practice casino where every probability is enumerated and every house edge is printed on the felt. Poker vs a fictional world champion, rooms for friends, roulette, craps, Pai Gow, blackjack. Free, open-source, practice chips only." />
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta property="og:type" content="website" />
@@ -111,6 +111,7 @@
   .pip.roulette{ background:linear-gradient(180deg,#c0392b,#6f1d15) }
   .pip.craps{ background:linear-gradient(180deg,#f6f3ea,#c4bfae); color:#14171d }
   .pip.paigow{ background:linear-gradient(180deg,var(--gold),#8a6508); color:#231a05 }
+  .pip.bj{ background:linear-gradient(180deg,#1f6f45,#0a3320); color:#f4efe4 }
   .pip.profile{ background:linear-gradient(180deg,#8a5e37,#4a3018) }
   .opt-title{ font-size:18px; font-weight:800; letter-spacing:-0.01em; color:var(--cream) }
   .opt-sub{ font-family:var(--mono); font-size:10.5px; color:var(--faint); margin-top:3px; letter-spacing:0.03em }
@@ -151,7 +152,7 @@
     </div>
     <h1>The casino that<br/><span class="gold">shows you the math.</span></h1>
     <p class="creed">
-      Six games, one rule: <b>every probability is enumerated and every house edge is
+      Seven games, one rule: <b>every probability is enumerated and every house edge is
       printed on the felt</b> — and when a number can only be estimated, it says so.
       Practice chips only. No accounts required. No tracking, ever.
     </p>
@@ -258,7 +259,22 @@
         </div>
         <span class="edge">~2.7% · SIMULATED, AND IT SAYS SO</span>
       </a>
-      <a class="option" href="profile.html" style="--i:6">
+      <a class="option" href="bj.html" style="--i:6">
+        <div class="opt-row">
+          <span class="pip bj">&#127137;</span>
+          <div>
+            <div class="opt-title">Blackjack</div>
+            <div class="opt-sub">SINGLE DECK &middot; S17 &middot; 3:2 &middot; EV ON EVERY BUTTON</div>
+          </div>
+          <span class="arrow">&#8250;</span>
+        </div>
+        <div class="opt-desc">
+          Stand, hit, and double each wear their exact expected value, recomputed live from the
+          cards actually left in the deck. No charts, no memory &mdash; the enumeration IS the advice.
+        </div>
+        <span class="edge">EVERY DECISION PRICED, ENUMERATED</span>
+      </a>
+      <a class="option" href="profile.html" style="--i:7">
         <div class="opt-row">
           <span class="pip profile">&#127183;</span>
           <div>
