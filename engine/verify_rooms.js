@@ -160,6 +160,18 @@ async function main() {
       check((await fetch(`${BASE}/room/${code}/video/${id}?seat=1&key=NOPE`)).status === 401, "clip fetch needs seat credentials too");
     }
 
+    /* table chat: bubbles + the shared log */
+    {
+      check((await call("POST", `/room/${code}/chat`, { seat: 0, key: "WRONG", text: "hi" })).status === 401, "chat needs seat credentials");
+      check((await call("POST", `/room/${code}/chat`, { seat: 0, key: hostKey, text: "   " })).status === 400, "empty chat rejected");
+      const said = await call("POST", `/room/${code}/chat`, { seat: 0, key: hostKey, text: "bring it, Marcus" });
+      check(said.status === 200, "host sends a message");
+      check((await call("POST", `/room/${code}/chat`, { seat: 0, key: hostKey, text: "again" })).status === 429, "chat cooldown enforced");
+      const seen = await waitFor(marcus, (p) => p.state.quip && p.state.quip.seat === 0 && p.state.quip.text === "bring it, Marcus");
+      check(!!seen, "the message bubbles at the sender's seat on other screens");
+      check(seen && seen.state.log.some((l) => l === "Ben: bring it, Marcus"), "the message joins the shared hand log");
+    }
+
     /* charity night close-out */
     check((await call("POST", `/room/${code}/end-night`, { seat: 1, key: mKey })).status === 403, "only the host ends the night");
     const ended = await call("POST", `/room/${code}/end-night`, { seat: 0, key: hostKey });

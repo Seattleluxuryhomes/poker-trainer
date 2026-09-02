@@ -590,6 +590,25 @@ function CreateRoomModal({ onClose }) {
   );
 }
 
+/* One-line table talk: bubbles at your seat everywhere, logged in the feed. */
+function ChatRow({ onSend }) {
+  const [text, setText] = React.useState("");
+  const send = () => { const t = text.trim(); if (!t) return; onSend(t); setText(""); };
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      <input value={text} maxLength={200} placeholder="say something to the table…"
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(); } e.stopPropagation(); }}
+        style={{ flex: 1, minWidth: 0, padding: "9px 12px", borderRadius: 9, border: `1px solid ${N.line2}`,
+          background: "#101318", color: "#e8ebf2", fontFamily: sans, fontSize: 13, outline: "none" }} />
+      <button onClick={send} disabled={!text.trim()} style={{ padding: "0 16px", borderRadius: 9, cursor: "pointer",
+        border: `1px solid ${N.line2}`, background: "#232733", color: "#e8ebf2", fontFamily: sans, fontSize: 12, fontWeight: 800 }}>
+        SEND
+      </button>
+    </div>
+  );
+}
+
 function RoomTable({ code }) {
   const acct = useAccount();
   const [ident, setIdent] = React.useState(() => readIdent(code));
@@ -781,13 +800,13 @@ function RoomTable({ code }) {
           )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={recordClip} title="Send a video taunt to the table" style={{
+          <button onClick={recordClip} title="Send a video to the table" style={{
             height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px",
             border: `1px solid ${recState === "recording" ? "rgba(255,82,82,0.7)" : N.line2}`,
             background: recState === "recording" ? "rgba(255,82,82,0.15)" : "rgba(255,255,255,0.04)",
             color: recState === "recording" ? N.redSoft : "#c9cfda", fontFamily: sans, fontSize: 11, fontWeight: 800,
           }}>
-            {recState === "recording" ? "◉ REC — tap to send" : recState === "sending" ? "…" : "🎥 TAUNT"}
+            {recState === "recording" ? "◉ REC — tap to send" : recState === "sending" ? "…" : "🎥 VIDEO"}
           </button>
           {payload.videos && payload.videos.length > 0 && (
             <button onClick={() => openClip(payload.videos[payload.videos.length - 1], false)} title="Replay the latest clip" style={{
@@ -912,6 +931,7 @@ function RoomTable({ code }) {
       <div style={{ flex: "0 0 auto", background: `linear-gradient(180deg, ${N.panel}, #101318)`, borderTop: `1px solid ${N.line}`, padding: "12px 16px calc(12px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 11, alignItems: "center" }}>
        <div style={{ width: "100%", maxWidth: 620, display: "flex", flexDirection: "column", gap: 11 }}>
         <ActionTicker log={state && state.log} />
+        <ChatRow onSend={(text) => post("chat", { text })} />
         {state.phase === "betting" ? (
           <>
             <div style={{ display: "flex", alignItems: "center", gap: 12, opacity: userTurn && la && la.canRaise ? 1 : 0.35 }}>
@@ -951,7 +971,7 @@ function RoomTable({ code }) {
               background: recState === "recording" ? "rgba(255,82,82,0.18)" : "linear-gradient(180deg, rgba(255,213,79,0.22), rgba(255,213,79,0.08))",
               color: recState === "recording" ? N.redSoft : N.gold,
             }}>
-              {recState === "recording" ? "◉ RECORDING — TAP TO SEND" : recState === "sending" ? "SENDING…" : "🎥 SAY IT TO THEIR FACE"}
+              {recState === "recording" ? "◉ RECORDING — TAP TO SEND" : recState === "sending" ? "SENDING…" : "🎥 SEND THEM A VIDEO"}
             </button>
           </div>
         ) : charity.night && charity.winnerSeat != null && !(charity.picked && charity.picked.name) ? (

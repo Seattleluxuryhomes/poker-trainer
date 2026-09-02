@@ -356,6 +356,23 @@ export async function handleRoom(req, res, path, { corsHeaders, userIdFrom }) {
       return send(200, { ok: true });
     }
 
+    if (verb === "chat" && req.method === "POST") {
+      // Communication, plainly: the message bubbles at your seat on every
+      // screen and joins the shared hand log. Ephemeral like everything else.
+      const now = Date.now();
+      if (now - (room.lastChatAt && room.lastChatAt[seat] || 0) < 1500) err(429, "One message at a time.");
+      const text = String(body.text || "").trim().slice(0, 200);
+      if (!text) err(400, "Say something.");
+      room.lastChatAt = room.lastChatAt || {};
+      room.lastChatAt[seat] = now;
+      room.state.quip = { seat, text };
+      room.state.log = room.state.log || [];
+      room.state.log.push(`${room.state.players[seat].name}: ${text}`);
+      if (room.state.log.length > 80) room.state.log.shift();
+      broadcast(room);
+      return send(200, { ok: true });
+    }
+
     if (verb === "end-night" && req.method === "POST") {
       if (seat !== 0) err(403, "Only the host ends the night.");
       if (!room.charityNight) err(400, "Not a charity night.");

@@ -905,7 +905,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.4.0";
+const APP_VERSION = "0.4.1";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1534,6 +1534,19 @@ function CreateRoomModal({ onClose }) {
         error && React.createElement("div", { style: { fontFamily: mono, fontSize: 11.5, color: T.pegRed, marginBottom: 8 } }, error),
         React.createElement("button", { onClick: go, disabled: busy || !name.trim() || !acct.online, style: { ...segStyle(true), width: "100%", padding: "11px 6px", fontSize: 13 } }, busy ? "…" : "Create room")));
 }
+function ChatRow({ onSend }) {
+    const [text, setText] = React.useState("");
+    const send = () => { const t = text.trim(); if (!t)
+        return; onSend(t); setText(""); };
+    return (React.createElement("div", { style: { display: "flex", gap: 8 } },
+        React.createElement("input", { value: text, maxLength: 200, placeholder: "say something to the table\u2026", onChange: (e) => setText(e.target.value), onKeyDown: (e) => { if (e.key === "Enter") {
+                e.preventDefault();
+                send();
+            } e.stopPropagation(); }, style: { flex: 1, minWidth: 0, padding: "9px 12px", borderRadius: 9, border: `1px solid ${N.line2}`,
+                background: "#101318", color: "#e8ebf2", fontFamily: sans, fontSize: 13, outline: "none" } }),
+        React.createElement("button", { onClick: send, disabled: !text.trim(), style: { padding: "0 16px", borderRadius: 9, cursor: "pointer",
+                border: `1px solid ${N.line2}`, background: "#232733", color: "#e8ebf2", fontFamily: sans, fontSize: 12, fontWeight: 800 } }, "SEND")));
+}
 function RoomTable({ code }) {
     const acct = useAccount();
     const [ident, setIdent] = React.useState(() => readIdent(code));
@@ -1752,12 +1765,12 @@ function RoomTable({ code }) {
                     charity.total.toLocaleString(),
                     " pledged"))),
             React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
-                React.createElement("button", { onClick: recordClip, title: "Send a video taunt to the table", style: {
+                React.createElement("button", { onClick: recordClip, title: "Send a video to the table", style: {
                         height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px",
                         border: `1px solid ${recState === "recording" ? "rgba(255,82,82,0.7)" : N.line2}`,
                         background: recState === "recording" ? "rgba(255,82,82,0.15)" : "rgba(255,255,255,0.04)",
                         color: recState === "recording" ? N.redSoft : "#c9cfda", fontFamily: sans, fontSize: 11, fontWeight: 800,
-                    } }, recState === "recording" ? "◉ REC — tap to send" : recState === "sending" ? "…" : "🎥 TAUNT"),
+                    } }, recState === "recording" ? "◉ REC — tap to send" : recState === "sending" ? "…" : "🎥 VIDEO"),
                 payload.videos && payload.videos.length > 0 && (React.createElement("button", { onClick: () => openClip(payload.videos[payload.videos.length - 1], false), title: "Replay the latest clip", style: {
                         height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px",
                         border: `1px solid ${N.line2}`, background: "rgba(255,255,255,0.04)",
@@ -1847,6 +1860,7 @@ function RoomTable({ code }) {
         React.createElement("div", { style: { flex: "0 0 auto", background: `linear-gradient(180deg, ${N.panel}, #101318)`, borderTop: `1px solid ${N.line}`, padding: "12px 16px calc(12px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 11, alignItems: "center" } },
             React.createElement("div", { style: { width: "100%", maxWidth: 620, display: "flex", flexDirection: "column", gap: 11 } },
                 React.createElement(ActionTicker, { log: state && state.log }),
+                React.createElement(ChatRow, { onSend: (text) => post("chat", { text }) }),
                 state.phase === "betting" ? (React.createElement(React.Fragment, null,
                     React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, opacity: userTurn && la && la.canRaise ? 1 : 0.35 } },
                         React.createElement("span", { style: { fontSize: 10.5, fontWeight: 700, color: N.dim, flex: "0 0 auto" } }, la ? money(la.minRaiseTo) : ""),
@@ -1864,7 +1878,7 @@ function RoomTable({ code }) {
                             border: recState === "recording" ? "1px solid rgba(255,82,82,0.7)" : "1px solid rgba(255,213,79,0.5)",
                             background: recState === "recording" ? "rgba(255,82,82,0.18)" : "linear-gradient(180deg, rgba(255,213,79,0.22), rgba(255,213,79,0.08))",
                             color: recState === "recording" ? N.redSoft : N.gold,
-                        } }, recState === "recording" ? "◉ RECORDING — TAP TO SEND" : recState === "sending" ? "SENDING…" : "🎥 SAY IT TO THEIR FACE"))) : charity.night && charity.winnerSeat != null && !(charity.picked && charity.picked.name) ? (charity.winnerSeat === mySeat ? (React.createElement("div", null,
+                        } }, recState === "recording" ? "◉ RECORDING — TAP TO SEND" : recState === "sending" ? "SENDING…" : "🎥 SEND THEM A VIDEO"))) : charity.night && charity.winnerSeat != null && !(charity.picked && charity.picked.name) ? (charity.winnerSeat === mySeat ? (React.createElement("div", null,
                     React.createElement("div", { style: { fontSize: 13.5, fontWeight: 800, color: N.gold, marginBottom: 8 } },
                         "You lead the night \u2014 pick where the table's $",
                         charity.total.toLocaleString(),
