@@ -134,18 +134,41 @@ async function main() {
     check(leaks === 0, `no opponent hole card ever reached Marcus pre-reveal (${marcus.payloads.length} payloads audited)`);
     check(sawOwn > 0, "Marcus always saw his own cards");
 
-    /* wrong-turn and stranger actions bounce */
+    /* wrong-turn actions bounce; a seat opens between hands */
     check((await call("POST", `/room/${code}/act`, { seat: 0, key: hostKey, action: { type: "call" } })).status === 409, "acting out of turn is 409");
-    check((await call("POST", `/room/${code}/join`, { name: "Late" })).status === 200 ? true : true, "(seat may open between hands)");
+    const late = await call("POST", `/room/${code}/join`, { name: "Late" });
+    check(late.status === 200 && late.body.seat === 2, "a third friend takes a seat between hands");
+    const seatKeys = { 0: hostKey, 1: mKey, [late.body.seat]: late.body.key };
+
+    /* video taunts: transport, auth, caps, round-trip */
+    {
+      const clip = Buffer.from("not-actually-vp8-but-the-relay-doesn't-care ".repeat(10));
+      const up = async (seat, key, body, type = "video/webm") =>
+        fetch(`${BASE}/room/${code}/video?seat=${seat}&key=${encodeURIComponent(key)}`, { method: "POST", headers: { "content-type": type }, body });
+      check((await up(0, "WRONG", clip)).status === 401, "clip upload needs seat credentials");
+      check((await up(0, hostKey, clip, "text/html")).status === 415, "only video mime types accepted");
+      const big = Buffer.alloc(3 * 1024 * 1024 + 10);
+      check((await up(0, hostKey, big)).status === 413, "oversized clip rejected");
+      const ok1 = await up(0, hostKey, clip);
+      check(ok1.status === 200, "host uploads a clip");
+      const { id } = await ok1.json();
+      check((await up(0, hostKey, clip)).status === 429, "per-seat clip cooldown enforced");
+      const meta = await waitFor(marcus, (p) => p.videos && p.videos.some((v) => v.id === id));
+      check(!!meta, "clip metadata reaches the other seat over SSE");
+      const dl = await fetch(`${BASE}/room/${code}/video/${id}?seat=1&key=${encodeURIComponent(mKey)}`);
+      check(dl.status === 200 && Buffer.from(await dl.arrayBuffer()).equals(clip), "another seat fetches the exact bytes back");
+      check((await fetch(`${BASE}/room/${code}/video/${id}?seat=1&key=NOPE`)).status === 401, "clip fetch needs seat credentials too");
+    }
 
     /* charity night close-out */
     check((await call("POST", `/room/${code}/end-night`, { seat: 1, key: mKey })).status === 403, "only the host ends the night");
     const ended = await call("POST", `/room/${code}/end-night`, { seat: 0, key: hostKey });
     check(ended.status === 200, "host ends the night");
     const winnerSeat = ended.body.winnerSeat;
-    const loserSeat = winnerSeat === 0 ? 1 : 0;
-    const loserKey = loserSeat === 0 ? hostKey : mKey;
-    const winnerKey = winnerSeat === 0 ? hostKey : winnerSeat === 1 ? mKey : null;
+    check(seatKeys[winnerSeat] !== undefined, `the night's winner is always a HUMAN seat (got ${winnerSeat})`);
+    const loserSeat = Object.keys(seatKeys).map(Number).find((s) => s !== winnerSeat);
+    const loserKey = seatKeys[loserSeat];
+    const winnerKey = seatKeys[winnerSeat];
     check((await call("POST", `/room/${code}/charity`, { seat: loserSeat, key: loserKey, name: "X" })).status === 403, "only the leader picks the charity");
     if (winnerKey) {
       check((await call("POST", `/room/${code}/charity`, { seat: winnerSeat, key: winnerKey, name: "Food Lifeline", url: "http://insecure" })).status === 400, "non-https charity link rejected");
@@ -160,8 +183,6 @@ async function main() {
       check(night && night.charity_name === "Food Lifeline" && night.total_pledged === 20000, "the night is recorded (metadata only)");
       const me = await call("GET", "/auth/me", null, hostToken);
       check(me.body.stats.raised === 5000, `the signed-in host's raised tally grew by their pledge (got ${me.body.stats.raised})`);
-    } else {
-      check(false, "a bot won the night (bots fold to calls rarely; rerun) — winner had no key");
     }
 
     ben.close(); marcus.close();

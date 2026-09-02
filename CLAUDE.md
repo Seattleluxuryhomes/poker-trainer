@@ -151,3 +151,18 @@ pledge directly on the charity's page. Nights are recorded metadata-only;
 signed-in players' `raised` tally grows by their pledge. Any change that gives
 a player value back, or has the app touch funds, is a refuse-and-stop — that's
 the line between this feature and an unlicensed gambling operation.
+
+## Video taunts & the hand log (v0.4.0)
+
+Clips: MediaRecorder in the room client (6s auto-stop, webm/mp4, ~3MB cap),
+relayed through room MEMORY only — never disk, never a bucket, gone with the
+room. Seat-authed upload and fetch, per-seat 15s cooldown, newest 6 kept.
+A new clip auto-opens on every OTHER seat muted (autoplay policy; TAP FOR
+SOUND is the gesture). During an all-in runout the panel becomes the
+"SAY IT TO THEIR FACE" record button. Private rooms only, by invite link —
+if clips ever persist or go public, moderation becomes a real design problem;
+don't drift there casually.
+The hand log lives in the SHARED game state (holdem.js pushLog): blinds,
+every action, each street with cards and pot — solo and rooms render the same
+feed (2-line ticker above the action panel; tap for the full log). Seat
+actions render as color-coded ActBadges (raise green, fold red, call cream).

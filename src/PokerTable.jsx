@@ -91,6 +91,62 @@ function BetPill({ amount }) {
   );
 }
 
+/* Actions read at a glance: raises shout, folds mutter. */
+function actStyle(lastAct) {
+  if (!lastAct) return null;
+  if (/^(raises|bets|all-in)/.test(lastAct)) return { color: "#0d2417", background: N.green, border: "1px solid transparent" };
+  if (/^folds/.test(lastAct)) return { color: N.redSoft, background: "rgba(255,82,82,0.12)", border: "1px solid rgba(255,82,82,0.35)" };
+  if (/^calls/.test(lastAct)) return { color: "#e8ebf2", background: "rgba(255,255,255,0.1)", border: `1px solid ${N.line2}` };
+  if (/blind/.test(lastAct)) return { color: N.amber, background: "rgba(255,183,77,0.12)", border: "1px solid rgba(255,183,77,0.3)" };
+  return { color: N.dim, background: "rgba(255,255,255,0.05)", border: `1px solid ${N.line}` }; // checks
+}
+function ActBadge({ lastAct }) {
+  const st = actStyle(lastAct);
+  if (!st) return null;
+  return (
+    <span style={{ marginTop: 3, fontFamily: sans, fontSize: 10, fontWeight: 800, letterSpacing: "0.03em", borderRadius: 999, padding: "1.5px 8px", whiteSpace: "nowrap", ...st }}>
+      {lastAct.toUpperCase()}
+    </span>
+  );
+}
+
+/* The hand feed: last lines always visible, tap for the full broadcast log. */
+function ActionTicker({ log }) {
+  const [open, setOpen] = React.useState(false);
+  const endRef = React.useRef(null);
+  React.useEffect(() => { if (open && endRef.current) endRef.current.scrollIntoView({ block: "end" }); }, [open, log && log.length]);
+  if (!log || !log.length) return null;
+  return (
+    <>
+      <button onClick={() => setOpen(true)} title="Full hand log" style={{
+        width: "100%", textAlign: "left", background: "rgba(0,0,0,0.35)", border: `1px solid ${N.line}`,
+        borderRadius: 9, padding: "6px 10px", cursor: "pointer", fontFamily: "ui-monospace, Menlo, monospace",
+        fontSize: 11, lineHeight: 1.5, color: N.dim, overflow: "hidden",
+      }}>
+        {log.slice(-2).map((l, i) => (
+          <div key={i} style={{ whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden", color: i === log.slice(-2).length - 1 ? "#c9cfda" : N.faint }}>{l}</div>
+        ))}
+      </button>
+      {open && (
+        <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 280, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: N.panel, border: `1px solid ${N.line2}`, borderRadius: 14, width: "100%", maxWidth: 420, maxHeight: "70vh", display: "flex", flexDirection: "column", boxShadow: "0 18px 60px rgba(0,0,0,0.7)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderBottom: `1px solid ${N.line}` }}>
+              <span style={{ fontFamily: sans, fontSize: 13, fontWeight: 800, color: "#e8ebf2" }}>HAND LOG</span>
+              <button onClick={() => setOpen(false)} style={{ background: "#232733", color: "#e8ebf2", border: "none", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontWeight: 800, fontSize: 12 }}>CLOSE</button>
+            </div>
+            <div style={{ overflowY: "auto", padding: "10px 14px", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12, lineHeight: 1.7 }}>
+              {log.map((l, i) => (
+                <div key={i} style={{ color: l.startsWith("—") ? N.gold : "#c9cfda" }}>{l}</div>
+              ))}
+              <div ref={endRef} />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function EquityBadge({ pct, lead }) {
   return (
     <div style={{
@@ -154,7 +210,7 @@ function OppSeat({ player, seat, spot, state, cardW, equity, lead }) {
         )}
       </div>
       {equity != null && <EquityBadge pct={equity} lead={lead} />}
-      {player.lastAct && <div style={{ marginTop: 3, fontSize: 9.5, fontWeight: 700, color: N.dim, whiteSpace: "nowrap" }}>{player.lastAct}</div>}
+      {player.lastAct && <ActBadge lastAct={player.lastAct} />}
       <BetPill amount={player.streetBet} />
     </div>
   );
@@ -390,7 +446,7 @@ function SoloTable() {
               <div style={{ fontSize: 12.5, fontWeight: 800 }}>You{you.folded && state.phase === "betting" ? " · FOLDED" : ""}</div>
               <div style={{ fontSize: 12.5, fontWeight: 800, color: N.green }}>{money(you.stack)}</div>
             </div>
-            {you.lastAct && <span style={{ fontSize: 10, fontWeight: 700, color: N.dim }}>{you.lastAct}</span>}
+            {you.lastAct && <ActBadge lastAct={you.lastAct} />}
             {equities && equities[USER_SEAT] != null && <EquityBadge pct={equities[USER_SEAT]} lead={leadSeat === USER_SEAT} />}
             <BetPill amount={you.streetBet} />
           </div>
@@ -406,6 +462,7 @@ function SoloTable() {
         display: "flex", flexDirection: "column", gap: 11, alignItems: "center",
       }}>
        <div style={{ width: "100%", maxWidth: 620, display: "flex", flexDirection: "column", gap: 11 }}>
+        <ActionTicker log={state && state.log} />
         {state.phase === "betting" ? (
           <>
             <div style={{ display: "flex", alignItems: "center", gap: 12, opacity: userTurn && la && la.canRaise ? 1 : 0.35 }}>
@@ -546,6 +603,10 @@ function RoomTable({ code }) {
   const [charityName, setCharityName] = React.useState("");
   const [charityUrl, setCharityUrl] = React.useState("");
   const esRef = React.useRef(null);
+  const [recState, setRecState] = React.useState("idle"); // idle | recording | sending
+  const [playing, setPlaying] = React.useState(null);     // {url, name, mime, muted}
+  const seenClips = React.useRef(new Set());
+  const recRef = React.useRef(null);
 
   // pre-join info
   React.useEffect(() => {
@@ -563,6 +624,61 @@ function RoomTable({ code }) {
     es.onerror = () => { /* EventSource auto-reconnects */ };
     return () => es.close();
   }, [acct.online, ident]);
+
+  /* ---- video taunts ---- */
+  const videoUrl = (id) => `${ACCT.base}/api/room/${code}/video/${id}?seat=${ident.seat}&key=${encodeURIComponent(ident.key)}`;
+  const openClip = async (clip, auto) => {
+    try {
+      const res = await fetch(videoUrl(clip.id));
+      if (!res.ok) throw new Error("clip gone");
+      const blob = await res.blob();
+      const sender = state ? state.players[clip.seat].name : "someone";
+      setPlaying({ url: URL.createObjectURL(blob), name: sender, muted: !!auto });
+    } catch { setError("That clip has expired."); setTimeout(() => setError(null), 2000); }
+  };
+  // A fresh clip from ANYONE ELSE barges onto your screen — that's the feature.
+  React.useEffect(() => {
+    if (!payload || !payload.videos) return;
+    const fresh = payload.videos.filter((v) => !seenClips.current.has(v.id));
+    for (const v of payload.videos) seenClips.current.add(v.id);
+    const last = fresh.filter((v) => v.seat !== mySeat).pop();
+    if (last && !playing && !recState.startsWith("record")) openClip(last, true); // muted autoplay; tap for sound
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payload && payload.videos && payload.videos.map((v) => v.id).join(",")]);
+
+  const recordClip = async () => {
+    if (recState !== "idle") { // second tap = stop early
+      if (recRef.current && recRef.current.state === "recording") recRef.current.stop();
+      return;
+    }
+    setError(null);
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 480 }, facingMode: "user" }, audio: true });
+    } catch { setError("Camera blocked — allow camera access to send a taunt."); setTimeout(() => setError(null), 2500); return; }
+    const mime = ["video/webm;codecs=vp8,opus", "video/webm", "video/mp4"].find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m));
+    if (!mime) { setError("This browser can't record video."); stream.getTracks().forEach((t) => t.stop()); return; }
+    const mr = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 900000 });
+    recRef.current = mr;
+    const chunks = [];
+    mr.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    mr.onstop = async () => {
+      clearTimeout(mr._autoStop);
+      stream.getTracks().forEach((t) => t.stop());
+      setRecState("sending");
+      try {
+        const blob = new Blob(chunks, { type: mime.split(";")[0] });
+        if (blob.size > 2.8 * 1024 * 1024) throw new Error("Clip too large — keep it under ~6 seconds.");
+        const res = await fetch(`${ACCT.base}/api/room/${code}/video?seat=${ident.seat}&key=${encodeURIComponent(ident.key)}`,
+          { method: "POST", headers: { "content-type": blob.type }, body: blob });
+        if (!res.ok) throw new Error((await res.json()).detail || "Upload failed");
+      } catch (e) { setError(e.message); setTimeout(() => setError(null), 3000); }
+      setRecState("idle");
+    };
+    mr.start();
+    setRecState("recording");
+    mr._autoStop = setTimeout(() => { if (mr.state === "recording") mr.stop(); }, 6000);
+  };
 
   const post = async (verb, body = {}) => {
     setError(null);
@@ -665,6 +781,21 @@ function RoomTable({ code }) {
           )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button onClick={recordClip} title="Send a video taunt to the table" style={{
+            height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px",
+            border: `1px solid ${recState === "recording" ? "rgba(255,82,82,0.7)" : N.line2}`,
+            background: recState === "recording" ? "rgba(255,82,82,0.15)" : "rgba(255,255,255,0.04)",
+            color: recState === "recording" ? N.redSoft : "#c9cfda", fontFamily: sans, fontSize: 11, fontWeight: 800,
+          }}>
+            {recState === "recording" ? "◉ REC — tap to send" : recState === "sending" ? "…" : "🎥 TAUNT"}
+          </button>
+          {payload.videos && payload.videos.length > 0 && (
+            <button onClick={() => openClip(payload.videos[payload.videos.length - 1], false)} title="Replay the latest clip" style={{
+              height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px",
+              border: `1px solid ${N.line2}`, background: "rgba(255,255,255,0.04)",
+              color: "#c9cfda", fontFamily: sans, fontSize: 11, fontWeight: 800,
+            }}>▶ {state.players[payload.videos[payload.videos.length - 1].seat].name}</button>
+          )}
           {payload.openSeats > 0 && (
             <button onClick={() => { try { navigator.clipboard.writeText(shareUrl); setError("Link copied — text it to a friend."); setTimeout(() => setError(null), 2000); } catch { setError(shareUrl); } }}
               style={{ height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px", border: `1px solid rgba(0,230,118,0.4)`, background: "rgba(0,230,118,0.08)", color: N.green, fontFamily: sans, fontSize: 11, fontWeight: 800 }}>
@@ -676,6 +807,26 @@ function RoomTable({ code }) {
         </div>
       </div>
       {error && <div style={{ textAlign: "center", fontSize: 11.5, fontWeight: 700, color: N.gold, padding: "0 12px" }}>{error}</div>}
+
+      {playing && (
+        <div onClick={() => { URL.revokeObjectURL(playing.url); setPlaying(null); }} style={{
+          position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.75)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: N.panel, border: `1px solid ${N.line2}`, borderRadius: 16, padding: 12, maxWidth: 420, width: "100%", boxShadow: "0 18px 60px rgba(0,0,0,0.7)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 800 }}>🎥 {playing.name}</span>
+              <button onClick={() => { URL.revokeObjectURL(playing.url); setPlaying(null); }} style={{ background: "#232733", color: "#e8ebf2", border: "none", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontWeight: 800, fontSize: 12 }}>CLOSE</button>
+            </div>
+            <video src={playing.url} autoPlay muted={playing.muted} controls playsInline style={{ width: "100%", borderRadius: 10, background: "#000" }} />
+            {playing.muted && (
+              <button onClick={() => setPlaying({ ...playing, muted: false })} style={{ width: "100%", marginTop: 8, padding: "9px 0", borderRadius: 9, border: "1px solid rgba(0,230,118,0.4)", background: "rgba(0,230,118,0.1)", color: N.green, fontWeight: 800, fontSize: 12, cursor: "pointer" }}>
+                🔊 TAP FOR SOUND
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div style={{ flex: "1 1 auto", position: "relative", minHeight: 0 }}>
        <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, transform: "translateX(-50%)", width: "min(100vw, 900px)" }}>
@@ -750,7 +901,7 @@ function RoomTable({ code }) {
               <div style={{ fontSize: 12.5, fontWeight: 800 }}>{you.name}{you.folded && state.phase === "betting" ? " · FOLDED" : ""}</div>
               <div style={{ fontSize: 12.5, fontWeight: 800, color: N.green }}>{money(you.stack)}</div>
             </div>
-            {you.lastAct && <span style={{ fontSize: 10, fontWeight: 700, color: N.dim }}>{you.lastAct}</span>}
+            {you.lastAct && <ActBadge lastAct={you.lastAct} />}
             {equities && equities[mySeat] != null && <EquityBadge pct={equities[mySeat]} lead={leadSeat === mySeat} />}
             <BetPill amount={you.streetBet} />
           </div>
@@ -760,6 +911,7 @@ function RoomTable({ code }) {
 
       <div style={{ flex: "0 0 auto", background: `linear-gradient(180deg, ${N.panel}, #101318)`, borderTop: `1px solid ${N.line}`, padding: "12px 16px calc(12px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 11, alignItems: "center" }}>
        <div style={{ width: "100%", maxWidth: 620, display: "flex", flexDirection: "column", gap: 11 }}>
+        <ActionTicker log={state && state.log} />
         {state.phase === "betting" ? (
           <>
             <div style={{ display: "flex", alignItems: "center", gap: 12, opacity: userTurn && la && la.canRaise ? 1 : 0.35 }}>
@@ -790,8 +942,17 @@ function RoomTable({ code }) {
             )}
           </>
         ) : state.phase === "runout" ? (
-          <div style={{ textAlign: "center", fontSize: 13, fontWeight: 800, letterSpacing: "0.08em", color: N.gold, padding: "13px 0" }}>
-            ALL IN — running it out…
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center", padding: "4px 0" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: "0.08em", color: N.gold }}>ALL IN — running it out…</div>
+            <button onClick={recordClip} style={{
+              width: "100%", maxWidth: 380, padding: "13px 10px", borderRadius: 12, cursor: "pointer",
+              fontFamily: sans, fontSize: 14, fontWeight: 900, letterSpacing: "0.04em",
+              border: recState === "recording" ? "1px solid rgba(255,82,82,0.7)" : "1px solid rgba(255,213,79,0.5)",
+              background: recState === "recording" ? "rgba(255,82,82,0.18)" : "linear-gradient(180deg, rgba(255,213,79,0.22), rgba(255,213,79,0.08))",
+              color: recState === "recording" ? N.redSoft : N.gold,
+            }}>
+              {recState === "recording" ? "◉ RECORDING — TAP TO SEND" : recState === "sending" ? "SENDING…" : "🎥 SAY IT TO THEIR FACE"}
+            </button>
           </div>
         ) : charity.night && charity.winnerSeat != null && !(charity.picked && charity.picked.name) ? (
           charity.winnerSeat === mySeat ? (

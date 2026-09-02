@@ -140,6 +140,17 @@ function equityMulti(holes, board, rng) {
 
 /* ==================== TABLE CORE (pure functions) ==================== */
 
+const HHRANKS = ["", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+const HHSUITS = ["\u2660", "\u2665", "\u2666", "\u2663"];
+const cardTxt = (c) => HHRANKS[c.r] + HHSUITS[c.s];
+/* The hand log: every action and street, so the table reads like a broadcast.
+ * Lives in the shared state — solo and multiplayer render the same feed. */
+function pushLog(s, line) {
+  if (!s.log) s.log = []; // states built by tests/tools may predate the log
+  s.log.push(line);
+  if (s.log.length > 80) s.log.shift();
+}
+
 const SMALL_BLIND = 25;
 const BIG_BLIND = 50;
 const START_STACK = 5000;
@@ -187,6 +198,7 @@ function makeTable(userStack) {
     pot: 0, currentBet: 0, minRaise: BIG_BLIND,
     toAct: -1, needs: [],
     message: "", quip: null, winners: [], revealed: false,
+    log: [],
     players: PERSONAS.map((p, i) => ({
       name: p.name, tag: p.tag, isUser: i === USER_SEAT,
       tight: p.tight, aggr: p.aggr,
@@ -233,8 +245,12 @@ function startHand(state, rng) {
     if (p.stack === 0) p.allIn = true;
     p.lastAct = label;
   };
+  if (!s.log) s.log = [];
+  pushLog(s, `\u2014 Hand #${s.handNo} \u2014 ${s.players[s.btn].name} has the button`);
   post((s.btn + 1) % 4, SMALL_BLIND, `small blind $${SMALL_BLIND}`);
   post((s.btn + 2) % 4, BIG_BLIND, `big blind $${BIG_BLIND}`);
+  pushLog(s, `${s.players[(s.btn + 1) % 4].name} posts small blind $${SMALL_BLIND}`);
+  pushLog(s, `${s.players[(s.btn + 2) % 4].name} posts big blind $${BIG_BLIND}`);
   s.currentBet = BIG_BLIND;
   // preflop action starts under the gun; the big blind acts last (option kept)
   s.needs = seatsFrom((s.btn + 3) % 4, canStillAct, s.players);
@@ -296,6 +312,9 @@ function endStreetOrShowdown(s) {
     s.street += 1;
     s.board.push(s.deck.pop());
     if (s.street === 1) { s.board.push(s.deck.pop()); s.board.push(s.deck.pop()); } // flop is three
+    const streetName = ["", "Flop", "Turn", "River"][s.street];
+    const cards = s.street === 1 ? s.board.slice(0, 3) : s.board.slice(-1);
+    pushLog(s, `\u2014 ${streetName}: ${cards.map(cardTxt).join(" ")} (pot $${s.pot.toLocaleString()})`);
   };
   if (actors.length < 2) {
     // Everyone left is all-in (or only one can act): the broadcast moment.
@@ -324,6 +343,9 @@ function runoutStep(state) {
   s.street += 1;
   s.board.push(s.deck.pop());
   if (s.street === 1) { s.board.push(s.deck.pop()); s.board.push(s.deck.pop()); }
+  const rStreet = ["", "Flop", "Turn", "River"][s.street];
+  const rCards = s.street === 1 ? s.board.slice(0, 3) : s.board.slice(-1);
+  pushLog(s, `\u2014 ${rStreet}: ${rCards.map(cardTxt).join(" ")}`);
   return s;
 }
 
@@ -338,11 +360,13 @@ function applyAction(state, action) {
   if (action.type === "fold") {
     p.folded = true;
     p.lastAct = "folds";
+    pushLog(s, `${p.name} folds`);
   } else if (action.type === "call") {
     const pay = la.toCall;
     p.stack -= pay; p.streetBet += pay; p.committed += pay; s.pot += pay;
     if (p.stack === 0 && pay > 0) p.allIn = true;
     p.lastAct = pay === 0 ? "checks" : `calls $${pay.toLocaleString()}`;
+    pushLog(s, `${p.name} ${p.lastAct}`);
   } else if (action.type === "raise") {
     let to = Math.round(action.to);
     if (!la.canRaise) return s;
@@ -354,6 +378,7 @@ function applyAction(state, action) {
     const wasBet = s.currentBet === 0;
     s.currentBet = to;
     p.lastAct = `${p.allIn ? "all-in" : wasBet ? "bets" : "raises to"} $${to.toLocaleString()}`;
+    pushLog(s, `${p.name} ${p.lastAct}`);
     s.needs = seatsFrom((seat + 1) % 4, (q, i) => i !== seat && canStillAct(q) && q.streetBet < to, s.players);
     if (typeof action.quipIndex === "number" && PERSONAS[seat].quips.length)
       s.quip = { seat, text: PERSONAS[seat].quips[action.quipIndex % PERSONAS[seat].quips.length] };
@@ -369,6 +394,7 @@ function applyAction(state, action) {
     s.players[w].stack += s.pot;
     s.winners = [w]; s.revealed = false; s.phase = "over";
     s.message = `${s.players[w].name} takes $${s.pot.toLocaleString()} uncontested`;
+    pushLog(s, s.message);
     s.toAct = -1; s.needs = [];
     return s;
   }

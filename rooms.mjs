@@ -43,6 +43,12 @@ const ROOM_TTL_MS = 2 * 3600 * 1000;
 const HUMAN_TIMEOUT_MS = 45 * 1000;
 const BOT_DELAY_MS = 900;
 const RUNOUT_STEP_MS = 1400;
+/* Video taunts: short clips relayed through room memory — never written to disk,
+ * gone when the room is. Caps keep a room from becoming a hosting service. */
+const VIDEO_MAX_BYTES = 3 * 1024 * 1024;
+const VIDEO_KEEP = 6;                     // newest clips retained per room
+const VIDEO_RATE_MS = 15 * 1000;          // per-seat cooldown
+const VIDEO_MIMES = ["video/webm", "video/mp4"];
 
 const nowIso = () => new Date().toISOString();
 const newCode = () => randomBytes(4).toString("hex").slice(0, 6).toUpperCase();
@@ -68,6 +74,8 @@ function makeRoom({ hostName, charityNight, pledge, userId }) {
     charity: null,          // {winnerSeat, name, url, endedAt} once the night ends
     timer: null,
     subs: new Set(),        // {seat, res}
+    videos: [],             // {id, seat, at, mime, buf} — in-memory only, newest last
+    lastVideoAt: {},        // seat -> ts (cooldown)
   };
   rooms.set(code, room);
   return room;
@@ -114,6 +122,7 @@ function payloadFor(room, viewerSeat) {
     charity: room.charityNight
       ? { night: true, total, pledges: room.pledges, picked: room.charity, winnerSeat: room.charity ? room.charity.winnerSeat : null }
       : { night: false },
+    videos: room.videos.map((v) => ({ id: v.id, seat: v.seat, at: v.at })), // metadata only; bytes are fetched authed
   };
 }
 
@@ -201,6 +210,51 @@ export async function handleRoom(req, res, path, { corsHeaders, userIdFrom }) {
     res.end(body);
   };
   if (req.method === "OPTIONS") { res.writeHead(204, cors); res.end(); return; }
+
+  /* video routes carry binary, and both auth via query so no JSON body is needed */
+  const vm2 = /^\/api\/room\/([A-Za-z0-9]{4,10})\/video(?:\/([a-f0-9]{12,32}))?$/.exec(path);
+  if (vm2) {
+    try {
+      const room = roomOf(vm2[1]);
+      if (!room) err(404, "That room doesn't exist.");
+      const q = new URL(req.url, "http://x").searchParams;
+      const seat = Number(q.get("seat"));
+      if (!authSeat(room, seat, q.get("key"))) err(401, "Bad seat credentials");
+      if (req.method === "POST" && !vm2[2]) {
+        const now = Date.now();
+        if (now - (room.lastVideoAt[seat] || 0) < VIDEO_RATE_MS) err(429, "Easy, director — one clip every 15 seconds.");
+        const mime = String(req.headers["content-type"] || "").split(";")[0];
+        if (!VIDEO_MIMES.includes(mime)) err(415, "Clips must be video/webm or video/mp4");
+        const chunks = [];
+        let size = 0;
+        for await (const c of req) {
+          size += c.length;
+          if (size > VIDEO_MAX_BYTES) err(413, "Clip too large (3MB max — keep it to a few seconds)");
+          chunks.push(c);
+        }
+        if (size === 0) err(400, "Empty clip");
+        room.lastVideoAt[seat] = now;
+        const clip = { id: randomBytes(8).toString("hex"), seat, at: now, mime, buf: Buffer.concat(chunks) };
+        room.videos.push(clip);
+        while (room.videos.length > VIDEO_KEEP) room.videos.shift();
+        broadcast(room);
+        return send(200, { ok: true, id: clip.id });
+      }
+      if (req.method === "GET" && vm2[2]) {
+        const clip = room.videos.find((v) => v.id === vm2[2]);
+        if (!clip) err(404, "That clip is gone (rooms keep only the latest few).");
+        res.writeHead(200, { "content-type": clip.mime, "content-length": clip.buf.length, "cache-control": "private, max-age=3600", ...cors });
+        res.end(clip.buf);
+        return;
+      }
+      err(404, "Not found");
+    } catch (e) {
+      if (e && e.status) return send(e.status, { detail: e.detail });
+      console.error("video error:", e);
+      return send(500, { detail: "Internal server error" });
+    }
+    return;
+  }
 
   let body = {};
   if (req.method === "POST") {
@@ -307,8 +361,11 @@ export async function handleRoom(req, res, path, { corsHeaders, userIdFrom }) {
       if (!room.charityNight) err(400, "Not a charity night.");
       if (room.state.phase === "betting" || room.state.phase === "runout") err(409, "Finish the hand first.");
       if (room.charity) err(409, "Already ended.");
-      const stacks = room.state.players.map((p) => p.stack);
-      const winnerSeat = stacks.indexOf(Math.max(...stacks));
+      // The leading HUMAN picks — a bot can't direct donations, and a bot-led
+      // night must never deadlock the pick. (There is always at least the host.)
+      const humanSeats = room.seats.map((s, i) => (s ? i : -1)).filter((i) => i >= 0);
+      const winnerSeat = humanSeats.reduce((best, i) =>
+        room.state.players[i].stack > room.state.players[best].stack ? i : best, humanSeats[0]);
       room.charity = { winnerSeat, name: null, url: null, endedAt: nowIso() };
       broadcast(room);
       return send(200, { ok: true, winnerSeat });

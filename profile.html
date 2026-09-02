@@ -314,6 +314,16 @@ function equityMulti(holes, board, rng) {
     }
     return wins.map((w) => w / total);
 }
+const HHRANKS = ["", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+const HHSUITS = ["\u2660", "\u2665", "\u2666", "\u2663"];
+const cardTxt = (c) => HHRANKS[c.r] + HHSUITS[c.s];
+function pushLog(s, line) {
+    if (!s.log)
+        s.log = [];
+    s.log.push(line);
+    if (s.log.length > 80)
+        s.log.shift();
+}
 const SMALL_BLIND = 25;
 const BIG_BLIND = 50;
 const START_STACK = 5000;
@@ -357,6 +367,7 @@ function makeTable(userStack) {
         pot: 0, currentBet: 0, minRaise: BIG_BLIND,
         toAct: -1, needs: [],
         message: "", quip: null, winners: [], revealed: false,
+        log: [],
         players: PERSONAS.map((p, i) => ({
             name: p.name, tag: p.tag, isUser: i === USER_SEAT,
             tight: p.tight, aggr: p.aggr,
@@ -420,8 +431,13 @@ function startHand(state, rng) {
             p.allIn = true;
         p.lastAct = label;
     };
+    if (!s.log)
+        s.log = [];
+    pushLog(s, `\u2014 Hand #${s.handNo} \u2014 ${s.players[s.btn].name} has the button`);
     post((s.btn + 1) % 4, SMALL_BLIND, `small blind $${SMALL_BLIND}`);
     post((s.btn + 2) % 4, BIG_BLIND, `big blind $${BIG_BLIND}`);
+    pushLog(s, `${s.players[(s.btn + 1) % 4].name} posts small blind $${SMALL_BLIND}`);
+    pushLog(s, `${s.players[(s.btn + 2) % 4].name} posts big blind $${BIG_BLIND}`);
     s.currentBet = BIG_BLIND;
     s.needs = seatsFrom((s.btn + 3) % 4, canStillAct, s.players);
     s.toAct = s.needs.length ? s.needs[0] : -1;
@@ -486,6 +502,9 @@ function endStreetOrShowdown(s) {
             s.board.push(s.deck.pop());
             s.board.push(s.deck.pop());
         }
+        const streetName = ["", "Flop", "Turn", "River"][s.street];
+        const cards = s.street === 1 ? s.board.slice(0, 3) : s.board.slice(-1);
+        pushLog(s, `\u2014 ${streetName}: ${cards.map(cardTxt).join(" ")} (pot $${s.pot.toLocaleString()})`);
     };
     if (actors.length < 2) {
         if (s.street >= 3)
@@ -518,6 +537,9 @@ function runoutStep(state) {
         s.board.push(s.deck.pop());
         s.board.push(s.deck.pop());
     }
+    const rStreet = ["", "Flop", "Turn", "River"][s.street];
+    const rCards = s.street === 1 ? s.board.slice(0, 3) : s.board.slice(-1);
+    pushLog(s, `\u2014 ${rStreet}: ${rCards.map(cardTxt).join(" ")}`);
     return s;
 }
 function applyAction(state, action) {
@@ -531,6 +553,7 @@ function applyAction(state, action) {
     if (action.type === "fold") {
         p.folded = true;
         p.lastAct = "folds";
+        pushLog(s, `${p.name} folds`);
     }
     else if (action.type === "call") {
         const pay = la.toCall;
@@ -541,6 +564,7 @@ function applyAction(state, action) {
         if (p.stack === 0 && pay > 0)
             p.allIn = true;
         p.lastAct = pay === 0 ? "checks" : `calls $${pay.toLocaleString()}`;
+        pushLog(s, `${p.name} ${p.lastAct}`);
     }
     else if (action.type === "raise") {
         let to = Math.round(action.to);
@@ -558,6 +582,7 @@ function applyAction(state, action) {
         const wasBet = s.currentBet === 0;
         s.currentBet = to;
         p.lastAct = `${p.allIn ? "all-in" : wasBet ? "bets" : "raises to"} $${to.toLocaleString()}`;
+        pushLog(s, `${p.name} ${p.lastAct}`);
         s.needs = seatsFrom((seat + 1) % 4, (q, i) => i !== seat && canStillAct(q) && q.streetBet < to, s.players);
         if (typeof action.quipIndex === "number" && PERSONAS[seat].quips.length)
             s.quip = { seat, text: PERSONAS[seat].quips[action.quipIndex % PERSONAS[seat].quips.length] };
@@ -575,6 +600,7 @@ function applyAction(state, action) {
         s.revealed = false;
         s.phase = "over";
         s.message = `${s.players[w].name} takes $${s.pot.toLocaleString()} uncontested`;
+        pushLog(s, s.message);
         s.toAct = -1;
         s.needs = [];
         return s;
@@ -879,7 +905,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.3.0";
+const APP_VERSION = "0.4.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,

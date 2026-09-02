@@ -314,6 +314,16 @@ function equityMulti(holes, board, rng) {
     }
     return wins.map((w) => w / total);
 }
+const HHRANKS = ["", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+const HHSUITS = ["\u2660", "\u2665", "\u2666", "\u2663"];
+const cardTxt = (c) => HHRANKS[c.r] + HHSUITS[c.s];
+function pushLog(s, line) {
+    if (!s.log)
+        s.log = [];
+    s.log.push(line);
+    if (s.log.length > 80)
+        s.log.shift();
+}
 const SMALL_BLIND = 25;
 const BIG_BLIND = 50;
 const START_STACK = 5000;
@@ -357,6 +367,7 @@ function makeTable(userStack) {
         pot: 0, currentBet: 0, minRaise: BIG_BLIND,
         toAct: -1, needs: [],
         message: "", quip: null, winners: [], revealed: false,
+        log: [],
         players: PERSONAS.map((p, i) => ({
             name: p.name, tag: p.tag, isUser: i === USER_SEAT,
             tight: p.tight, aggr: p.aggr,
@@ -420,8 +431,13 @@ function startHand(state, rng) {
             p.allIn = true;
         p.lastAct = label;
     };
+    if (!s.log)
+        s.log = [];
+    pushLog(s, `\u2014 Hand #${s.handNo} \u2014 ${s.players[s.btn].name} has the button`);
     post((s.btn + 1) % 4, SMALL_BLIND, `small blind $${SMALL_BLIND}`);
     post((s.btn + 2) % 4, BIG_BLIND, `big blind $${BIG_BLIND}`);
+    pushLog(s, `${s.players[(s.btn + 1) % 4].name} posts small blind $${SMALL_BLIND}`);
+    pushLog(s, `${s.players[(s.btn + 2) % 4].name} posts big blind $${BIG_BLIND}`);
     s.currentBet = BIG_BLIND;
     s.needs = seatsFrom((s.btn + 3) % 4, canStillAct, s.players);
     s.toAct = s.needs.length ? s.needs[0] : -1;
@@ -486,6 +502,9 @@ function endStreetOrShowdown(s) {
             s.board.push(s.deck.pop());
             s.board.push(s.deck.pop());
         }
+        const streetName = ["", "Flop", "Turn", "River"][s.street];
+        const cards = s.street === 1 ? s.board.slice(0, 3) : s.board.slice(-1);
+        pushLog(s, `\u2014 ${streetName}: ${cards.map(cardTxt).join(" ")} (pot $${s.pot.toLocaleString()})`);
     };
     if (actors.length < 2) {
         if (s.street >= 3)
@@ -518,6 +537,9 @@ function runoutStep(state) {
         s.board.push(s.deck.pop());
         s.board.push(s.deck.pop());
     }
+    const rStreet = ["", "Flop", "Turn", "River"][s.street];
+    const rCards = s.street === 1 ? s.board.slice(0, 3) : s.board.slice(-1);
+    pushLog(s, `\u2014 ${rStreet}: ${rCards.map(cardTxt).join(" ")}`);
     return s;
 }
 function applyAction(state, action) {
@@ -531,6 +553,7 @@ function applyAction(state, action) {
     if (action.type === "fold") {
         p.folded = true;
         p.lastAct = "folds";
+        pushLog(s, `${p.name} folds`);
     }
     else if (action.type === "call") {
         const pay = la.toCall;
@@ -541,6 +564,7 @@ function applyAction(state, action) {
         if (p.stack === 0 && pay > 0)
             p.allIn = true;
         p.lastAct = pay === 0 ? "checks" : `calls $${pay.toLocaleString()}`;
+        pushLog(s, `${p.name} ${p.lastAct}`);
     }
     else if (action.type === "raise") {
         let to = Math.round(action.to);
@@ -558,6 +582,7 @@ function applyAction(state, action) {
         const wasBet = s.currentBet === 0;
         s.currentBet = to;
         p.lastAct = `${p.allIn ? "all-in" : wasBet ? "bets" : "raises to"} $${to.toLocaleString()}`;
+        pushLog(s, `${p.name} ${p.lastAct}`);
         s.needs = seatsFrom((seat + 1) % 4, (q, i) => i !== seat && canStillAct(q) && q.streetBet < to, s.players);
         if (typeof action.quipIndex === "number" && PERSONAS[seat].quips.length)
             s.quip = { seat, text: PERSONAS[seat].quips[action.quipIndex % PERSONAS[seat].quips.length] };
@@ -575,6 +600,7 @@ function applyAction(state, action) {
         s.revealed = false;
         s.phase = "over";
         s.message = `${s.players[w].name} takes $${s.pot.toLocaleString()} uncontested`;
+        pushLog(s, s.message);
         s.toAct = -1;
         s.needs = [];
         return s;
@@ -879,7 +905,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.3.0";
+const APP_VERSION = "0.4.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1108,6 +1134,47 @@ function BetPill({ amount }) {
         React.createElement("span", { style: { width: 9, height: 9, borderRadius: "50%", flex: "0 0 auto", background: `radial-gradient(circle at 35% 35%, #ffd54f, ${N.amber} 70%)`, boxShadow: "0 0 0 1.5px rgba(0,0,0,0.5) inset" } }),
         money(amount)));
 }
+function actStyle(lastAct) {
+    if (!lastAct)
+        return null;
+    if (/^(raises|bets|all-in)/.test(lastAct))
+        return { color: "#0d2417", background: N.green, border: "1px solid transparent" };
+    if (/^folds/.test(lastAct))
+        return { color: N.redSoft, background: "rgba(255,82,82,0.12)", border: "1px solid rgba(255,82,82,0.35)" };
+    if (/^calls/.test(lastAct))
+        return { color: "#e8ebf2", background: "rgba(255,255,255,0.1)", border: `1px solid ${N.line2}` };
+    if (/blind/.test(lastAct))
+        return { color: N.amber, background: "rgba(255,183,77,0.12)", border: "1px solid rgba(255,183,77,0.3)" };
+    return { color: N.dim, background: "rgba(255,255,255,0.05)", border: `1px solid ${N.line}` };
+}
+function ActBadge({ lastAct }) {
+    const st = actStyle(lastAct);
+    if (!st)
+        return null;
+    return (React.createElement("span", { style: { marginTop: 3, fontFamily: sans, fontSize: 10, fontWeight: 800, letterSpacing: "0.03em", borderRadius: 999, padding: "1.5px 8px", whiteSpace: "nowrap", ...st } }, lastAct.toUpperCase()));
+}
+function ActionTicker({ log }) {
+    const [open, setOpen] = React.useState(false);
+    const endRef = React.useRef(null);
+    React.useEffect(() => { if (open && endRef.current)
+        endRef.current.scrollIntoView({ block: "end" }); }, [open, log && log.length]);
+    if (!log || !log.length)
+        return null;
+    return (React.createElement(React.Fragment, null,
+        React.createElement("button", { onClick: () => setOpen(true), title: "Full hand log", style: {
+                width: "100%", textAlign: "left", background: "rgba(0,0,0,0.35)", border: `1px solid ${N.line}`,
+                borderRadius: 9, padding: "6px 10px", cursor: "pointer", fontFamily: "ui-monospace, Menlo, monospace",
+                fontSize: 11, lineHeight: 1.5, color: N.dim, overflow: "hidden",
+            } }, log.slice(-2).map((l, i) => (React.createElement("div", { key: i, style: { whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden", color: i === log.slice(-2).length - 1 ? "#c9cfda" : N.faint } }, l)))),
+        open && (React.createElement("div", { onClick: () => setOpen(false), style: { position: "fixed", inset: 0, zIndex: 280, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 } },
+            React.createElement("div", { onClick: (e) => e.stopPropagation(), style: { background: N.panel, border: `1px solid ${N.line2}`, borderRadius: 14, width: "100%", maxWidth: 420, maxHeight: "70vh", display: "flex", flexDirection: "column", boxShadow: "0 18px 60px rgba(0,0,0,0.7)" } },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderBottom: `1px solid ${N.line}` } },
+                    React.createElement("span", { style: { fontFamily: sans, fontSize: 13, fontWeight: 800, color: "#e8ebf2" } }, "HAND LOG"),
+                    React.createElement("button", { onClick: () => setOpen(false), style: { background: "#232733", color: "#e8ebf2", border: "none", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontWeight: 800, fontSize: 12 } }, "CLOSE")),
+                React.createElement("div", { style: { overflowY: "auto", padding: "10px 14px", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12, lineHeight: 1.7 } },
+                    log.map((l, i) => (React.createElement("div", { key: i, style: { color: l.startsWith("—") ? N.gold : "#c9cfda" } }, l))),
+                    React.createElement("div", { ref: endRef })))))));
+}
 function EquityBadge({ pct, lead }) {
     return (React.createElement("div", { style: {
             marginTop: 4, fontFamily: sans, fontSize: 13, fontWeight: 900, letterSpacing: "0.02em",
@@ -1154,7 +1221,7 @@ function OppSeat({ player, seat, spot, state, cardW, equity, lead }) {
             React.createElement(CardBack, { w: Math.round(cardW * 0.55) }),
             React.createElement(CardBack, { w: Math.round(cardW * 0.55) })))),
         equity != null && React.createElement(EquityBadge, { pct: equity, lead: lead }),
-        player.lastAct && React.createElement("div", { style: { marginTop: 3, fontSize: 9.5, fontWeight: 700, color: N.dim, whiteSpace: "nowrap" } }, player.lastAct),
+        player.lastAct && React.createElement(ActBadge, { lastAct: player.lastAct }),
         React.createElement(BetPill, { amount: player.streetBet })));
 }
 const STACK_KEY = "poker-trainer:tableStack";
@@ -1370,7 +1437,7 @@ function SoloTable() {
                                 "You",
                                 you.folded && state.phase === "betting" ? " · FOLDED" : ""),
                             React.createElement("div", { style: { fontSize: 12.5, fontWeight: 800, color: N.green } }, money(you.stack))),
-                        you.lastAct && React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: N.dim } }, you.lastAct),
+                        you.lastAct && React.createElement(ActBadge, { lastAct: you.lastAct }),
                         equities && equities[USER_SEAT] != null && React.createElement(EquityBadge, { pct: equities[USER_SEAT], lead: leadSeat === USER_SEAT }),
                         React.createElement(BetPill, { amount: you.streetBet }))))),
         React.createElement("div", { style: {
@@ -1378,29 +1445,31 @@ function SoloTable() {
                 borderTop: `1px solid ${N.line}`, padding: "12px 16px calc(12px + env(safe-area-inset-bottom, 0px))",
                 display: "flex", flexDirection: "column", gap: 11, alignItems: "center",
             } },
-            React.createElement("div", { style: { width: "100%", maxWidth: 620, display: "flex", flexDirection: "column", gap: 11 } }, state.phase === "betting" ? (React.createElement(React.Fragment, null,
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, opacity: userTurn && la && la.canRaise ? 1 : 0.35 } },
-                    React.createElement("span", { style: { fontSize: 10.5, fontWeight: 700, color: N.dim, flex: "0 0 auto" } }, la ? money(la.minRaiseTo) : ""),
-                    React.createElement("input", { type: "range", "aria-label": "Raise to", disabled: !userTurn || !la || !la.canRaise, min: la ? la.minRaiseTo : 0, max: la ? la.maxRaiseTo : 100, step: 25, value: la ? clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) : 0, style: { "--fill": la && la.maxRaiseTo > la.minRaiseTo ? `${((clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) - la.minRaiseTo) / (la.maxRaiseTo - la.minRaiseTo)) * 100}%` : "100%", flex: 1 }, onChange: (e) => setRaiseTo(Number(e.target.value)) }),
-                    React.createElement("span", { style: { fontSize: 10.5, fontWeight: 700, color: N.dim, flex: "0 0 auto" } }, la ? money(la.maxRaiseTo) : "")),
-                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1.2fr 1.5fr", gap: 9 } },
-                    React.createElement("button", { disabled: !userTurn, onClick: () => userAct({ type: "fold" }), style: actBtn({ background: "#232733", color: N.redSoft, border: "1px solid rgba(255,82,82,0.25)" }) },
-                        "FOLD",
-                        React.createElement("span", { className: "kbd" }, "F")),
-                    React.createElement("button", { disabled: !userTurn, onClick: () => userAct({ type: "call" }), style: actBtn({ background: "#232733", color: N.text, border: `1px solid ${N.line2}` }) },
-                        userTurn && la ? (la.canCheck ? "CHECK" : `CALL ${money(la.toCall)}`) : "CHECK",
-                        React.createElement("span", { className: "kbd" }, "C")),
-                    React.createElement("button", { disabled: !userTurn || !la || !la.canRaise, onClick: () => userAct({ type: "raise", to: raiseTo }), style: actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }) },
-                        la && clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) >= la.maxRaiseTo ? "ALL-IN" : `RAISE TO ${la ? money(clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo)) : ""}`,
-                        React.createElement("span", { className: "kbd" }, "R"))),
-                !userTurn && (React.createElement("div", { style: { textAlign: "center", fontSize: 11, fontWeight: 700, color: N.dim } }, state.toAct >= 0 ? `${state.players[state.toAct].name} is thinking…` : "…")))) : state.phase === "runout" ? (React.createElement("div", { style: { textAlign: "center", fontFamily: sans, fontSize: 13, fontWeight: 800, letterSpacing: "0.08em", color: N.gold, padding: "13px 0" } },
-                "ALL IN \u2014 running it out\u2026 ",
-                React.createElement("span", { style: { color: N.dim, fontWeight: 600, letterSpacing: 0 } }, "(tap the table to skip)"))) : (React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", alignItems: "center", flexWrap: "wrap" } },
-                React.createElement("button", { onClick: deal, style: { ...actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }), width: "auto", padding: "13px 42px" } }, state.handNo === 0 ? "SIT DOWN & DEAL" : "NEXT HAND"),
-                you.stack < BIG_BLIND && state.handNo > 0 && (React.createElement("span", { style: { fontSize: 11, color: N.dim, fontWeight: 700 } },
-                    "Felted \u2014 the next deal stakes you ",
-                    money(START_STACK),
-                    " in practice chips."))))))));
+            React.createElement("div", { style: { width: "100%", maxWidth: 620, display: "flex", flexDirection: "column", gap: 11 } },
+                React.createElement(ActionTicker, { log: state && state.log }),
+                state.phase === "betting" ? (React.createElement(React.Fragment, null,
+                    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, opacity: userTurn && la && la.canRaise ? 1 : 0.35 } },
+                        React.createElement("span", { style: { fontSize: 10.5, fontWeight: 700, color: N.dim, flex: "0 0 auto" } }, la ? money(la.minRaiseTo) : ""),
+                        React.createElement("input", { type: "range", "aria-label": "Raise to", disabled: !userTurn || !la || !la.canRaise, min: la ? la.minRaiseTo : 0, max: la ? la.maxRaiseTo : 100, step: 25, value: la ? clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) : 0, style: { "--fill": la && la.maxRaiseTo > la.minRaiseTo ? `${((clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) - la.minRaiseTo) / (la.maxRaiseTo - la.minRaiseTo)) * 100}%` : "100%", flex: 1 }, onChange: (e) => setRaiseTo(Number(e.target.value)) }),
+                        React.createElement("span", { style: { fontSize: 10.5, fontWeight: 700, color: N.dim, flex: "0 0 auto" } }, la ? money(la.maxRaiseTo) : "")),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1.2fr 1.5fr", gap: 9 } },
+                        React.createElement("button", { disabled: !userTurn, onClick: () => userAct({ type: "fold" }), style: actBtn({ background: "#232733", color: N.redSoft, border: "1px solid rgba(255,82,82,0.25)" }) },
+                            "FOLD",
+                            React.createElement("span", { className: "kbd" }, "F")),
+                        React.createElement("button", { disabled: !userTurn, onClick: () => userAct({ type: "call" }), style: actBtn({ background: "#232733", color: N.text, border: `1px solid ${N.line2}` }) },
+                            userTurn && la ? (la.canCheck ? "CHECK" : `CALL ${money(la.toCall)}`) : "CHECK",
+                            React.createElement("span", { className: "kbd" }, "C")),
+                        React.createElement("button", { disabled: !userTurn || !la || !la.canRaise, onClick: () => userAct({ type: "raise", to: raiseTo }), style: actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }) },
+                            la && clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) >= la.maxRaiseTo ? "ALL-IN" : `RAISE TO ${la ? money(clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo)) : ""}`,
+                            React.createElement("span", { className: "kbd" }, "R"))),
+                    !userTurn && (React.createElement("div", { style: { textAlign: "center", fontSize: 11, fontWeight: 700, color: N.dim } }, state.toAct >= 0 ? `${state.players[state.toAct].name} is thinking…` : "…")))) : state.phase === "runout" ? (React.createElement("div", { style: { textAlign: "center", fontFamily: sans, fontSize: 13, fontWeight: 800, letterSpacing: "0.08em", color: N.gold, padding: "13px 0" } },
+                    "ALL IN \u2014 running it out\u2026 ",
+                    React.createElement("span", { style: { color: N.dim, fontWeight: 600, letterSpacing: 0 } }, "(tap the table to skip)"))) : (React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement("button", { onClick: deal, style: { ...actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }), width: "auto", padding: "13px 42px" } }, state.handNo === 0 ? "SIT DOWN & DEAL" : "NEXT HAND"),
+                    you.stack < BIG_BLIND && state.handNo > 0 && (React.createElement("span", { style: { fontSize: 11, color: N.dim, fontWeight: 700 } },
+                        "Felted \u2014 the next deal stakes you ",
+                        money(START_STACK),
+                        " in practice chips."))))))));
 }
 const roomIdentKey = (code) => `poker-room:${code}`;
 const readIdent = (code) => {
@@ -1478,6 +1547,10 @@ function RoomTable({ code }) {
     const [charityName, setCharityName] = React.useState("");
     const [charityUrl, setCharityUrl] = React.useState("");
     const esRef = React.useRef(null);
+    const [recState, setRecState] = React.useState("idle");
+    const [playing, setPlaying] = React.useState(null);
+    const seenClips = React.useRef(new Set());
+    const recRef = React.useRef(null);
     React.useEffect(() => {
         if (!acct.checked || !acct.online || ident)
             return;
@@ -1496,6 +1569,81 @@ function RoomTable({ code }) {
         es.onerror = () => { };
         return () => es.close();
     }, [acct.online, ident]);
+    const videoUrl = (id) => `${ACCT.base}/api/room/${code}/video/${id}?seat=${ident.seat}&key=${encodeURIComponent(ident.key)}`;
+    const openClip = async (clip, auto) => {
+        try {
+            const res = await fetch(videoUrl(clip.id));
+            if (!res.ok)
+                throw new Error("clip gone");
+            const blob = await res.blob();
+            const sender = state ? state.players[clip.seat].name : "someone";
+            setPlaying({ url: URL.createObjectURL(blob), name: sender, muted: !!auto });
+        }
+        catch {
+            setError("That clip has expired.");
+            setTimeout(() => setError(null), 2000);
+        }
+    };
+    React.useEffect(() => {
+        if (!payload || !payload.videos)
+            return;
+        const fresh = payload.videos.filter((v) => !seenClips.current.has(v.id));
+        for (const v of payload.videos)
+            seenClips.current.add(v.id);
+        const last = fresh.filter((v) => v.seat !== mySeat).pop();
+        if (last && !playing && !recState.startsWith("record"))
+            openClip(last, true);
+    }, [payload && payload.videos && payload.videos.map((v) => v.id).join(",")]);
+    const recordClip = async () => {
+        if (recState !== "idle") {
+            if (recRef.current && recRef.current.state === "recording")
+                recRef.current.stop();
+            return;
+        }
+        setError(null);
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 480 }, facingMode: "user" }, audio: true });
+        }
+        catch {
+            setError("Camera blocked — allow camera access to send a taunt.");
+            setTimeout(() => setError(null), 2500);
+            return;
+        }
+        const mime = ["video/webm;codecs=vp8,opus", "video/webm", "video/mp4"].find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m));
+        if (!mime) {
+            setError("This browser can't record video.");
+            stream.getTracks().forEach((t) => t.stop());
+            return;
+        }
+        const mr = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 900000 });
+        recRef.current = mr;
+        const chunks = [];
+        mr.ondataavailable = (e) => { if (e.data.size)
+            chunks.push(e.data); };
+        mr.onstop = async () => {
+            clearTimeout(mr._autoStop);
+            stream.getTracks().forEach((t) => t.stop());
+            setRecState("sending");
+            try {
+                const blob = new Blob(chunks, { type: mime.split(";")[0] });
+                if (blob.size > 2.8 * 1024 * 1024)
+                    throw new Error("Clip too large — keep it under ~6 seconds.");
+                const res = await fetch(`${ACCT.base}/api/room/${code}/video?seat=${ident.seat}&key=${encodeURIComponent(ident.key)}`, { method: "POST", headers: { "content-type": blob.type }, body: blob });
+                if (!res.ok)
+                    throw new Error((await res.json()).detail || "Upload failed");
+            }
+            catch (e) {
+                setError(e.message);
+                setTimeout(() => setError(null), 3000);
+            }
+            setRecState("idle");
+        };
+        mr.start();
+        setRecState("recording");
+        mr._autoStop = setTimeout(() => { if (mr.state === "recording")
+            mr.stop(); }, 6000);
+    };
     const post = async (verb, body = {}) => {
         setError(null);
         try {
@@ -1604,6 +1752,19 @@ function RoomTable({ code }) {
                     charity.total.toLocaleString(),
                     " pledged"))),
             React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
+                React.createElement("button", { onClick: recordClip, title: "Send a video taunt to the table", style: {
+                        height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px",
+                        border: `1px solid ${recState === "recording" ? "rgba(255,82,82,0.7)" : N.line2}`,
+                        background: recState === "recording" ? "rgba(255,82,82,0.15)" : "rgba(255,255,255,0.04)",
+                        color: recState === "recording" ? N.redSoft : "#c9cfda", fontFamily: sans, fontSize: 11, fontWeight: 800,
+                    } }, recState === "recording" ? "◉ REC — tap to send" : recState === "sending" ? "…" : "🎥 TAUNT"),
+                payload.videos && payload.videos.length > 0 && (React.createElement("button", { onClick: () => openClip(payload.videos[payload.videos.length - 1], false), title: "Replay the latest clip", style: {
+                        height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px",
+                        border: `1px solid ${N.line2}`, background: "rgba(255,255,255,0.04)",
+                        color: "#c9cfda", fontFamily: sans, fontSize: 11, fontWeight: 800,
+                    } },
+                    "\u25B6 ",
+                    state.players[payload.videos[payload.videos.length - 1].seat].name)),
                 payload.openSeats > 0 && (React.createElement("button", { onClick: () => { try {
                         navigator.clipboard.writeText(shareUrl);
                         setError("Link copied — text it to a friend.");
@@ -1620,6 +1781,18 @@ function RoomTable({ code }) {
                 React.createElement(AccountArea, { dark: true }),
                 React.createElement("a", { href: "index.html", "aria-label": "Home", style: { color: N.dim, textDecoration: "none", fontSize: 16, lineHeight: 1, border: `1px solid ${N.line}`, borderRadius: 9, padding: "5px 9px", background: "rgba(255,255,255,0.02)" } }, "\u2302"))),
         error && React.createElement("div", { style: { textAlign: "center", fontSize: 11.5, fontWeight: 700, color: N.gold, padding: "0 12px" } }, error),
+        playing && (React.createElement("div", { onClick: () => { URL.revokeObjectURL(playing.url); setPlaying(null); }, style: {
+                position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.75)",
+                display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+            } },
+            React.createElement("div", { onClick: (e) => e.stopPropagation(), style: { background: N.panel, border: `1px solid ${N.line2}`, borderRadius: 16, padding: 12, maxWidth: 420, width: "100%", boxShadow: "0 18px 60px rgba(0,0,0,0.7)" } },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } },
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 800 } },
+                        "\uD83C\uDFA5 ",
+                        playing.name),
+                    React.createElement("button", { onClick: () => { URL.revokeObjectURL(playing.url); setPlaying(null); }, style: { background: "#232733", color: "#e8ebf2", border: "none", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontWeight: 800, fontSize: 12 } }, "CLOSE")),
+                React.createElement("video", { src: playing.url, autoPlay: true, muted: playing.muted, controls: true, playsInline: true, style: { width: "100%", borderRadius: 10, background: "#000" } }),
+                playing.muted && (React.createElement("button", { onClick: () => setPlaying({ ...playing, muted: false }), style: { width: "100%", marginTop: 8, padding: "9px 0", borderRadius: 9, border: "1px solid rgba(0,230,118,0.4)", background: "rgba(0,230,118,0.1)", color: N.green, fontWeight: 800, fontSize: 12, cursor: "pointer" } }, "\uD83D\uDD0A TAP FOR SOUND"))))),
         React.createElement("div", { style: { flex: "1 1 auto", position: "relative", minHeight: 0 } },
             React.createElement("div", { style: { position: "absolute", left: "50%", top: 0, bottom: 0, transform: "translateX(-50%)", width: "min(100vw, 900px)" } },
                 React.createElement("div", { style: {
@@ -1668,33 +1841,43 @@ function RoomTable({ code }) {
                                 you.name,
                                 you.folded && state.phase === "betting" ? " · FOLDED" : ""),
                             React.createElement("div", { style: { fontSize: 12.5, fontWeight: 800, color: N.green } }, money(you.stack))),
-                        you.lastAct && React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: N.dim } }, you.lastAct),
+                        you.lastAct && React.createElement(ActBadge, { lastAct: you.lastAct }),
                         equities && equities[mySeat] != null && React.createElement(EquityBadge, { pct: equities[mySeat], lead: leadSeat === mySeat }),
                         React.createElement(BetPill, { amount: you.streetBet }))))),
         React.createElement("div", { style: { flex: "0 0 auto", background: `linear-gradient(180deg, ${N.panel}, #101318)`, borderTop: `1px solid ${N.line}`, padding: "12px 16px calc(12px + env(safe-area-inset-bottom, 0px))", display: "flex", flexDirection: "column", gap: 11, alignItems: "center" } },
-            React.createElement("div", { style: { width: "100%", maxWidth: 620, display: "flex", flexDirection: "column", gap: 11 } }, state.phase === "betting" ? (React.createElement(React.Fragment, null,
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, opacity: userTurn && la && la.canRaise ? 1 : 0.35 } },
-                    React.createElement("span", { style: { fontSize: 10.5, fontWeight: 700, color: N.dim, flex: "0 0 auto" } }, la ? money(la.minRaiseTo) : ""),
-                    React.createElement("input", { type: "range", "aria-label": "Raise to", disabled: !userTurn || !la || !la.canRaise, min: la ? la.minRaiseTo : 0, max: la ? la.maxRaiseTo : 100, step: 25, value: la ? clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) : 0, style: { "--fill": la && la.maxRaiseTo > la.minRaiseTo ? `${((clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) - la.minRaiseTo) / (la.maxRaiseTo - la.minRaiseTo)) * 100}%` : "100%", flex: 1 }, onChange: (e) => setRaiseTo(Number(e.target.value)) }),
-                    React.createElement("span", { style: { fontSize: 10.5, fontWeight: 700, color: N.dim, flex: "0 0 auto" } }, la ? money(la.maxRaiseTo) : "")),
-                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1.2fr 1.5fr", gap: 9 } },
-                    React.createElement("button", { disabled: !userTurn, onClick: () => post("act", { action: { type: "fold" } }), style: actBtn({ background: "#232733", color: N.redSoft, border: "1px solid rgba(255,82,82,0.25)" }) }, "FOLD"),
-                    React.createElement("button", { disabled: !userTurn, onClick: () => post("act", { action: { type: "call" } }), style: actBtn({ background: "#232733", color: N.text, border: `1px solid ${N.line2}` }) }, userTurn && la ? (la.canCheck ? "CHECK" : `CALL ${money(la.toCall)}`) : "CHECK"),
-                    React.createElement("button", { disabled: !userTurn || !la || !la.canRaise, onClick: () => post("act", { action: { type: "raise", to: raiseTo } }), style: actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }) }, la && clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) >= la.maxRaiseTo ? "ALL-IN" : `RAISE TO ${la ? money(clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo)) : ""}`)),
-                !userTurn && (React.createElement("div", { style: { textAlign: "center", fontSize: 11, fontWeight: 700, color: N.dim } }, state.toAct >= 0 ? `${state.players[state.toAct].name} is thinking…` : "…")))) : state.phase === "runout" ? (React.createElement("div", { style: { textAlign: "center", fontSize: 13, fontWeight: 800, letterSpacing: "0.08em", color: N.gold, padding: "13px 0" } }, "ALL IN \u2014 running it out\u2026")) : charity.night && charity.winnerSeat != null && !(charity.picked && charity.picked.name) ? (charity.winnerSeat === mySeat ? (React.createElement("div", null,
-                React.createElement("div", { style: { fontSize: 13.5, fontWeight: 800, color: N.gold, marginBottom: 8 } },
-                    "You lead the night \u2014 pick where the table's $",
-                    charity.total.toLocaleString(),
-                    " goes:"),
-                React.createElement("input", { style: darkField, placeholder: "charity name", maxLength: 80, value: charityName, onChange: (e) => setCharityName(e.target.value) }),
-                React.createElement("input", { style: darkField, placeholder: "donation link (https://\u2026)", maxLength: 300, value: charityUrl, onChange: (e) => setCharityUrl(e.target.value) }),
-                React.createElement("button", { style: darkBtn(true), disabled: !charityName.trim(), onClick: () => post("charity", { name: charityName, url: charityUrl }) },
-                    "SEND THE NIGHT TO ",
-                    charityName.trim().toUpperCase() || "…"))) : (React.createElement("div", { style: { textAlign: "center", fontSize: 12.5, fontWeight: 700, color: N.dim, padding: "10px 0" } },
-                state.players[charity.winnerSeat].name,
-                " leads the night and is choosing the charity\u2026"))) : (React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", alignItems: "center", flexWrap: "wrap" } }, isHost ? (React.createElement(React.Fragment, null,
-                !(charity.picked && charity.picked.name) && (React.createElement("button", { onClick: () => post("deal"), style: { ...actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }), width: "auto", padding: "13px 42px" } }, state.handNo === 0 ? "DEAL THE FIRST HAND" : "NEXT HAND")),
-                charity.night && state.handNo > 0 && charity.winnerSeat == null && (React.createElement("button", { onClick: () => post("end-night"), style: { ...actBtn({ background: "#232733", color: N.gold, border: "1px solid rgba(255,213,79,0.35)" }), width: "auto", padding: "13px 22px" } }, "END NIGHT")))) : (React.createElement("div", { style: { textAlign: "center", fontSize: 12.5, fontWeight: 700, color: N.dim, padding: "10px 0" } }, charity.picked && charity.picked.name ? "The night is complete — donate above, then brag." : `Waiting for ${state.players[0].name} to deal…`))))))));
+            React.createElement("div", { style: { width: "100%", maxWidth: 620, display: "flex", flexDirection: "column", gap: 11 } },
+                React.createElement(ActionTicker, { log: state && state.log }),
+                state.phase === "betting" ? (React.createElement(React.Fragment, null,
+                    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, opacity: userTurn && la && la.canRaise ? 1 : 0.35 } },
+                        React.createElement("span", { style: { fontSize: 10.5, fontWeight: 700, color: N.dim, flex: "0 0 auto" } }, la ? money(la.minRaiseTo) : ""),
+                        React.createElement("input", { type: "range", "aria-label": "Raise to", disabled: !userTurn || !la || !la.canRaise, min: la ? la.minRaiseTo : 0, max: la ? la.maxRaiseTo : 100, step: 25, value: la ? clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) : 0, style: { "--fill": la && la.maxRaiseTo > la.minRaiseTo ? `${((clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) - la.minRaiseTo) / (la.maxRaiseTo - la.minRaiseTo)) * 100}%` : "100%", flex: 1 }, onChange: (e) => setRaiseTo(Number(e.target.value)) }),
+                        React.createElement("span", { style: { fontSize: 10.5, fontWeight: 700, color: N.dim, flex: "0 0 auto" } }, la ? money(la.maxRaiseTo) : "")),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1.2fr 1.5fr", gap: 9 } },
+                        React.createElement("button", { disabled: !userTurn, onClick: () => post("act", { action: { type: "fold" } }), style: actBtn({ background: "#232733", color: N.redSoft, border: "1px solid rgba(255,82,82,0.25)" }) }, "FOLD"),
+                        React.createElement("button", { disabled: !userTurn, onClick: () => post("act", { action: { type: "call" } }), style: actBtn({ background: "#232733", color: N.text, border: `1px solid ${N.line2}` }) }, userTurn && la ? (la.canCheck ? "CHECK" : `CALL ${money(la.toCall)}`) : "CHECK"),
+                        React.createElement("button", { disabled: !userTurn || !la || !la.canRaise, onClick: () => post("act", { action: { type: "raise", to: raiseTo } }), style: actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }) }, la && clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) >= la.maxRaiseTo ? "ALL-IN" : `RAISE TO ${la ? money(clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo)) : ""}`)),
+                    !userTurn && (React.createElement("div", { style: { textAlign: "center", fontSize: 11, fontWeight: 700, color: N.dim } }, state.toAct >= 0 ? `${state.players[state.toAct].name} is thinking…` : "…")))) : state.phase === "runout" ? (React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8, alignItems: "center", padding: "4px 0" } },
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: 800, letterSpacing: "0.08em", color: N.gold } }, "ALL IN \u2014 running it out\u2026"),
+                    React.createElement("button", { onClick: recordClip, style: {
+                            width: "100%", maxWidth: 380, padding: "13px 10px", borderRadius: 12, cursor: "pointer",
+                            fontFamily: sans, fontSize: 14, fontWeight: 900, letterSpacing: "0.04em",
+                            border: recState === "recording" ? "1px solid rgba(255,82,82,0.7)" : "1px solid rgba(255,213,79,0.5)",
+                            background: recState === "recording" ? "rgba(255,82,82,0.18)" : "linear-gradient(180deg, rgba(255,213,79,0.22), rgba(255,213,79,0.08))",
+                            color: recState === "recording" ? N.redSoft : N.gold,
+                        } }, recState === "recording" ? "◉ RECORDING — TAP TO SEND" : recState === "sending" ? "SENDING…" : "🎥 SAY IT TO THEIR FACE"))) : charity.night && charity.winnerSeat != null && !(charity.picked && charity.picked.name) ? (charity.winnerSeat === mySeat ? (React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: 13.5, fontWeight: 800, color: N.gold, marginBottom: 8 } },
+                        "You lead the night \u2014 pick where the table's $",
+                        charity.total.toLocaleString(),
+                        " goes:"),
+                    React.createElement("input", { style: darkField, placeholder: "charity name", maxLength: 80, value: charityName, onChange: (e) => setCharityName(e.target.value) }),
+                    React.createElement("input", { style: darkField, placeholder: "donation link (https://\u2026)", maxLength: 300, value: charityUrl, onChange: (e) => setCharityUrl(e.target.value) }),
+                    React.createElement("button", { style: darkBtn(true), disabled: !charityName.trim(), onClick: () => post("charity", { name: charityName, url: charityUrl }) },
+                        "SEND THE NIGHT TO ",
+                        charityName.trim().toUpperCase() || "…"))) : (React.createElement("div", { style: { textAlign: "center", fontSize: 12.5, fontWeight: 700, color: N.dim, padding: "10px 0" } },
+                    state.players[charity.winnerSeat].name,
+                    " leads the night and is choosing the charity\u2026"))) : (React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", alignItems: "center", flexWrap: "wrap" } }, isHost ? (React.createElement(React.Fragment, null,
+                    !(charity.picked && charity.picked.name) && (React.createElement("button", { onClick: () => post("deal"), style: { ...actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }), width: "auto", padding: "13px 42px" } }, state.handNo === 0 ? "DEAL THE FIRST HAND" : "NEXT HAND")),
+                    charity.night && state.handNo > 0 && charity.winnerSeat == null && (React.createElement("button", { onClick: () => post("end-night"), style: { ...actBtn({ background: "#232733", color: N.gold, border: "1px solid rgba(255,213,79,0.35)" }), width: "auto", padding: "13px 22px" } }, "END NIGHT")))) : (React.createElement("div", { style: { textAlign: "center", fontSize: 12.5, fontWeight: 700, color: N.dim, padding: "10px 0" } }, charity.picked && charity.picked.name ? "The night is complete — donate above, then brag." : `Waiting for ${state.players[0].name} to deal…`))))))));
 }
 const roomCodeFromUrl = () => {
     try {
