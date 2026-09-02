@@ -30,6 +30,8 @@ const FILES = new Map([
   ["/play.html", "play.html"],
   ["/table.html", "table.html"],
   ["/profile.html", "profile.html"],
+  ["/roulette.html", "roulette.html"],
+  ["/craps.html", "craps.html"],
   ["/favicon.svg", "favicon.svg"],
   ["/manifest.webmanifest", "manifest.webmanifest"],
   ["/vendor/react.production.min.js", "vendor/react.production.min.js"],

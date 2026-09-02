@@ -166,3 +166,18 @@ The hand log lives in the SHARED game state (holdem.js pushLog): blinds,
 every action, each street with cards and pot — solo and rooms render the same
 feed (2-line ticker above the action panel; tap for the full log). Seat
 actions render as color-coded ActBadges (raise green, fold red, call cream).
+
+## The casino floor: roulette & craps (v0.5.0)
+
+Client-only house games, practice chips, with the project philosophy as the
+product: EVERY probability is enumerated and PRINTED on the felt. Roulette
+(src/Roulette.jsx): American 00 wheel, offered bets all cost exactly 2/38 —
+the five-number basket is deliberately not offered; the info drawer shows each
+bet's ways/38, payout, and edge. Craps (src/Craps.jsx): pass (244/495,
+enumerated in-page), don't pass (bar 12, 27/1980), field with triple 12
+(-1/36), and FREE ODDS at true payouts — edge exactly 0, labeled "the only
+fair bet in the casino"; resolveRoll is a pure state machine.
+verify_roulette.js checks every offered bet's EV in INTEGERS (ways*payout −
+losses === −2, no floats); verify_craps.js re-proves the famous fractions and
+drives scripted roll sequences. Local bankrolls ($1,000, restake when felted);
+account sync for these games is a next step, not wired yet.

@@ -57,6 +57,8 @@
   .pip.play{ background:linear-gradient(180deg,var(--pegRed),#9c3120) }
   .pip.table{ background:linear-gradient(180deg,#2b2f3a,#14171d); color:#00e676 }
   .pip.profile{ background:linear-gradient(180deg,#B9824B,#5E3F26) }
+  .pip.roulette{ background:linear-gradient(180deg,#c0392b,#7b241c) }
+  .pip.craps{ background:linear-gradient(180deg,#f2f0e9,#b9b4a4); color:#14171d }
   .preview-tag{ font-family:var(--mono); font-size:10px; font-weight:400; color:var(--muted);
     border:1px solid var(--line); border-radius:6px; padding:1px 6px; vertical-align:middle }
   .opt-title{ font-size:19px; font-weight:700; color:var(--ivory) }
@@ -133,6 +135,36 @@
           Practice chips only.
         </div>
       </a>
+      <a class="option" href="roulette.html">
+        <div class="opt-row">
+          <span class="pip roulette">&#9862;</span>
+          <div>
+            <div class="opt-title">Roulette</div>
+            <div class="opt-sub">American 00 &middot; every edge printed on the felt</div>
+          </div>
+          <span class="arrow">&#8250;</span>
+        </div>
+        <div class="opt-desc">
+          Spin the wheel with the truth in view: tap any bet and see its exact
+          probability, payout, and house edge, enumerated over the 38 pockets.
+          Practice chips only.
+        </div>
+      </a>
+      <a class="option" href="craps.html">
+        <div class="opt-row">
+          <span class="pip craps">&#9861;</span>
+          <div>
+            <div class="opt-title">Craps</div>
+            <div class="opt-sub">pass &middot; don't pass &middot; field &middot; true-odds free odds</div>
+          </div>
+          <span class="arrow">&#8250;</span>
+        </div>
+        <div class="opt-desc">
+          The come-out/point cycle with the famous free odds bet at true payouts
+          &mdash; house edge exactly 0.00%, computed from dice enumeration and
+          labeled as the only fair bet in the casino. Practice chips only.
+        </div>
+      </a>
       <a class="option" href="profile.html">
         <div class="opt-row">
           <span class="pip profile">&#127183;</span>
@@ -157,7 +189,7 @@
   </footer>
   <script>
     (function () {
-      var v = "0.4.1";
+      var v = "0.5.0";
       if (v.indexOf("-dev") !== -1) { var el = document.getElementById("ver"); el.textContent = "v" + v; el.style.display = "block"; }
     })();
   </script>

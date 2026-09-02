@@ -30,7 +30,7 @@ jobs:
       - name: Assemble site (whitelisted files only)
         run: |
           mkdir -p _site/vendor
-          cp index.html trainer.html play.html table.html \
+          cp index.html trainer.html play.html table.html profile.html roulette.html craps.html \
              favicon.svg manifest.webmanifest _site/
           cp vendor/react.production.min.js \
              vendor/react-dom.production.min.js _site/vendor/
