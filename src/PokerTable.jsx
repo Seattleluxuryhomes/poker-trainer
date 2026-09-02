@@ -601,6 +601,28 @@ export default function PokerTable() {
   }, [state]);
   const skipRunout = () => setState((s) => { let x = s, g = 0; while (x.phase === "runout" && g++ < 6) x = runoutStep(x); return x; });
 
+  // Desktop keyboard: F fold · C/Space check-call · R raise · ↑↓ size the raise · Enter next hand.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && e.target.type !== "range") return;
+      const k = e.key.toLowerCase();
+      if (state.phase === "betting" && state.toAct === USER_SEAT) {
+        const l = legalActions(state);
+        if (k === "f") { e.preventDefault(); userAct({ type: "fold" }); }
+        else if (k === "c" || k === " ") { e.preventDefault(); userAct({ type: "call" }); }
+        else if (k === "r" && l.canRaise) { e.preventDefault(); userAct({ type: "raise", to: clampN(l.minRaiseTo, raiseTo, l.maxRaiseTo) }); }
+        else if (e.key === "ArrowUp" && l.canRaise) { e.preventDefault(); setRaiseTo((v) => clampN(l.minRaiseTo, v + BIG_BLIND * 2, l.maxRaiseTo)); }
+        else if (e.key === "ArrowDown" && l.canRaise) { e.preventDefault(); setRaiseTo((v) => clampN(l.minRaiseTo, v - BIG_BLIND * 2, l.maxRaiseTo)); }
+      } else if ((state.phase === "over" || state.phase === "idle") && (e.key === "Enter" || k === "n")) {
+        e.preventDefault(); deal();
+      } else if (state.phase === "runout" && (e.key === "Enter" || k === " ")) {
+        e.preventDefault(); skipRunout();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   // Live win % for every seat still in the hand (only during the broadcast).
   const equities = React.useMemo(() => {
     if (state.phase !== "runout") return null;
@@ -659,6 +681,11 @@ export default function PokerTable() {
           background: ${N.green}; box-shadow: 0 0 12px rgba(0,230,118,0.55); }
         @keyframes cardIn { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
         .boardwrap > * { animation: cardIn 240ms ease both }
+        .kbd { display: none }
+        @media (min-width: 900px) {
+          .kbd { display: inline-block; margin-left: 8px; padding: 0px 6px; border: 1px solid currentColor;
+                 border-radius: 5px; font-size: 10px; opacity: 0.55; vertical-align: 1px }
+        }
       `}</style>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px 6px", flex: "0 0 auto" }}>
@@ -674,6 +701,9 @@ export default function PokerTable() {
 
       <div style={{ flex: "1 1 auto", position: "relative", minHeight: 0, cursor: state.phase === "runout" ? "pointer" : "default" }}
         onClick={state.phase === "runout" ? skipRunout : undefined}>
+       {/* Centered stage capped at desktop width: a laptop gets a real table
+           instead of a smeared oval; on phones min() ≈ full width, unchanged. */}
+       <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, transform: "translateX(-50%)", width: "min(100vw, 900px)" }}>
         <div style={{
           position: "absolute", inset: "5% 5% 3% 5%", borderRadius: "48% / 42%",
           background: `radial-gradient(75% 70% at 50% 32%, ${N.feltHi}, ${N.felt} 75%)`,
@@ -750,14 +780,17 @@ export default function PokerTable() {
             <BetPill amount={you.streetBet} />
           </div>
         </div>
+       </div>
       </div>
 
-      {/* action panel */}
+      {/* action panel — contents centered and capped so desktop gets buttons,
+          not ribbons */}
       <div style={{
         flex: "0 0 auto", background: `linear-gradient(180deg, ${N.panel}, #101318)`,
         borderTop: `1px solid ${N.line}`, padding: "12px 16px calc(12px + env(safe-area-inset-bottom, 0px))",
-        display: "flex", flexDirection: "column", gap: 11,
+        display: "flex", flexDirection: "column", gap: 11, alignItems: "center",
       }}>
+       <div style={{ width: "100%", maxWidth: 620, display: "flex", flexDirection: "column", gap: 11 }}>
         {state.phase === "betting" ? (
           <>
             <div style={{ display: "flex", alignItems: "center", gap: 12, opacity: userTurn && la && la.canRaise ? 1 : 0.35 }}>
@@ -772,14 +805,14 @@ export default function PokerTable() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr 1.5fr", gap: 9 }}>
               <button disabled={!userTurn} onClick={() => userAct({ type: "fold" })}
-                style={actBtn({ background: "#232733", color: N.redSoft, border: "1px solid rgba(255,82,82,0.25)" })}>FOLD</button>
+                style={actBtn({ background: "#232733", color: N.redSoft, border: "1px solid rgba(255,82,82,0.25)" })}>FOLD<span className="kbd">F</span></button>
               <button disabled={!userTurn} onClick={() => userAct({ type: "call" })}
                 style={actBtn({ background: "#232733", color: N.text, border: `1px solid ${N.line2}` })}>
-                {userTurn && la ? (la.canCheck ? "CHECK" : `CALL ${money(la.toCall)}`) : "CHECK"}
+                {userTurn && la ? (la.canCheck ? "CHECK" : `CALL ${money(la.toCall)}`) : "CHECK"}<span className="kbd">C</span>
               </button>
               <button disabled={!userTurn || !la || !la.canRaise} onClick={() => userAct({ type: "raise", to: raiseTo })}
                 style={actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" })}>
-                {la && clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) >= la.maxRaiseTo ? "ALL-IN" : `RAISE TO ${la ? money(clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo)) : ""}`}
+                {la && clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo) >= la.maxRaiseTo ? "ALL-IN" : `RAISE TO ${la ? money(clampN(la.minRaiseTo, raiseTo, la.maxRaiseTo)) : ""}`}<span className="kbd">R</span>
               </button>
             </div>
             {!userTurn && (
@@ -803,6 +836,7 @@ export default function PokerTable() {
             )}
           </div>
         )}
+       </div>
       </div>
     </div>
   );
