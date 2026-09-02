@@ -181,3 +181,18 @@ verify_roulette.js checks every offered bet's EV in INTEGERS (ways*payout −
 losses === −2, no floats); verify_craps.js re-proves the famous fractions and
 drives scripted roll sequences. Local bankrolls ($1,000, restake when felted);
 account sync for these games is a next step, not wired yet.
+
+## Pai Gow Poker (v0.6.0)
+
+The founder asked for "Pai Gow" twice (speech-to-text rendered it "pack out"
+then "Paco" — decode charitably). src/PaiGow.jsx: 52 cards no joker (stated on
+the felt), set five high / two low, dealer sets by a DOCUMENTED house way
+(maximize the low among all 21 legal splits, tiebreak stronger high — pure,
+deterministic, verified), copies to the banker, 5% commission printed and
+exact. HONESTY RULE (Known vs Estimated): Pai Gow's edge is computationally
+infeasible to enumerate, so it is SIMULATED on the player's device on demand
+and always labeled SIMULATED — never presented like the enumerated edges on
+the other tables. verify_paigow.js (17 checks) proves the comparator, the
+foul-free splits, the house-way max-low property, copies-to-banker, the exact
+commission, seeded-deterministic simulation in the sane band, and chip
+conservation. Uses score5H/hiRank from the shared engine; casino design kit.

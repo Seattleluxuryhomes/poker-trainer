@@ -59,6 +59,7 @@
   .pip.profile{ background:linear-gradient(180deg,#B9824B,#5E3F26) }
   .pip.roulette{ background:linear-gradient(180deg,#c0392b,#7b241c) }
   .pip.craps{ background:linear-gradient(180deg,#f2f0e9,#b9b4a4); color:#14171d }
+  .pip.paigow{ background:linear-gradient(180deg,#f5c542,#8a6508); color:#231a05 }
   .preview-tag{ font-family:var(--mono); font-size:10px; font-weight:400; color:var(--muted);
     border:1px solid var(--line); border-radius:6px; padding:1px 6px; vertical-align:middle }
   .opt-title{ font-size:19px; font-weight:700; color:var(--ivory) }
@@ -165,6 +166,22 @@
           labeled as the only fair bet in the casino. Practice chips only.
         </div>
       </a>
+      <a class="option" href="paigow.html">
+        <div class="opt-row">
+          <span class="pip paigow">&#127136;</span>
+          <div>
+            <div class="opt-title">Pai Gow Poker</div>
+            <div class="opt-sub">five high &middot; two low &middot; 5% commission, printed</div>
+          </div>
+          <span class="arrow">&#8250;</span>
+        </div>
+        <div class="opt-desc">
+          Seven cards, one decision: set your five-card high and two-card low
+          against the dealer's documented house way. Copies go to the banker,
+          the commission is printed, and the edge is simulated honestly on your
+          own device &mdash; labeled, never dressed as enumerated. Practice chips only.
+        </div>
+      </a>
       <a class="option" href="profile.html">
         <div class="opt-row">
           <span class="pip profile">&#127183;</span>
@@ -189,7 +206,7 @@
   </footer>
   <script>
     (function () {
-      var v = "0.5.1";
+      var v = "0.6.0";
       if (v.indexOf("-dev") !== -1) { var el = document.getElementById("ver"); el.textContent = "v" + v; el.style.display = "block"; }
     })();
   </script>
