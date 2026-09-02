@@ -34,6 +34,11 @@ const CAS_CSS = `
   }
   @keyframes casChipDrop { 0% { transform: translateY(-14px) scale(1.25); opacity: 0 } 60% { transform: translateY(2px) scale(0.96); opacity: 1 } 100% { transform: none; opacity: 1 } }
   @keyframes casShimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
+  @keyframes casTwinkle { 0%,100% { transform: scale(0); opacity: 0 } 45% { transform: scale(1.15) rotate(18deg); opacity: 1 } 70% { transform: scale(0.8); opacity: 0.8 } }
+  @keyframes casBulb { 0%,100% { opacity: 0.25; box-shadow: none } 50% { opacity: 1; box-shadow: 0 0 8px rgba(245,197,66,0.9), 0 0 16px rgba(245,197,66,0.45) } }
+  @keyframes casAttract { 0%,100% { box-shadow: 0 6px 20px rgba(0,230,118,0.35), inset 0 1px 0 rgba(255,255,255,0.35) } 50% { box-shadow: 0 6px 30px rgba(0,230,118,0.75), 0 0 22px rgba(0,230,118,0.4), inset 0 1px 0 rgba(255,255,255,0.5) } }
+  @keyframes casNudge { 0%,100% { transform: none } 20% { transform: translateX(-5px) } 40% { transform: translateX(5px) } 60% { transform: translateX(-3px) } 80% { transform: translateX(3px) } }
+  @keyframes casBankFlash { 0% { box-shadow: 0 0 0 rgba(245,197,66,0) } 30% { box-shadow: 0 0 22px rgba(245,197,66,0.8) } 100% { box-shadow: 0 0 0 rgba(245,197,66,0) } }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important } }
 `;
 
@@ -81,6 +86,40 @@ function Burst({ fireKey, count = 16 }) {
   );
 }
 
+/* Twinkling stars scattered over the win — pure glitter, no pointer events. */
+function Sparkles({ fireKey, count = 12 }) {
+  if (!fireKey) return null;
+  return (
+    <div key={fireKey} style={{ position: "absolute", inset: "-40px -60px", pointerEvents: "none", zIndex: 35 }}>
+      {Array.from({ length: count }, (_, i) => {
+        const h = (i * 2654435761 + fireKey * 40503) >>> 0;
+        return (
+          <span key={i} style={{
+            position: "absolute", left: `${6 + (h % 88)}%`, top: `${4 + ((h >> 8) % 90)}%`,
+            fontSize: 10 + ((h >> 16) % 14), color: i % 3 ? CAS.gold : "#fff",
+            textShadow: `0 0 8px ${CAS.goldDim}`,
+            animation: `casTwinkle ${0.7 + (i % 5) * 0.16}s ease ${(i % 7) * 0.09}s both`,
+          }}>✦</span>
+        );
+      })}
+    </div>
+  );
+}
+
+/* A strip of marquee bulbs chasing along the top rail of a felt panel. */
+function MarqueeLights({ count = 12 }) {
+  return (
+    <div style={{ position: "absolute", top: 3, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 11, pointerEvents: "none", zIndex: 5 }}>
+      {Array.from({ length: count }, (_, i) => (
+        <span key={i} style={{
+          width: 5, height: 5, borderRadius: "50%", background: CAS.gold,
+          animation: `casBulb 1.4s ease-in-out ${i * 0.12}s infinite`,
+        }} />
+      ))}
+    </div>
+  );
+}
+
 /* The money moment: floats up from the action, counts, bursts, fades on its own. */
 function BigWin({ amount, fireKey }) {
   const shown = useCountUp(fireKey ? amount : 0, 900);
@@ -93,6 +132,7 @@ function BigWin({ amount, fireKey }) {
       animation: "casPop 320ms cubic-bezier(0.2, 1.4, 0.4, 1) both",
     }}>
       <Burst fireKey={fireKey} />
+      <Sparkles fireKey={fireKey} count={amount >= 200 ? 18 : 12} />
       <div style={{
         fontFamily: casSans, fontWeight: 900, fontSize: 44, letterSpacing: "-0.02em",
         color: CAS.gold, textShadow: `0 0 24px ${CAS.goldDim}, 0 2px 0 rgba(0,0,0,0.6)`,
@@ -118,6 +158,12 @@ function SoundToggle({ dark }) {
 /* One header for the whole floor: game name under the house style, live bankroll. */
 function CasinoHeader({ title, sub, bank }) {
   const shownBank = useCountUp(bank, 700);
+  const [bankFlash, setBankFlash] = React.useState(0);
+  const prevBank = React.useRef(bank);
+  React.useEffect(() => {
+    if (bank > prevBank.current) setBankFlash((k) => k + 1);
+    prevBank.current = bank;
+  }, [bank]);
   return (
     <div style={{
       display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
@@ -132,9 +178,10 @@ function CasinoHeader({ title, sub, bank }) {
         <div style={{ fontFamily: casMono, fontSize: 9.5, letterSpacing: "0.08em", color: CAS.faint, marginTop: 2 }}>{sub}</div>
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <div style={{
+        <div key={bankFlash} style={{
           display: "flex", alignItems: "center", gap: 7, padding: "6px 13px", borderRadius: 999,
           background: CAS.goldFaint, border: `1px solid ${CAS.goldLine}`,
+          animation: bankFlash ? "casBankFlash 1.1s ease" : "none",
         }}>
           <span style={{
             width: 14, height: 14, borderRadius: "50%", flex: "0 0 auto",
@@ -206,11 +253,12 @@ const feltPanel = (pad = "18px 16px") => ({
   boxShadow: "0 18px 50px rgba(0,0,0,0.6), inset 0 0 42px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(245,197,66,0.1)",
 });
 
-const casCta = (disabled) => ({
+const casCta = (disabled, attract = false) => ({
   padding: "15px 10px", borderRadius: 13, cursor: disabled ? "default" : "pointer",
   fontFamily: casSans, fontWeight: 900, fontSize: 15, letterSpacing: "0.09em", border: "none",
   background: `linear-gradient(180deg, #2aff8f, ${CAS.green} 55%, #00a854)`, color: "#00230f",
   boxShadow: "0 6px 20px rgba(0,230,118,0.35), inset 0 1px 0 rgba(255,255,255,0.35)",
+  animation: attract && !disabled ? "casAttract 1.7s ease-in-out infinite" : "none",
 });
 const casGhost = () => ({
   padding: "15px 8px", borderRadius: 13, cursor: "pointer", fontFamily: casSans,

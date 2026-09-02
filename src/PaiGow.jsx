@@ -120,6 +120,13 @@ function PgCard({ card, w, picked, dim, onClick, faceDown }) {
         <>
           <span style={{ position: "absolute", top: w * 0.07, left: w * 0.1, fontSize: w * 0.3, fontWeight: 900, lineHeight: 1 }}>{rankLabel(card.r)}</span>
           <span style={{ position: "absolute", bottom: w * 0.06, right: w * 0.08, fontSize: w * 0.44, lineHeight: 1 }}>{SUIT[card.s]}</span>
+          {picked && (
+            <span style={{
+              position: "absolute", top: -9, right: -7, width: 18, height: 18, borderRadius: "50%",
+              background: CAS.gold, color: "#14171d", fontSize: 12, fontWeight: 900, lineHeight: "18px",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.5)", animation: "casPop 200ms ease both",
+            }}>✓</span>
+          )}
         </>
       )}
     </button>
@@ -144,6 +151,7 @@ export default function PaiGow() {
   const [winKey, setWinKey] = React.useState(0);
   const [edge, setEdge] = React.useState(null);
   const [simming, setSimming] = React.useState(false);
+  const [nudge, setNudge] = React.useState(0);
 
   React.useEffect(() => { try { window.localStorage.setItem(PG_BANK_KEY, String(bank)); } catch { /* private */ } }, [bank]);
 
@@ -186,7 +194,7 @@ export default function PaiGow() {
 
   const confirm = () => {
     const mine = currentSplit();
-    if (!mine || !mine.legal) return;
+    if (!mine || !mine.legal) { sfx.click(); setNudge((k) => k + 1); return; }
     const cmp = comparePaiGow(mine, dealerSet);
     const credit = settlePaiGow(cmp, bet);
     setBank((b) => b + credit);
@@ -216,6 +224,7 @@ export default function PaiGow() {
 
       <div style={{ flex: 1, maxWidth: 640, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ ...feltPanel("18px 14px"), display: "flex", flexDirection: "column", alignItems: "center", gap: 12, overflow: "hidden" }}>
+          <MarqueeLights />
           <BigWin amount={net > 0 ? net : 0} fireKey={winKey} />
 
           {/* dealer */}
@@ -245,13 +254,17 @@ export default function PaiGow() {
           <div style={{ width: "100%", textAlign: "center" }}>
             {hand ? (
               <>
-                <div style={{ display: "flex", gap: 5, justifyContent: "center", paddingTop: 10 }}>
+                <div key={`n${nudge}`} style={{ display: "flex", gap: 5, justifyContent: "center", paddingTop: 10, animation: nudge ? "casNudge 0.45s ease" : "none" }}>
                   {hand.map((c, i) => (
                     <PgCard key={cardId(c)} card={c} w={w} picked={picked.includes(i)}
                       onClick={phase === "set" ? () => togglePick(i) : undefined} />
                   ))}
                 </div>
-                <div style={{ fontFamily: casMono, fontSize: 11, color: mine && !mine.legal ? "#ff8a80" : CAS.dim, marginTop: 8, minHeight: 16 }}>
+                <div style={{
+                  fontFamily: casMono, fontSize: 11, marginTop: 8, minHeight: 16,
+                  color: mine && !mine.legal ? "#ff8a80" : phase === "set" && picked.length < 2 ? CAS.gold : CAS.dim,
+                  fontWeight: phase === "set" && picked.length < 2 ? 700 : 400,
+                }}>
                   {phase === "set"
                     ? picked.length < 2
                       ? `tap ${2 - picked.length} card${picked.length === 1 ? "" : "s"} for your LOW hand`
@@ -295,11 +308,11 @@ export default function PaiGow() {
         </div>
         {phase === "set" ? (
           <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1.4fr", gap: 8 }}>
-            <button onClick={confirm} disabled={!mine || !mine.legal} style={casCta(!mine || !mine.legal)}>SET HANDS</button>
+            <button onClick={confirm} aria-disabled={!mine || !mine.legal} style={{ ...casCta(!mine || !mine.legal), opacity: !mine || !mine.legal ? 0.55 : 1 }}>SET HANDS</button>
             <button onClick={useHouseWay} style={casGhost()}>HOUSE WAY</button>
           </div>
         ) : (
-          <button onClick={deal} disabled={chip > bank} style={casCta(chip > bank)}>DEAL · ${chip}</button>
+          <button onClick={deal} disabled={chip > bank} style={casCta(chip > bank, phase !== "set")}>DEAL · ${chip}</button>
         )}
         {bank === 0 && phase !== "set" && (
           <button onClick={() => setBank(1000)} style={{ ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` }}>

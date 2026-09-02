@@ -262,6 +262,7 @@ export default function Roulette() {
         {/* the wheel side */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, position: "relative" }}>
           <Wheel spinKey={spinKey} resultIdx={resultIdx} size={Math.min(320, typeof window !== "undefined" ? window.innerWidth - 56 : 320)} />
+          <MarqueeLights />
           <BigWin amount={won} fireKey={phase === "done" && won > 0 ? winKey : 0} />
           <div style={{ minHeight: 48, textAlign: "center" }}>
             {phase === "spinning" && (
@@ -340,7 +341,7 @@ export default function Roulette() {
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8 }}>
-            <button onClick={spin} disabled={phase === "spinning" || staked === 0} style={casCta(phase === "spinning" || staked === 0)}>SPIN</button>
+            <button onClick={spin} disabled={phase === "spinning" || staked === 0} style={casCta(phase === "spinning" || staked === 0, staked > 0)}>SPIN</button>
             <button onClick={clearBets} disabled={phase === "spinning" || staked === 0} style={casGhost()}>CLEAR</button>
             <button onClick={rebet} disabled={phase === "spinning" || !lastBets} style={casGhost()}>REBET</button>
           </div>

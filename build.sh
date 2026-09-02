@@ -82,7 +82,7 @@ build_one() {
 <meta property="og:title" content="${TITLE}" />
 <meta property="og:description" content="${DESC}" />
 <title>${TITLE}</title>
-<style>html,body{margin:0;background:#0f2417;min-height:100%;-webkit-user-select:none;user-select:none}#root{min-height:100vh}input,textarea{-webkit-user-select:text;user-select:text}</style>
+<style>html,body{margin:0;background:#0f2417;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation}button,a{touch-action:manipulation}#root{min-height:100vh}input,textarea{-webkit-user-select:text;user-select:text}</style>
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
 </head>

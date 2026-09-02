@@ -203,10 +203,26 @@ src/sound.js is a synthesized foley engine — Web Audio only, zero assets, zero
 dependencies. Every sound is built from oscillators and filtered noise: clay
 chip clacks (two-layer, detuned per strike), chip cascades sized to the win,
 card swish+snap, dice rattle with landing thumps, the wheel's slowing ticks
-with a late ball drop and bounce, a win CHORD (never a slot-machine jingle),
+with a late ball drop and bounce, a win ARPEGGIO that resolves on the tonic chord (never a slot-machine jingle), glitter pings under the sparkle visuals,
 a single low boom for SEVEN OUT. Rules: nothing before a user gesture
 (pointerdown unlocks the context), nothing ever throws (safe in headless and
 the verify vms), one persisted mute (SoundToggle, in every header), and LOUD
 IS FOR WINNING — everything else sits low. The trainer stays silent on
 purpose: it's the study room. Wired: casino kit (chips, BigWin), roulette,
 craps, pai gow, both hold'em tables, the video poker machine.
+
+## Juice (v0.8.0)
+
+The endorphin layer, all in src/casino.jsx: Sparkles (twinkling stars over a
+win), MarqueeLights (chasing bulbs on the felt rail), casCta's attract mode
+(the primary button breathes when it's waiting for you), and a gold flash on
+the bankroll pill when it grows. Same law as the gold: celebration fires on
+WINS ONLY — losses stay dark and quiet. All animation respects
+prefers-reduced-motion.
+
+Mobile input rule (v0.8.0, learned from a real device): every page's shell
+sets touch-action: manipulation on html/body/button/a — without it, two quick
+taps on adjacent controls (picking two Pai Gow cards) read as a double-tap
+zoom gesture and Chrome swallows BOTH clicks. Never remove it. Guarded
+primary buttons (Pai Gow SET HANDS) use aria-disabled + a guidance nudge
+instead of disabled, so an early tap teaches instead of doing nothing.

@@ -91,12 +91,13 @@ const sfx = {
   toggle() { SND.muted = !SND.muted; sndSaveMuted(); if (!SND.muted) { sndCtx(); sfx.chip(); } return SND.muted; },
   isMuted() { return SND.muted; },
 
-  /* one clay chip set down: noise transient + two damped pings, slightly detuned */
+  /* one clay chip set down: noise transient, two damped pings, a low body knock */
   chip(when = 0) {
     const d = 0.93 + Math.random() * 0.14;
     sndNoise({ when, dur: 0.018, gain: 0.22, freq: 3800, q: 0.8, type: "highpass" });
     sndTone({ when, freq: 2050 * d, type: "triangle", dur: 0.055, gain: 0.16 });
     sndTone({ when: when + 0.012, freq: 3300 * d, type: "sine", dur: 0.04, gain: 0.08 });
+    sndTone({ when, freq: 640 * d, type: "sine", dur: 0.045, gain: 0.07 });
   },
   /* a payout sliding across the felt: a cascade sized to the win */
   chips(n = 4) {
@@ -138,14 +139,27 @@ const sfx = {
     sndTone({ when: drop + 0.16, freq: 1800, type: "triangle", dur: 0.03, gain: 0.09 });
   },
 
-  /* winning is a chord; big wins get the octave */
+  /* glitter: a spray of tiny high pings, rising — the sound of sparkle */
+  sparkle(n = 6, when = 0) {
+    for (let i = 0; i < n; i++) {
+      const t = when + i * (0.05 + Math.random() * 0.04);
+      sndTone({ when: t, freq: 1800 + i * 260 + Math.random() * 500, type: "sine", dur: 0.16, gain: 0.05 });
+    }
+  },
+  /* winning is an ascending arpeggio with glitter on top; big wins run the second octave */
   win(big = false) {
-    const notes = big ? [523.25, 659.25, 783.99, 1046.5] : [523.25, 659.25, 783.99];
-    notes.forEach((f, i) => {
-      sndTone({ when: i * 0.085, freq: f, type: "triangle", dur: 0.5, gain: 0.12 });
-      sndTone({ when: i * 0.085, freq: f * 2, type: "sine", dur: 0.35, gain: 0.045 });
+    const run = big
+      ? [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568]
+      : [523.25, 659.25, 783.99, 1046.5];
+    run.forEach((f, i) => {
+      sndTone({ when: i * 0.07, freq: f, type: "triangle", dur: 0.42, gain: 0.12 });
+      sndTone({ when: i * 0.07, freq: f * 2, type: "sine", dur: 0.3, gain: 0.04 });
     });
-    sfx.chips(big ? 9 : 5);
+    // resolve on the tonic chord so it lands, not just climbs
+    const tail = run.length * 0.07 + 0.05;
+    [523.25, 659.25, 783.99].forEach((f) => sndTone({ when: tail, freq: f, type: "triangle", dur: 0.65, gain: 0.09 }));
+    sfx.sparkle(big ? 10 : 6, 0.12);
+    sfx.chips(big ? 10 : 6);
   },
   /* the table turning against you: one low boom, no rubbing it in */
   boom() {

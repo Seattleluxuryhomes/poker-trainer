@@ -292,6 +292,7 @@ export default function Craps() {
               }}>{flash.text}</span>
             </div>
           )}
+          <MarqueeLights />
           <BigWin amount={winAmt} fireKey={winKey} />
           <div style={{ display: "flex", gap: 7, alignItems: "center", justifyContent: "center", width: "100%" }}>
             <Puck on={game.phase === "point"} point={game.point} />
@@ -333,7 +334,7 @@ export default function Craps() {
           </span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "2.4fr 1fr", gap: 8 }}>
-          <button onClick={roll} disabled={rolling} style={casCta(rolling)}>{rolling ? "DICE ARE OUT…" : "ROLL"}</button>
+          <button onClick={roll} disabled={rolling} style={casCta(rolling, !rolling)}>{rolling ? "DICE ARE OUT…" : "ROLL"}</button>
           <button onClick={() => setLogOpen(true)} style={casGhost()}>FEED</button>
         </div>
         {bank === 0 && staked === 0 && (
