@@ -122,11 +122,8 @@ function resolveRoll(state, d1, d2) {
   return { state: s, credit, events };
 }
 
-const C = {
-  bg: "#0b0e11", line: "#222630", line2: "#2c303c", green: "#00e676", gold: "#ffd54f",
-  dim: "#8b93a3", faint: "#5b6272", red: "#ff5252", felt: "#0f2018", feltHi: "#16301f", rail: "#1e2c24",
-};
-const cSans = "Inter, 'Albert Sans', system-ui, sans-serif";
+/* ==================== VIEW (casino design kit) ==================== */
+
 const CRAPS_BANK_KEY = "poker-trainer:crapsBank";
 function loadCrapsBank() {
   try {
@@ -137,42 +134,70 @@ function loadCrapsBank() {
   } catch { return 1000; }
 }
 const DCHIPS = [5, 25, 100];
-const dChipColor = (v) => (v === 5 ? "#e74c3c" : v === 25 ? "#27ae60" : "#2c3e50");
 
-function Die({ v, rolling }) {
+function Die({ v, rolling, delay = 0 }) {
   const pips = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] }[v] || [];
   return (
     <div style={{
-      width: 58, height: 58, borderRadius: 12, background: "#f2f0e9",
-      display: "grid", gridTemplateColumns: "repeat(3, 1fr)", padding: 8, gap: 2, boxSizing: "border-box",
-      boxShadow: "0 6px 14px rgba(0,0,0,0.55), inset 0 -3px 0 rgba(0,0,0,0.15)",
-      animation: rolling ? "diceShake 0.45s ease infinite" : "none",
+      width: 64, height: 64, borderRadius: 14,
+      background: "linear-gradient(160deg, #fbf9f2, #e8e4d6 70%, #d5d0bf)",
+      display: "grid", gridTemplateColumns: "repeat(3, 1fr)", padding: 10, gap: 2, boxSizing: "border-box",
+      boxShadow: "0 10px 20px rgba(0,0,0,0.6), inset 0 -4px 0 rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.8)",
+      animation: rolling ? `crapsTumble 0.5s cubic-bezier(0.4, 0, 0.6, 1) ${delay}ms infinite` : "crapsLand 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both",
     }}>
       {Array.from({ length: 9 }, (_, i) => (
-        <span key={i} style={{ borderRadius: "50%", background: pips.includes(i) ? "#14171d" : "transparent" }} />
+        <span key={i} style={{
+          borderRadius: "50%",
+          background: pips.includes(i) ? "radial-gradient(circle at 35% 30%, #3a3f4c, #14171d 70%)" : "transparent",
+          boxShadow: pips.includes(i) ? "inset 0 1px 2px rgba(0,0,0,0.7)" : "none",
+        }} />
       ))}
     </div>
   );
 }
 
-export default function Craps() {
-  const [bank, setBank] = useState(loadCrapsBank);
-  const [chip, setChip] = useState(5);
-  const [game, setGame] = useState({ phase: "comeout", point: null, bets: { pass: 0, dontPass: 0, odds: 0, field: 0 } });
-  const [dice, setDice] = useState([3, 4]);
-  const [rolling, setRolling] = useState(false);
-  const [feed, setFeed] = useState(["Welcome to the rail. Pass line, then roll."]);
-  const [logOpen, setLogOpen] = useState(false);
+function Puck({ on, point }) {
+  return (
+    <div style={{
+      width: 46, height: 46, borderRadius: "50%", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", flex: "0 0 auto",
+      background: on
+        ? `radial-gradient(circle at 35% 30%, #fffdf5, #efe9d8 65%, #cfc7ac)`
+        : "radial-gradient(circle at 35% 30%, #2a2f3a, #14171d 70%)",
+      color: on ? "#14171d" : CAS.faint,
+      border: `3px solid ${on ? CAS.gold : "#2a2f3a"}`,
+      boxShadow: on ? `0 0 18px ${CAS.goldFaint}, 0 6px 12px rgba(0,0,0,0.5)` : "0 4px 10px rgba(0,0,0,0.5)",
+      transition: "all 300ms ease", transform: on ? "rotateY(0deg)" : "rotateY(180deg)",
+      fontFamily: casSans, fontWeight: 900,
+    }}>
+      <span style={{ fontSize: 9, letterSpacing: "0.18em" }}>{on ? "ON" : "OFF"}</span>
+      {on && <span style={{ fontSize: 15, marginTop: -2 }}>{point}</span>}
+    </div>
+  );
+}
 
-  useEffect(() => { try { window.localStorage.setItem(CRAPS_BANK_KEY, String(bank)); } catch { /* private */ } }, [bank]);
+export default function Craps() {
+  const [bank, setBank] = React.useState(loadCrapsBank);
+  const [chip, setChip] = React.useState(5);
+  const [game, setGame] = React.useState({ phase: "comeout", point: null, bets: { pass: 0, dontPass: 0, odds: 0, field: 0 } });
+  const [dice, setDice] = React.useState([3, 4]);
+  const [rolling, setRolling] = React.useState(false);
+  const [feed, setFeed] = React.useState(["Welcome to the rail. Pass line, then roll."]);
+  const [logOpen, setLogOpen] = React.useState(false);
+  const [winKey, setWinKey] = React.useState(0);
+  const [winAmt, setWinAmt] = React.useState(0);
+  const [flash, setFlash] = React.useState(null); // {text, tone, key}
+
+  React.useEffect(() => { try { window.localStorage.setItem(CRAPS_BANK_KEY, String(bank)); } catch { /* private */ } }, [bank]);
 
   const b = game.bets;
+  const staked = b.pass + b.dontPass + b.field + b.odds;
   const say = (lines) => setFeed((f) => [...f, ...lines].slice(-60));
 
   const place = (kind) => {
     if (rolling || chip > bank) return;
-    if ((kind === "pass" || kind === "dontPass") && game.phase !== "comeout") return; // contract bets go down before a point
-    if (kind === "pass" && b.dontPass > 0) return;      // pick a side
+    if ((kind === "pass" || kind === "dontPass") && game.phase !== "comeout") return;
+    if (kind === "pass" && b.dontPass > 0) return;
     if (kind === "dontPass" && b.pass > 0) return;
     if (kind === "odds" && (game.phase !== "point" || b.pass === 0)) return;
     if (kind === "odds" && b.odds + chip > b.pass * 3) { say(["Odds capped at 3× your pass line bet."]); return; }
@@ -182,126 +207,139 @@ export default function Craps() {
 
   const roll = () => {
     if (rolling) return;
-    if (b.pass + b.dontPass + b.field + b.odds === 0) { say(["Put something on the felt first."]); return; }
+    if (staked === 0) { say(["Put something on the felt first."]); return; }
     setRolling(true);
+    setFlash(null);
     const d1 = 1 + ((Math.random() * 6) | 0), d2 = 1 + ((Math.random() * 6) | 0);
-    const shake = setInterval(() => setDice([1 + ((Math.random() * 6) | 0), 1 + ((Math.random() * 6) | 0)]), 90);
+    const shake = setInterval(() => setDice([1 + ((Math.random() * 6) | 0), 1 + ((Math.random() * 6) | 0)]), 85);
     setTimeout(() => {
       clearInterval(shake);
       setDice([d1, d2]);
       const out = resolveRoll(game, d1, d2);
+      const stakedBefore = game.bets.pass + game.bets.dontPass + game.bets.odds + game.bets.field;
+      const stakedAfter = out.state.bets.pass + out.state.bets.dontPass + out.state.bets.odds + out.state.bets.field;
+      const resolvedStake = stakedBefore - stakedAfter;
+      const net = out.credit - resolvedStake;
       setGame(out.state);
       if (out.credit > 0) setBank((v) => v + out.credit);
       say([`— rolled ${d1 + d2} (${d1}+${d2})`, ...out.events]);
+      if (net > 0) { setWinAmt(net); setWinKey((k) => k + 1); }
+      const evTxt = out.events.join(" ");
+      if (/SEVEN OUT/.test(evTxt)) setFlash({ text: "SEVEN OUT", tone: "red", key: Date.now() });
+      else if (/Point .* made/i.test(evTxt)) setFlash({ text: `POINT ${d1 + d2} MADE`, tone: "gold", key: Date.now() });
+      else if (/Natural/.test(evTxt) && out.credit > 0) setFlash({ text: `NATURAL ${d1 + d2}`, tone: "gold", key: Date.now() });
       setRolling(false);
-    }, 900);
+    }, 1050);
   };
 
   const pp = pPassExact();
-  const passEdge = (1 - 2 * pp) * 100;                       // lose prob − win prob, as %
+  const passEdge = (1 - 2 * pp) * 100;
   const dp = pDontPassExact();
   const dontEdge = ((1 - dp.win - dp.push) - dp.win) * 100;
   const fieldEdge = -fieldEvPerUnit() * 100;
 
   const betCard = (kind, title, sub, edge, enabled) => (
     <button onClick={() => place(kind)} disabled={!enabled || rolling} style={{
-      flex: 1, minWidth: 130, textAlign: "left", padding: "10px 12px", borderRadius: 11, cursor: "pointer",
-      border: `1px solid ${b[kind] > 0 ? C.gold : C.line2}`,
-      background: b[kind] > 0 ? "rgba(255,213,79,0.08)" : "rgba(255,255,255,0.04)", color: "#e8ebf2",
-      fontFamily: cSans,
+      flex: 1, minWidth: 140, textAlign: "left", padding: "11px 13px", borderRadius: 13, cursor: "pointer",
+      position: "relative",
+      border: `1.5px solid ${b[kind] > 0 ? CAS.gold : "rgba(245,197,66,0.18)"}`,
+      background: b[kind] > 0
+        ? `linear-gradient(180deg, rgba(245,197,66,0.14), rgba(245,197,66,0.05))`
+        : "rgba(255,255,255,0.045)",
+      color: CAS.cream, fontFamily: casSans,
+      boxShadow: b[kind] > 0 ? `0 0 14px ${CAS.goldFaint}` : "inset 0 -2px 0 rgba(0,0,0,0.25)",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 13, fontWeight: 800 }}>{title}</span>
-        {b[kind] > 0 && <span style={{ fontSize: 12, fontWeight: 900, color: C.gold }}>${b[kind]}</span>}
+        <span style={{ fontSize: 13.5, fontWeight: 900, letterSpacing: "0.05em" }}>{title}</span>
+        {b[kind] > 0 && <BetChip amount={b[kind]} />}
       </div>
-      <div style={{ fontSize: 10, color: C.dim, marginTop: 2 }}>{sub}</div>
-      <div style={{ fontSize: 10, fontFamily: "ui-monospace, Menlo, monospace", marginTop: 3, color: edge === 0 ? C.green : C.gold, fontWeight: 700 }}>
-        {edge === 0 ? "house edge 0.00% — the only fair bet in the casino" : `house edge ${edge.toFixed(2)}% (enumerated)`}
+      <div style={{ fontSize: 10, color: CAS.dim, marginTop: 3, lineHeight: 1.45 }}>{sub}</div>
+      <div style={{ fontSize: 10, fontFamily: casMono, marginTop: 4, color: edge === 0 ? CAS.green : CAS.goldDim, fontWeight: 700 }}>
+        {edge === 0 ? "edge 0.00% — the only fair bet in the casino" : `edge ${edge.toFixed(2)}% · enumerated`}
       </div>
     </button>
   );
 
   return (
-    <div style={{ background: `radial-gradient(130% 70% at 50% -10%, #10151b, ${C.bg} 60%)`, minHeight: "100vh", fontFamily: cSans, color: "#e8ebf2", display: "flex", flexDirection: "column" }}>
-      <style>{`html,body{background:${C.bg}} button:active{filter:brightness(1.15)} button:disabled{opacity:.4;cursor:default}
-        @keyframes diceShake { 0%,100%{transform:rotate(-7deg) translateY(0)} 50%{transform:rotate(7deg) translateY(-6px)} }`}</style>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", flexWrap: "wrap", gap: 8 }}>
-        <div>
-          <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: "0.12em", color: C.dim }}>CRAPS</span>
-          <span style={{ fontSize: 10, fontWeight: 600, color: C.faint, marginLeft: 8 }}>PRACTICE CHIPS ONLY · EVERY EDGE PRINTED</span>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <AccountArea dark />
-          <a href="index.html" aria-label="Home" style={{ color: C.dim, textDecoration: "none", fontSize: 16, border: `1px solid ${C.line}`, borderRadius: 9, padding: "5px 9px" }}>⌂</a>
-        </div>
-      </div>
+    <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "100vh", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
+      <style>{CAS_CSS + `
+        @keyframes crapsTumble {
+          0% { transform: rotate(-14deg) translate(-8px, -10px) }
+          25% { transform: rotate(10deg) translate(9px, -18px) }
+          50% { transform: rotate(-8deg) translate(-6px, -4px) }
+          75% { transform: rotate(14deg) translate(7px, -14px) }
+          100% { transform: rotate(-14deg) translate(-8px, -10px) }
+        }
+        @keyframes crapsLand { 0% { transform: scale(1.25) rotate(6deg) } 60% { transform: scale(0.94) rotate(-2deg) } 100% { transform: none } }
+      `}</style>
+      <CasinoHeader title="CRAPS" sub="PASS · DON'T · FIELD · TRUE ODDS · PRACTICE CHIPS" bank={bank} />
 
-      <div style={{ flex: 1, maxWidth: 680, width: "100%", margin: "0 auto", padding: "4px 14px 24px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 }}>
-        {/* the rail: point puck + dice */}
-        <div style={{
-          borderRadius: 18, border: `6px solid ${C.rail}`, padding: "18px 16px",
-          background: `radial-gradient(80% 90% at 50% 20%, ${C.feltHi}, ${C.felt} 80%)`,
-          boxShadow: "inset 0 0 36px rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", alignItems: "center", gap: 14,
-        }}>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+      <div style={{ flex: 1, maxWidth: 700, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* the felt */}
+        <div style={{ ...feltPanel("20px 16px"), display: "flex", flexDirection: "column", alignItems: "center", gap: 14, overflow: "hidden" }}>
+          {flash && (
+            <div key={flash.key} style={{
+              position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+              background: flash.tone === "red" ? "rgba(140,20,15,0.5)" : "rgba(245,197,66,0.18)",
+              animation: "casFlash 1.5s ease forwards", pointerEvents: "none", zIndex: 6, borderRadius: 14,
+            }}>
+              <span style={{
+                fontSize: 34, fontWeight: 900, letterSpacing: "0.14em",
+                color: flash.tone === "red" ? "#ffd7d2" : CAS.goldHi,
+                textShadow: "0 2px 10px rgba(0,0,0,0.7)",
+              }}>{flash.text}</span>
+            </div>
+          )}
+          <BigWin amount={winAmt} fireKey={winKey} />
+          <div style={{ display: "flex", gap: 7, alignItems: "center", justifyContent: "center", width: "100%" }}>
+            <Puck on={game.phase === "point"} point={game.point} />
             {[4, 5, 6, 8, 9, 10].map((n) => (
               <span key={n} style={{
-                width: 34, height: 34, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                fontWeight: 900, fontSize: 13,
-                background: game.point === n ? "#f2f0e9" : "rgba(0,0,0,0.3)",
-                color: game.point === n ? "#14171d" : C.faint,
-                border: `2px solid ${game.point === n ? C.gold : C.line2}`,
+                width: 30, height: 30, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 900, fontSize: 12.5, fontFamily: casSans, flex: "0 0 auto",
+                background: game.point === n ? "rgba(245,197,66,0.16)" : "rgba(0,0,0,0.3)",
+                color: game.point === n ? CAS.gold : CAS.faint,
+                border: `1.5px solid ${game.point === n ? CAS.gold : "rgba(255,255,255,0.1)"}`,
+                transition: "all 250ms ease",
               }}>{n}</span>
             ))}
           </div>
-          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.14em", color: game.phase === "point" ? C.gold : C.dim }}>
-            {game.phase === "point" ? `POINT IS ${game.point} — ON` : "COME-OUT ROLL — OFF"}
-          </div>
-          <div style={{ display: "flex", gap: 14 }}>
+          <div style={{ display: "flex", gap: 18, padding: "6px 0 2px" }}>
             <Die v={dice[0]} rolling={rolling} />
-            <Die v={dice[1]} rolling={rolling} />
+            <Die v={dice[1]} rolling={rolling} delay={120} />
           </div>
-          <div style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12, color: "#c9cfda", minHeight: 18, textAlign: "center" }}>
+          <div style={{ fontFamily: casMono, fontSize: 12.5, color: CAS.cream, minHeight: 20, textAlign: "center", maxWidth: "92%" }}>
             {feed[feed.length - 1]}
           </div>
         </div>
 
         {/* bets */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
           {betCard("pass", "PASS LINE", "7/11 wins the come-out; then make the point before the 7. Pays 1:1.", passEdge, game.phase === "comeout" && b.dontPass === 0)}
           {betCard("dontPass", "DON'T PASS", "The dark side: 2/3 win, 12 pushes; then the seven's your friend. Pays 1:1.", dontEdge, game.phase === "comeout" && b.pass === 0)}
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {betCard("odds", `FREE ODDS ${game.point ? `(pays ${oddsPayout(game.point)}:1 true)` : ""}`, "Behind your pass bet once a point is set. Up to 3×. True odds — zero edge.", 0, game.phase === "point" && b.pass > 0)}
+        <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+          {betCard("odds", `FREE ODDS${game.point ? ` · ${oddsPayout(game.point)}:1 TRUE` : ""}`, "Behind your pass bet once a point is set. Up to 3×.", 0, game.phase === "point" && b.pass > 0)}
           {betCard("field", "FIELD", "One roll: 2/3/4/9/10/11/12 win. 2 pays double, 12 pays TRIPLE.", fieldEdge, true)}
         </div>
 
-        {/* controls */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: C.dim }}>CHIP</span>
-          {DCHIPS.map((v) => (
-            <button key={v} onClick={() => setChip(v)} style={{
-              width: 40, height: 40, borderRadius: "50%", cursor: "pointer", fontWeight: 900, fontSize: 12,
-              background: dChipColor(v), color: "#fff",
-              border: chip === v ? `3px solid ${C.gold}` : "3px dashed rgba(0,0,0,0.35)",
-            }}>{v}</button>
-          ))}
-          <span style={{ marginLeft: "auto", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 13, fontWeight: 800, color: C.green }}>${bank.toLocaleString()}</span>
+        {/* rail */}
+        <div style={{ display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" }}>
+          {DCHIPS.map((v) => <CasinoChip key={v} value={v} selected={chip === v} onClick={() => setChip(v)} />)}
+          <span style={{ marginLeft: "auto", fontFamily: casMono, fontSize: 12, color: CAS.dim }}>
+            {staked > 0 ? `$${staked.toLocaleString()} working` : "the felt is empty"}
+          </span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr", gap: 8 }}>
-          <button onClick={roll} disabled={rolling} style={{
-            padding: "14px 8px", borderRadius: 11, cursor: "pointer", fontWeight: 900, fontSize: 15, letterSpacing: "0.06em",
-            background: `linear-gradient(180deg, #2aff8f, ${C.green} 55%, #00b25a)`, color: "#00230f", border: "none",
-            boxShadow: "0 4px 16px rgba(0,230,118,0.35)",
-          }}>{rolling ? "DICE ARE OUT…" : "ROLL"}</button>
-          <button onClick={() => setLogOpen(true)} style={{ padding: "14px 6px", borderRadius: 11, cursor: "pointer", fontWeight: 800, fontSize: 12, background: "#232733", color: "#e8ebf2", border: `1px solid ${C.line2}` }}>FEED</button>
+        <div style={{ display: "grid", gridTemplateColumns: "2.4fr 1fr", gap: 8 }}>
+          <button onClick={roll} disabled={rolling} style={casCta(rolling)}>{rolling ? "DICE ARE OUT…" : "ROLL"}</button>
+          <button onClick={() => setLogOpen(true)} style={casGhost()}>FEED</button>
         </div>
-        {bank === 0 && b.pass + b.dontPass + b.field + b.odds === 0 && (
-          <button onClick={() => setBank(1000)} style={{ padding: "10px", borderRadius: 10, cursor: "pointer", fontWeight: 800, fontSize: 12, background: "rgba(255,213,79,0.12)", color: C.gold, border: "1px solid rgba(255,213,79,0.4)" }}>
+        {bank === 0 && staked === 0 && (
+          <button onClick={() => setBank(1000)} style={{ ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` }}>
             Felted — restake $1,000 practice chips
           </button>
         )}
-        <div style={{ fontSize: 10.5, color: C.faint, lineHeight: 1.6, fontFamily: "ui-monospace, Menlo, monospace" }}>
+        <div style={{ fontSize: 10.5, color: CAS.faint, lineHeight: 1.65, fontFamily: casMono }}>
           Practice chips only. Pass line: {(pp * 100).toFixed(2)}% to win (244/495, enumerated).
           Load the free odds to 3× and your combined edge is the thinnest legally
           purchasable feeling of being alive.
@@ -309,14 +347,14 @@ export default function Craps() {
       </div>
 
       {logOpen && (
-        <div onClick={() => setLogOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 280, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "#14171d", border: `1px solid ${C.line2}`, borderRadius: 14, width: "100%", maxWidth: 420, maxHeight: "70vh", display: "flex", flexDirection: "column" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderBottom: `1px solid ${C.line}` }}>
-              <span style={{ fontSize: 13, fontWeight: 800 }}>ROLL FEED</span>
-              <button onClick={() => setLogOpen(false)} style={{ background: "#232733", color: "#e8ebf2", border: "none", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontWeight: 800, fontSize: 12 }}>CLOSE</button>
+        <div onClick={() => setLogOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 280, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#12161d", border: `1px solid ${CAS.goldLine}`, borderRadius: 16, width: "100%", maxWidth: 420, maxHeight: "70vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 70px rgba(0,0,0,0.8)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 15px", borderBottom: `1px solid ${CAS.line}` }}>
+              <span style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.14em" }}>ROLL FEED</span>
+              <button onClick={() => setLogOpen(false)} style={{ ...casGhost(), padding: "6px 14px" }}>CLOSE</button>
             </div>
-            <div style={{ overflowY: "auto", padding: "10px 14px", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12, lineHeight: 1.7 }}>
-              {feed.map((l, i) => <div key={i} style={{ color: l.startsWith("—") ? C.gold : "#c9cfda" }}>{l}</div>)}
+            <div style={{ overflowY: "auto", padding: "10px 15px", fontFamily: casMono, fontSize: 12, lineHeight: 1.7 }}>
+              {feed.map((l, i) => <div key={i} style={{ color: l.startsWith("—") ? CAS.gold : "#c9cfda" }}>{l}</div>)}
             </div>
           </div>
         </div>
