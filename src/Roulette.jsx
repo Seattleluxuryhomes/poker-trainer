@@ -177,6 +177,7 @@ export default function Roulette() {
     if (phase === "spinning") return;
     if (phase === "done") { setPhase("bet"); setResult(null); }
     if (chip > bank) return;
+    sfx.chip();
     setBank((b) => b - chip);
     setBets((m) => ({ ...m, [id]: (m[id] || 0) + chip }));
     setInfo(id);
@@ -203,6 +204,7 @@ export default function Roulette() {
     const pocket = POCKETS[(Math.random() * 38) | 0];
     setResult(pocket);
     setSpinKey((k) => k + 1);
+    sfx.spin(3400, 2400);
     setPhase("spinning");
     setTimeout(() => {
       const back = settleSpin(bets, pocket);

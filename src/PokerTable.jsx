@@ -305,6 +305,7 @@ function SoloTable() {
     if (state.phase !== "over" || state.handNo === 0 || reportedHand.current === state.handNo) return;
     reportedHand.current = state.handNo;
     const won = state.winners.includes(USER_SEAT);
+    if (won) sfx.win(state.pot >= 1000);
     reportStats({
       set: { table_stack: state.players[USER_SEAT].stack },
       inc: { table_hands: 1, table_wins: won ? 1 : 0 },
@@ -314,7 +315,20 @@ function SoloTable() {
 
   // Only from idle/over: dealing mid-runout would vaporize a live pot.
   const deal = () => setState((s) => (s.phase === "betting" || s.phase === "runout" ? s : startHand(s, rngRef.current)));
-  const userAct = (action) => setState((s) => (s.phase === "betting" && s.toAct === USER_SEAT ? applyAction(s, action) : s));
+
+  // Foley: cards on the deal and each street; the chord when you drag the pot.
+  const sndHand = useRef(0);
+  const sndBoard = useRef(0);
+  useEffect(() => {
+    if (state.handNo !== sndHand.current) { sndHand.current = state.handNo; sndBoard.current = 0; if (state.handNo > 0) sfx.cards(2); }
+    if (state.board.length > sndBoard.current) { sfx.cards(state.board.length - sndBoard.current); sndBoard.current = state.board.length; }
+  }, [state]);
+  const userAct = (action) => {
+    if (action.type === "raise") sfx.chips(3);
+    else if (action.type === "fold") sfx.click();
+    else { const l = state.phase === "betting" && state.toAct === USER_SEAT ? legalActions(state) : null; l && l.toCall > 0 ? sfx.chip() : sfx.click(); }
+    setState((s) => (s.phase === "betting" && s.toAct === USER_SEAT ? applyAction(s, action) : s));
+  };
 
   const OPP_SPOTS = [{ x: 14, y: 24 }, { x: 50, y: 9 }, { x: 86, y: 24 }];
   const vw = useViewportWidth();
@@ -359,6 +373,7 @@ function SoloTable() {
           <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", color: N.faint, marginLeft: 8 }}>PRACTICE CHIPS ONLY</span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <SoundToggle dark />
           <button onClick={() => setFriendsOpen(true)} style={{
             height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px",
             border: "1px solid rgba(0,230,118,0.4)", background: "rgba(0,230,118,0.08)",
@@ -701,6 +716,11 @@ function RoomTable({ code }) {
 
   const post = async (verb, body = {}) => {
     setError(null);
+    if (verb === "act" && body.action) {
+      if (body.action.type === "raise") sfx.chips(3);
+      else if (body.action.type === "fold") sfx.click();
+      else sfx.chip();
+    }
     try { return await acctApi(`/room/${code}/${verb}`, { method: "POST", body: JSON.stringify({ seat: ident.seat, key: ident.key, ...body }) }); }
     catch (e) { setError(e.message); }
   };
@@ -721,12 +741,22 @@ function RoomTable({ code }) {
   const la = userTurn ? legalActions(state) : null;
   React.useEffect(() => { if (userTurn && la) setRaiseTo(clampN(la.minRaiseTo, state.pot, la.maxRaiseTo)); /* eslint-disable-line */ }, [userTurn]);
 
+  // Foley in rooms: cards on deal/streets; the chord when it's YOUR pot.
+  const sndHand = React.useRef(0);
+  const sndBoard = React.useRef(0);
+  React.useEffect(() => {
+    if (!state) return;
+    if (state.handNo !== sndHand.current) { sndHand.current = state.handNo; sndBoard.current = 0; if (state.handNo > 0) sfx.cards(2); }
+    if (state.board.length > sndBoard.current) { sfx.cards(state.board.length - sndBoard.current); sndBoard.current = state.board.length; }
+  }, [state]);
+
   // my finished hands feed my account stats, same as solo
   const reportedHand = React.useRef(0);
   React.useEffect(() => {
     if (!state || state.phase !== "over" || state.handNo === 0 || reportedHand.current === state.handNo) return;
     reportedHand.current = state.handNo;
     const won = state.winners.includes(mySeat);
+    if (won) sfx.win(state.pot >= 1000);
     reportStats({ set: { table_stack: state.players[mySeat].stack }, inc: { table_hands: 1, table_wins: won ? 1 : 0 }, maxOf: won ? { biggest_pot: state.pot } : {} });
   }, [state]);
 
@@ -800,6 +830,7 @@ function RoomTable({ code }) {
           )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <SoundToggle dark />
           <button onClick={recordClip} title="Send a video to the table" style={{
             height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px",
             border: `1px solid ${recState === "recording" ? "rgba(255,82,82,0.7)" : N.line2}`,

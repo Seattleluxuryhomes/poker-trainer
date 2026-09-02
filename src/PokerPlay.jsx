@@ -70,6 +70,8 @@ export default function PokerPlay() {
   const deal = useCallback(() => {
     if (bank < bet) return;
     const deck = shuffledDeck();
+    sfx.chip();
+    sfx.cards(5);
     setBank((b) => b - bet);
     setHand(deck.slice(0, 5)); setRest(deck.slice(5));
     setHeld([]); setHint(null); setResult(null); setPhase("hold");
@@ -77,6 +79,7 @@ export default function PokerPlay() {
 
   const draw = useCallback(() => {
     let p = 0;
+    sfx.cards(5 - held.length);
     const final = hand.map((c, i) => (held.includes(i) ? c : rest[p++]));
     const cat = categorizeCards(final);
     const win = payoutFor(cat, bet);
@@ -84,12 +87,14 @@ export default function PokerPlay() {
     setBank((b) => b + win);
     setStats((s) => ({ hands: s.hands + 1, net: s.net + win - bet }));
     setResult({ cat, win }); setHint(null); setPhase("result");
+    if (win > 0) setTimeout(() => sfx.win(win >= 25), 320);
     reportStats({ set: { bankroll: bank + win } }); // bank already had the bet deducted at deal
   }, [hand, held, rest, bet, bank]);
 
   const askHint = useCallback(() => { setHint(bestHold(hand)); }, [hand]);
 
   const toggleHold = useCallback((i) => {
+    sfx.click();
     setHeld((h) => (h.includes(i) ? h.filter((x) => x !== i) : [...h, i]));
   }, []);
 
@@ -132,6 +137,7 @@ export default function PokerPlay() {
             {IS_DEV_VERSION && <span style={{ fontFamily: mono, fontSize: 10, color: "rgba(42,27,14,0.55)", whiteSpace: "nowrap" }}>v{APP_VERSION}</span>}
           </div>
           <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
+            <SoundToggle />
             <AccountArea />
             <button onClick={() => setAboutOpen(true)} aria-label="About" style={{
               width: 40, height: 40, borderRadius: 10, cursor: "pointer",

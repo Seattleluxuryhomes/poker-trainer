@@ -196,3 +196,17 @@ the other tables. verify_paigow.js (17 checks) proves the comparator, the
 foul-free splits, the house-way max-low property, copies-to-banker, the exact
 commission, seeded-deterministic simulation in the sane band, and chip
 conservation. Uses score5H/hiRank from the shared engine; casino design kit.
+
+## Sound (v0.7.0)
+
+src/sound.js is a synthesized foley engine — Web Audio only, zero assets, zero
+dependencies. Every sound is built from oscillators and filtered noise: clay
+chip clacks (two-layer, detuned per strike), chip cascades sized to the win,
+card swish+snap, dice rattle with landing thumps, the wheel's slowing ticks
+with a late ball drop and bounce, a win CHORD (never a slot-machine jingle),
+a single low boom for SEVEN OUT. Rules: nothing before a user gesture
+(pointerdown unlocks the context), nothing ever throws (safe in headless and
+the verify vms), one persisted mute (SoundToggle, in every header), and LOUD
+IS FOR WINNING — everything else sits low. The trainer stays silent on
+purpose: it's the study room. Wired: casino kit (chips, BigWin), roulette,
+craps, pai gow, both hold'em tables, the video poker machine.

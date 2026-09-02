@@ -201,6 +201,7 @@ export default function Craps() {
     if (kind === "dontPass" && b.pass > 0) return;
     if (kind === "odds" && (game.phase !== "point" || b.pass === 0)) return;
     if (kind === "odds" && b.odds + chip > b.pass * 3) { say(["Odds capped at 3× your pass line bet."]); return; }
+    sfx.chip();
     setBank((v) => v - chip);
     setGame((g) => ({ ...g, bets: { ...g.bets, [kind]: g.bets[kind] + chip } }));
   };
@@ -210,6 +211,7 @@ export default function Craps() {
     if (staked === 0) { say(["Put something on the felt first."]); return; }
     setRolling(true);
     setFlash(null);
+    sfx.dice(1050);
     const d1 = 1 + ((Math.random() * 6) | 0), d2 = 1 + ((Math.random() * 6) | 0);
     const shake = setInterval(() => setDice([1 + ((Math.random() * 6) | 0), 1 + ((Math.random() * 6) | 0)]), 85);
     setTimeout(() => {
@@ -225,7 +227,7 @@ export default function Craps() {
       say([`— rolled ${d1 + d2} (${d1}+${d2})`, ...out.events]);
       if (net > 0) { setWinAmt(net); setWinKey((k) => k + 1); }
       const evTxt = out.events.join(" ");
-      if (/SEVEN OUT/.test(evTxt)) setFlash({ text: "SEVEN OUT", tone: "red", key: Date.now() });
+      if (/SEVEN OUT/.test(evTxt)) { setFlash({ text: "SEVEN OUT", tone: "red", key: Date.now() }); sfx.boom(); }
       else if (/Point .* made/i.test(evTxt)) setFlash({ text: `POINT ${d1 + d2} MADE`, tone: "gold", key: Date.now() });
       else if (/Natural/.test(evTxt) && out.credit > 0) setFlash({ text: `NATURAL ${d1 + d2}`, tone: "gold", key: Date.now() });
       setRolling(false);

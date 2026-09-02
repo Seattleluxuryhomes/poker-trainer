@@ -151,6 +151,7 @@ export default function PaiGow() {
     // One chip per deal, exactly as the rail copy says.
     if (phase === "set" || chip > bank) return;
     setOutcome(null);
+    sfx.cards(7);
     setBank((b) => b - chip);
     setBet(chip);
     const d = fullDeck();
@@ -163,6 +164,7 @@ export default function PaiGow() {
 
   const togglePick = (i) => {
     if (phase !== "set") return;
+    sfx.click();
     setPicked((p) => (p.includes(i) ? p.filter((x) => x !== i) : p.length < 2 ? [...p, i] : p));
   };
 

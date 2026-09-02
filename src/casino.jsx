@@ -84,6 +84,7 @@ function Burst({ fireKey, count = 16 }) {
 /* The money moment: floats up from the action, counts, bursts, fades on its own. */
 function BigWin({ amount, fireKey }) {
   const shown = useCountUp(fireKey ? amount : 0, 900);
+  React.useEffect(() => { if (fireKey && amount > 0) sfx.win(amount >= 200); }, [fireKey]);
   if (!fireKey || amount <= 0) return null;
   return (
     <div key={fireKey} style={{
@@ -99,6 +100,18 @@ function BigWin({ amount, fireKey }) {
         +${shown.toLocaleString()}
       </div>
     </div>
+  );
+}
+
+/* The one sound switch, anywhere a page wants it. */
+function SoundToggle({ dark }) {
+  const [muted, setMuted] = React.useState(sfx.isMuted());
+  return (
+    <button onClick={() => setMuted(sfx.toggle())} aria-label={muted ? "Unmute table sounds" : "Mute table sounds"} style={{
+      height: dark ? 30 : 34, borderRadius: 9, cursor: "pointer", padding: "0 9px",
+      border: `1px solid ${dark ? "#2c303c" : CAS.line}`, background: "rgba(255,255,255,0.03)",
+      color: muted ? CAS.faint : CAS.gold, fontSize: 13, lineHeight: 1,
+    }}>{muted ? "🔇" : "🔊"}</button>
   );
 }
 
@@ -132,6 +145,7 @@ function CasinoHeader({ title, sub, bank }) {
             ${shownBank.toLocaleString()}
           </span>
         </div>
+        <SoundToggle dark />
         <AccountArea dark />
         <a href="index.html" aria-label="Home" style={{
           color: CAS.dim, textDecoration: "none", fontSize: 16, lineHeight: 1,
@@ -149,7 +163,7 @@ function CasinoChip({ value, selected, onClick, size = 46 }) {
     : value === 25 ? { bg: "#1f9d55", fg: "#fff", ring: "#116137" }
     : { bg: "#2e3d52", fg: "#fff", ring: "#1a2433" };
   return (
-    <button onClick={onClick} aria-pressed={!!selected} style={{
+    <button onClick={() => { sfx.chip(); onClick && onClick(); }} aria-pressed={!!selected} style={{
       width: size, height: size, borderRadius: "50%", cursor: "pointer", position: "relative",
       fontFamily: casSans, fontWeight: 900, fontSize: size * 0.3, color: skin.fg,
       background: `radial-gradient(circle at 35% 30%, ${skin.bg}, ${skin.bg} 55%, ${skin.ring})`,

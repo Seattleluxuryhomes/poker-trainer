@@ -889,6 +889,155 @@ function reportStats({ set = {}, inc = {}, maxOf = {} } = {}) {
     acctSaveMirror(m);
     acctPushMirror();
 }
+const SND_KEY = "poker-trainer:sound";
+const SND = { ctx: null, master: null, noiseBuf: null, muted: false, ready: false };
+try {
+    SND.muted = (typeof window !== "undefined") && window.localStorage.getItem(SND_KEY) === "off";
+}
+catch { }
+function sndSaveMuted() {
+    try {
+        window.localStorage.setItem(SND_KEY, SND.muted ? "off" : "on");
+    }
+    catch { }
+}
+function sndCtx() {
+    if (SND.muted || typeof window === "undefined")
+        return null;
+    try {
+        if (!SND.ctx) {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC)
+                return null;
+            SND.ctx = new AC();
+            SND.master = SND.ctx.createGain();
+            SND.master.gain.value = 0.9;
+            SND.master.connect(SND.ctx.destination);
+            const buf = SND.ctx.createBuffer(1, SND.ctx.sampleRate, SND.ctx.sampleRate);
+            const d = buf.getChannelData(0);
+            for (let i = 0; i < d.length; i++)
+                d[i] = Math.random() * 2 - 1;
+            SND.noiseBuf = buf;
+        }
+        if (SND.ctx.state === "suspended")
+            SND.ctx.resume();
+        return SND.ctx;
+    }
+    catch {
+        return null;
+    }
+}
+try {
+    if (typeof document !== "undefined") {
+        document.addEventListener("pointerdown", () => { sndCtx(); }, { capture: true });
+    }
+}
+catch { }
+function sndTone({ freq, type = "sine", when = 0, dur = 0.1, gain = 0.2, endFreq }) {
+    const ctx = sndCtx();
+    if (!ctx)
+        return;
+    try {
+        const t0 = ctx.currentTime + when;
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, t0);
+        if (endFreq)
+            osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), t0 + dur);
+        g.gain.setValueAtTime(gain, t0);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        osc.connect(g);
+        g.connect(SND.master);
+        osc.start(t0);
+        osc.stop(t0 + dur + 0.02);
+    }
+    catch { }
+}
+function sndNoise({ when = 0, dur = 0.06, gain = 0.2, freq = 2000, q = 1, type = "bandpass" }) {
+    const ctx = sndCtx();
+    if (!ctx)
+        return;
+    try {
+        const t0 = ctx.currentTime + when;
+        const src = ctx.createBufferSource();
+        src.buffer = SND.noiseBuf;
+        src.loop = true;
+        src.playbackRate.value = 0.9 + Math.random() * 0.2;
+        const f = ctx.createBiquadFilter();
+        f.type = type;
+        f.frequency.value = freq;
+        f.Q.value = q;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(gain, t0);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        src.connect(f);
+        f.connect(g);
+        g.connect(SND.master);
+        src.start(t0, Math.random());
+        src.stop(t0 + dur + 0.02);
+    }
+    catch { }
+}
+const sfx = {
+    toggle() { SND.muted = !SND.muted; sndSaveMuted(); if (!SND.muted) {
+        sndCtx();
+        sfx.chip();
+    } return SND.muted; },
+    isMuted() { return SND.muted; },
+    chip(when = 0) {
+        const d = 0.93 + Math.random() * 0.14;
+        sndNoise({ when, dur: 0.018, gain: 0.22, freq: 3800, q: 0.8, type: "highpass" });
+        sndTone({ when, freq: 2050 * d, type: "triangle", dur: 0.055, gain: 0.16 });
+        sndTone({ when: when + 0.012, freq: 3300 * d, type: "sine", dur: 0.04, gain: 0.08 });
+    },
+    chips(n = 4) {
+        const count = Math.max(2, Math.min(10, n));
+        for (let i = 0; i < count; i++)
+            sfx.chip(i * (0.045 + Math.random() * 0.02));
+    },
+    card(when = 0) {
+        sndNoise({ when, dur: 0.08, gain: 0.1, freq: 1100, q: 0.7 });
+        sndNoise({ when: when + 0.07, dur: 0.015, gain: 0.14, freq: 2600, q: 1.2 });
+    },
+    cards(n = 5) { for (let i = 0; i < n; i++)
+        sfx.card(i * 0.07); },
+    click() { sndNoise({ dur: 0.012, gain: 0.08, freq: 2200, q: 1 }); },
+    dice(durMs = 900) {
+        const rattleEnd = durMs / 1000 - 0.18;
+        for (let t = 0; t < rattleEnd; t += 0.055 + Math.random() * 0.05) {
+            sndTone({ when: t, freq: 1400 + Math.random() * 1600, type: "square", dur: 0.02, gain: 0.035 });
+        }
+        sndTone({ when: rattleEnd, freq: 190, endFreq: 80, type: "sine", dur: 0.13, gain: 0.3 });
+        sndNoise({ when: rattleEnd, dur: 0.03, gain: 0.15, freq: 900, q: 1 });
+        sndTone({ when: rattleEnd + 0.09, freq: 165, endFreq: 70, type: "sine", dur: 0.12, gain: 0.22 });
+    },
+    spin(totalMs = 3400, dropMs = 2400) {
+        let t = 0, gap = 0.03;
+        const total = totalMs / 1000;
+        while (t < total) {
+            sndNoise({ when: t, dur: 0.012, gain: 0.055, freq: 4200, q: 2, type: "bandpass" });
+            gap *= 1.045;
+            t += gap;
+        }
+        const drop = dropMs / 1000;
+        sndTone({ when: drop, freq: 2600, type: "triangle", dur: 0.04, gain: 0.16 });
+        sndTone({ when: drop + 0.09, freq: 2100, type: "triangle", dur: 0.035, gain: 0.12 });
+        sndTone({ when: drop + 0.16, freq: 1800, type: "triangle", dur: 0.03, gain: 0.09 });
+    },
+    win(big = false) {
+        const notes = big ? [523.25, 659.25, 783.99, 1046.5] : [523.25, 659.25, 783.99];
+        notes.forEach((f, i) => {
+            sndTone({ when: i * 0.085, freq: f, type: "triangle", dur: 0.5, gain: 0.12 });
+            sndTone({ when: i * 0.085, freq: f * 2, type: "sine", dur: 0.35, gain: 0.045 });
+        });
+        sfx.chips(big ? 9 : 5);
+    },
+    boom() {
+        sndTone({ freq: 130, endFreq: 55, type: "sine", dur: 0.5, gain: 0.35 });
+        sndNoise({ dur: 0.12, gain: 0.1, freq: 300, q: 0.7, type: "lowpass" });
+    },
+};
 const T = {
     baize: "#1F423A", baizeHi: "#28534A",
     woodD: "#5E3F26", woodM: "#8A5E37", woodL: "#B9824B",
@@ -905,7 +1054,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.6.1";
+const APP_VERSION = "0.7.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1148,6 +1297,8 @@ function Burst({ fireKey, count = 16 }) {
 }
 function BigWin({ amount, fireKey }) {
     const shown = useCountUp(fireKey ? amount : 0, 900);
+    React.useEffect(() => { if (fireKey && amount > 0)
+        sfx.win(amount >= 200); }, [fireKey]);
     if (!fireKey || amount <= 0)
         return null;
     return (React.createElement("div", { key: fireKey, style: {
@@ -1162,6 +1313,14 @@ function BigWin({ amount, fireKey }) {
             } },
             "+$",
             shown.toLocaleString())));
+}
+function SoundToggle({ dark }) {
+    const [muted, setMuted] = React.useState(sfx.isMuted());
+    return (React.createElement("button", { onClick: () => setMuted(sfx.toggle()), "aria-label": muted ? "Unmute table sounds" : "Mute table sounds", style: {
+            height: dark ? 30 : 34, borderRadius: 9, cursor: "pointer", padding: "0 9px",
+            border: `1px solid ${dark ? "#2c303c" : CAS.line}`, background: "rgba(255,255,255,0.03)",
+            color: muted ? CAS.faint : CAS.gold, fontSize: 13, lineHeight: 1,
+        } }, muted ? "🔇" : "🔊"));
 }
 function CasinoHeader({ title, sub, bank }) {
     const shownBank = useCountUp(bank, 700);
@@ -1187,6 +1346,7 @@ function CasinoHeader({ title, sub, bank }) {
                 React.createElement("span", { style: { fontFamily: casSans, fontSize: 14, fontWeight: 900, color: CAS.gold, fontVariantNumeric: "tabular-nums" } },
                     "$",
                     shownBank.toLocaleString())),
+            React.createElement(SoundToggle, { dark: true }),
             React.createElement(AccountArea, { dark: true }),
             React.createElement("a", { href: "index.html", "aria-label": "Home", style: {
                     color: CAS.dim, textDecoration: "none", fontSize: 16, lineHeight: 1,
@@ -1198,7 +1358,7 @@ function CasinoChip({ value, selected, onClick, size = 46 }) {
         : value === 5 ? { bg: "#c62f2f", fg: "#fff", ring: "#7d1d1d" }
             : value === 25 ? { bg: "#1f9d55", fg: "#fff", ring: "#116137" }
                 : { bg: "#2e3d52", fg: "#fff", ring: "#1a2433" };
-    return (React.createElement("button", { onClick: onClick, "aria-pressed": !!selected, style: {
+    return (React.createElement("button", { onClick: () => { sfx.chip(); onClick && onClick(); }, "aria-pressed": !!selected, style: {
             width: size, height: size, borderRadius: "50%", cursor: "pointer", position: "relative",
             fontFamily: casSans, fontWeight: 900, fontSize: size * 0.3, color: skin.fg,
             background: `radial-gradient(circle at 35% 30%, ${skin.bg}, ${skin.bg} 55%, ${skin.ring})`,
