@@ -279,3 +279,14 @@ step is the enumerated one (or labeled simulated); closing by any route
 (X, backdrop, GOT IT) counts as opt-out. The trainer and hold'em table have
 no guide by design — the trainer explains itself and the table has its own
 onboarding copy.
+
+## High stakes (v0.12.0)
+
+Founder: "you need to be able to bet more redo all." Every casino table's
+rack now runs $5/$25/$100/$500/$1K (roulette keeps its $1), with real
+casino skins — purple for 500, gold for 1000 (labeled 1K) — in CasinoChip.
+Default practice bankrolls moved from $1,000 to $10,000 so the big chips
+are playable, and every felted-restake button (now on blackjack too)
+restakes $10,000. Existing saved bankrolls are untouched — only the
+defaults changed. Still practice chips, still the same enumerated math:
+bet size never changes an edge, and nothing here says otherwise.

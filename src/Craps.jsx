@@ -128,12 +128,12 @@ const CRAPS_BANK_KEY = "poker-trainer:crapsBank";
 function loadCrapsBank() {
   try {
     const raw = window.localStorage.getItem(CRAPS_BANK_KEY);
-    if (raw == null) return 1000;
+    if (raw == null) return 10000;
     const v = Number(raw);
-    return Number.isFinite(v) && v >= 0 ? v : 1000;
-  } catch { return 1000; }
+    return Number.isFinite(v) && v >= 0 ? v : 10000;
+  } catch { return 10000; }
 }
-const DCHIPS = [5, 25, 100];
+const DCHIPS = [5, 25, 100, 500, 1000];
 
 function Die({ v, rolling, delay = 0 }) {
   const pips = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] }[v] || [];
@@ -351,8 +351,8 @@ export default function Craps() {
           <button onClick={() => setLogOpen(true)} style={casGhost()}>FEED</button>
         </div>
         {bank === 0 && staked === 0 && (
-          <button onClick={() => setBank(1000)} style={{ ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` }}>
-            Felted — restake $1,000 practice chips
+          <button onClick={() => setBank(10000)} style={{ ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` }}>
+            Felted — restake $10,000 practice chips
           </button>
         )}
         <div style={{ fontSize: 10.5, color: CAS.faint, lineHeight: 1.65, fontFamily: casMono }}>

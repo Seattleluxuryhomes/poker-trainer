@@ -1066,7 +1066,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.11.0";
+const APP_VERSION = "0.12.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1460,7 +1460,10 @@ function CasinoChip({ value, selected, onClick, size = 46 }) {
     const skin = value === 1 ? { bg: "#e9e6dc", fg: "#14171d", ring: "#b9b4a4" }
         : value === 5 ? { bg: "#c62f2f", fg: "#fff", ring: "#7d1d1d" }
             : value === 25 ? { bg: "#1f9d55", fg: "#fff", ring: "#116137" }
-                : { bg: "#2e3d52", fg: "#fff", ring: "#1a2433" };
+                : value === 100 ? { bg: "#2e3d52", fg: "#fff", ring: "#1a2433" }
+                    : value === 500 ? { bg: "#6d3bb8", fg: "#fff", ring: "#3d1f6e" }
+                        : { bg: "#c9971c", fg: "#231a05", ring: "#7a5a0d" };
+    const label = value >= 1000 ? `${value / 1000}K` : value;
     return (React.createElement("button", { onClick: () => { sfx.chip(); onClick && onClick(); }, "aria-pressed": !!selected, style: {
             width: size, height: size, borderRadius: "50%", cursor: "pointer", position: "relative",
             fontFamily: casSans, fontWeight: 900, fontSize: size * 0.3, color: skin.fg,
@@ -1475,7 +1478,7 @@ function CasinoChip({ value, selected, onClick, size = 46 }) {
                 position: "absolute", inset: 5, borderRadius: "50%",
                 border: `2px dashed rgba(255,255,255,${value === 1 ? 0.5 : 0.55})`, pointerEvents: "none",
             } }),
-        value));
+        label));
 }
 function BetChip({ amount }) {
     return (React.createElement("span", { style: {

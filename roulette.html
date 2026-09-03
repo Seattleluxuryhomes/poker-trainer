@@ -1066,7 +1066,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.11.0";
+const APP_VERSION = "0.12.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1460,7 +1460,10 @@ function CasinoChip({ value, selected, onClick, size = 46 }) {
     const skin = value === 1 ? { bg: "#e9e6dc", fg: "#14171d", ring: "#b9b4a4" }
         : value === 5 ? { bg: "#c62f2f", fg: "#fff", ring: "#7d1d1d" }
             : value === 25 ? { bg: "#1f9d55", fg: "#fff", ring: "#116137" }
-                : { bg: "#2e3d52", fg: "#fff", ring: "#1a2433" };
+                : value === 100 ? { bg: "#2e3d52", fg: "#fff", ring: "#1a2433" }
+                    : value === 500 ? { bg: "#6d3bb8", fg: "#fff", ring: "#3d1f6e" }
+                        : { bg: "#c9971c", fg: "#231a05", ring: "#7a5a0d" };
+    const label = value >= 1000 ? `${value / 1000}K` : value;
     return (React.createElement("button", { onClick: () => { sfx.chip(); onClick && onClick(); }, "aria-pressed": !!selected, style: {
             width: size, height: size, borderRadius: "50%", cursor: "pointer", position: "relative",
             fontFamily: casSans, fontWeight: 900, fontSize: size * 0.3, color: skin.fg,
@@ -1475,7 +1478,7 @@ function CasinoChip({ value, selected, onClick, size = 46 }) {
                 position: "absolute", inset: 5, borderRadius: "50%",
                 border: `2px dashed rgba(255,255,255,${value === 1 ? 0.5 : 0.55})`, pointerEvents: "none",
             } }),
-        value));
+        label));
 }
 function BetChip({ amount }) {
     return (React.createElement("span", { style: {
@@ -1561,16 +1564,16 @@ function loadRouBank() {
     try {
         const raw = window.localStorage.getItem(ROU_BANK_KEY);
         if (raw == null)
-            return 1000;
+            return 10000;
         const v = Number(raw);
-        return Number.isFinite(v) && v >= 0 ? v : 1000;
+        return Number.isFinite(v) && v >= 0 ? v : 10000;
     }
     catch {
-        return 1000;
+        return 10000;
     }
 }
 const SEG = 360 / 38;
-const CHIPS = [1, 5, 25, 100];
+const CHIPS = [1, 5, 25, 100, 500, 1000];
 function Wheel({ spinKey, resultIdx, size }) {
     const turns = React.useRef(0);
     const [ballIn, setBallIn] = React.useState(false);
@@ -1804,7 +1807,7 @@ function Roulette() {
                     React.createElement("button", { onClick: spin, disabled: phase === "spinning" || staked === 0, style: casCta(phase === "spinning" || staked === 0, staked > 0) }, "SPIN"),
                     React.createElement("button", { onClick: clearBets, disabled: phase === "spinning" || staked === 0, style: casGhost() }, "CLEAR"),
                     React.createElement("button", { onClick: rebet, disabled: phase === "spinning" || !lastBets, style: casGhost() }, "REBET")),
-                bank === 0 && staked === 0 && (React.createElement("button", { onClick: () => setBank(1000), style: { ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` } }, "Felted \u2014 restake $1,000 practice chips")),
+                bank === 0 && staked === 0 && (React.createElement("button", { onClick: () => setBank(10000), style: { ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` } }, "Felted \u2014 restake $10,000 practice chips")),
                 React.createElement("div", { style: { fontSize: 10.5, color: CAS.faint, lineHeight: 1.65, fontFamily: casMono } }, "Practice chips only. Every wager here gives the house exactly 2/38 \u2248 5.26% \u2014 the five-number basket (7.89%) is not offered on principle. The math never sleeps; the wheel doesn't care.")))));
 }
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(Roulette));

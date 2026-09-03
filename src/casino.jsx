@@ -283,7 +283,10 @@ function CasinoChip({ value, selected, onClick, size = 46 }) {
   const skin = value === 1 ? { bg: "#e9e6dc", fg: "#14171d", ring: "#b9b4a4" }
     : value === 5 ? { bg: "#c62f2f", fg: "#fff", ring: "#7d1d1d" }
     : value === 25 ? { bg: "#1f9d55", fg: "#fff", ring: "#116137" }
-    : { bg: "#2e3d52", fg: "#fff", ring: "#1a2433" };
+    : value === 100 ? { bg: "#2e3d52", fg: "#fff", ring: "#1a2433" }
+    : value === 500 ? { bg: "#6d3bb8", fg: "#fff", ring: "#3d1f6e" }
+    : { bg: "#c9971c", fg: "#231a05", ring: "#7a5a0d" }; // 1000: the gold one
+  const label = value >= 1000 ? `${value / 1000}K` : value;
   return (
     <button onClick={() => { sfx.chip(); onClick && onClick(); }} aria-pressed={!!selected} style={{
       width: size, height: size, borderRadius: "50%", cursor: "pointer", position: "relative",
@@ -299,7 +302,7 @@ function CasinoChip({ value, selected, onClick, size = 46 }) {
         position: "absolute", inset: 5, borderRadius: "50%",
         border: `2px dashed rgba(255,255,255,${value === 1 ? 0.5 : 0.55})`, pointerEvents: "none",
       }} />
-      {value}
+      {label}
     </button>
   );
 }

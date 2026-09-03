@@ -70,14 +70,14 @@ const ROU_BANK_KEY = "poker-trainer:rouletteBank";
 function loadRouBank() {
   try {
     const raw = window.localStorage.getItem(ROU_BANK_KEY);
-    if (raw == null) return 1000;
+    if (raw == null) return 10000;
     const v = Number(raw);
-    return Number.isFinite(v) && v >= 0 ? v : 1000;
-  } catch { return 1000; }
+    return Number.isFinite(v) && v >= 0 ? v : 10000;
+  } catch { return 10000; }
 }
 
 const SEG = 360 / 38;
-const CHIPS = [1, 5, 25, 100];
+const CHIPS = [1, 5, 25, 100, 500, 1000];
 
 /* The wheel: gold rim, mahogany cone, radial numbers, an orbiting ball that
  * settles into the winning pocket. Numbers sit in per-segment rotated groups,
@@ -357,8 +357,8 @@ export default function Roulette() {
             <button onClick={rebet} disabled={phase === "spinning" || !lastBets} style={casGhost()}>REBET</button>
           </div>
           {bank === 0 && staked === 0 && (
-            <button onClick={() => setBank(1000)} style={{ ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` }}>
-              Felted — restake $1,000 practice chips
+            <button onClick={() => setBank(10000)} style={{ ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` }}>
+              Felted — restake $10,000 practice chips
             </button>
           )}
           <div style={{ fontSize: 10.5, color: CAS.faint, lineHeight: 1.65, fontFamily: casMono }}>

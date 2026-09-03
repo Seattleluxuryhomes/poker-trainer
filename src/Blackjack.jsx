@@ -206,12 +206,12 @@ const BJ_BANK_KEY = "poker-trainer:bjBank";
 function loadBjBank() {
   try {
     const raw = window.localStorage.getItem(BJ_BANK_KEY);
-    if (raw == null) return 1000;
+    if (raw == null) return 10000;
     const v = Number(raw);
-    return Number.isFinite(v) && v >= 0 ? v : 1000;
-  } catch { return 1000; }
+    return Number.isFinite(v) && v >= 0 ? v : 10000;
+  } catch { return 10000; }
 }
-const BJ_CHIPS = [5, 25, 100];
+const BJ_CHIPS = [5, 25, 100, 500, 1000];
 const bjVal = (c) => Math.min(10, c.r);
 
 function BjCard({ card, w, faceDown, delay = 0 }) {
@@ -499,7 +499,12 @@ export default function Blackjack() {
                 {chip > bank ? "not enough chips" : `$${chip} a hand`}
               </div>
             </div>
-            <button onClick={deal} disabled={chip > bank} style={casCta(chip > bank, true)}>DEAL · ${chip}</button>
+            <button onClick={deal} disabled={chip > bank} style={casCta(chip > bank, true)}>DEAL · ${chip.toLocaleString()}</button>
+            {bank < 5 && (
+              <button onClick={() => setBank(10000)} style={{ ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` }}>
+                Felted — restake $10,000 practice chips
+              </button>
+            )}
           </>
         )}
 

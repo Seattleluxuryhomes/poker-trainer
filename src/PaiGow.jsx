@@ -95,12 +95,12 @@ const PG_BANK_KEY = "poker-trainer:paigowBank";
 function loadPgBank() {
   try {
     const raw = window.localStorage.getItem(PG_BANK_KEY);
-    if (raw == null) return 1000;
+    if (raw == null) return 10000;
     const v = Number(raw);
-    return Number.isFinite(v) && v >= 0 ? v : 1000;
-  } catch { return 1000; }
+    return Number.isFinite(v) && v >= 0 ? v : 10000;
+  } catch { return 10000; }
 }
-const PG_CHIPS = [5, 25, 100];
+const PG_CHIPS = [5, 25, 100, 500, 1000];
 
 function PgCard({ card, w, picked, dim, onClick, faceDown }) {
   const red = isRed(card.s);
@@ -326,8 +326,8 @@ export default function PaiGow() {
           <button onClick={deal} disabled={chip > bank} style={casCta(chip > bank, phase !== "set")}>DEAL · ${chip}</button>
         )}
         {bank === 0 && phase !== "set" && (
-          <button onClick={() => setBank(1000)} style={{ ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` }}>
-            Felted — restake $1,000 practice chips
+          <button onClick={() => setBank(10000)} style={{ ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` }}>
+            Felted — restake $10,000 practice chips
           </button>
         )}
         <div style={{
