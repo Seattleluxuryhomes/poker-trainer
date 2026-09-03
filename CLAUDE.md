@@ -264,3 +264,18 @@ behind the wheel, marquee bulbs, twinkles, drifting suits, attract-mode CTA,
 the honest odds ticker (every fact on it is provable in this repo), a proof
 count-up, and THE BACK ROOM section that explains Charity Night in four
 steps with the never-touches-money rule printed at the bottom.
+
+## The table guide (v0.11.0)
+
+Demo mode, founder-requested ("explain what this means, then you can opt
+out"). Guide in src/casino.jsx: a step-card overlay that AUTO-OPENS the
+first time a browser visits each casino page (per-game localStorage key
+`poker-trainer:guide:<game>`), walks the game in plain language, and never
+shows again once closed — the ? button in CasinoHeader (onHelp prop) brings
+it back on demand. Steps live per page (CRAPS_GUIDE, ROULETTE_GUIDE,
+PAIGOW_GUIDE, BJ_GUIDE, VP_GUIDE). Rules: it teaches the TABLE, never plays
+for you — no auto-bets, no nudging toward action; every number quoted in a
+step is the enumerated one (or labeled simulated); closing by any route
+(X, backdrop, GOT IT) counts as opt-out. The trainer and hold'em table have
+no guide by design — the trainer explains itself and the table has its own
+onboarding copy.

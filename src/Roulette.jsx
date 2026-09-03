@@ -156,7 +156,17 @@ function Wheel({ spinKey, resultIdx, size }) {
   );
 }
 
+
+const ROULETTE_GUIDE = [
+  { h: "38 pockets, one ball", p: "This is AMERICAN roulette: numbers 1\u201336 plus 0 and 00. The wheel doesn't remember anything \u2014 every spin, every pocket has exactly a 1-in-38 chance. That's the entire machine." },
+  { h: "Inside bets", p: "Tap a NUMBER to bet it straight up: 1/38 to hit, pays 35:1. Big payout, long odds \u2014 the same edge as everything else on this felt." },
+  { h: "Outside bets", p: "RED/BLACK, ODD/EVEN, 1\u201318/19\u201336 cover 18 pockets each and pay 1:1. Dozens and columns cover 12 and pay 2:1. Easier to hit, smaller payout \u2014 and still the same edge." },
+  { h: "The one honest number", p: "Every single bet here gives the house exactly 2/38 \u2248 5.26%. Not roughly \u2014 exactly, and the tray under the wheel proves it per bet as you tap. The five-number basket (7.89%) isn't offered, on principle.", tag: "EVERY BET \u22122/38, ENUMERATED" },
+  { h: "Place your bets", p: "Pick a chip size, tap any spots, then SPIN. Winning bets burst gold; the rest go quiet. Practice chips only \u2014 the math is real, the money never is.", tag: "PRACTICE CHIPS ONLY" },
+];
+
 export default function Roulette() {
+  const [guideOpen, setGuideOpen] = React.useState(() => guideUnseen("roulette"));
   const [bank, setBank] = React.useState(loadRouBank);
   const [chip, setChip] = React.useState(5);
   const [bets, setBets] = React.useState({});
@@ -256,7 +266,8 @@ export default function Roulette() {
       <style>{CAS_CSS + `
         @keyframes rouBallOrbit { from { transform: rotate(0deg) } to { transform: rotate(-360deg) } }
       `}</style>
-      <CasinoHeader title="ROULETTE" sub="AMERICAN 00 · EVERY EDGE PRINTED · PRACTICE CHIPS" bank={bank} />
+      <CasinoHeader onHelp={() => setGuideOpen(true)} title="ROULETTE" sub="AMERICAN 00 · EVERY EDGE PRINTED · PRACTICE CHIPS" bank={bank} />
+      <Guide game="roulette" title="ROULETTE" steps={ROULETTE_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <div style={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 20, justifyContent: "center", alignItems: "flex-start", padding: "16px 14px 26px", maxWidth: 1060, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
         {/* the wheel side */}

@@ -176,7 +176,19 @@ function Puck({ on, point }) {
   );
 }
 
+
+/* The table guide, in plain words. Every number in it is the enumerated one. */
+const CRAPS_GUIDE = [
+  { h: "Two dice, one story", p: "Craps is a race between a number and the seven. Rolls come in two phases: the COME-OUT (no point yet) and the POINT (the puck flips to ON and shows the number the table is chasing)." },
+  { h: "The come-out roll", p: "Bet the PASS LINE first. If the come-out rolls 7 or 11, you win instantly. 2, 3, or 12 loses (that's \u201ccraps\u201d). Anything else \u2014 4, 5, 6, 8, 9, 10 \u2014 becomes the POINT.", tag: "PASS LINE \u00b7 EDGE 1.41%, ENUMERATED" },
+  { h: "The point phase", p: "Now the race: if the point rolls again before a 7, the pass line wins. If the 7 comes first \u2014 SEVEN OUT \u2014 the pass line loses and the cycle starts over. That's the whole game." },
+  { h: "Free odds: the fair bet", p: "Once a point is set, you can put chips BEHIND your pass bet. These pay TRUE odds \u2014 2:1 on 4/10, 3:2 on 5/9, 6:5 on 6/8 \u2014 which makes the house edge exactly zero. The only bet like it in any casino. Load it every time.", tag: "EDGE 0.00% \u2014 EXACT", green: true },
+  { h: "Don't pass & the field", p: "DON'T PASS is the mirror bet: you win when the seven wins (12 pushes on the come-out). The FIELD is a one-roll side bet on 2/3/4/9/10/11/12. Both print their enumerated edge right on the card." },
+  { h: "Read the felt", p: "Every bet here shows its exact edge \u2014 computed by counting all 36 dice combinations, never estimated. Pick a chip, tap a bet, and ROLL. Practice chips only, always.", tag: "PRACTICE CHIPS ONLY" },
+];
+
 export default function Craps() {
+  const [guideOpen, setGuideOpen] = React.useState(() => guideUnseen("craps"));
   const [bank, setBank] = React.useState(loadCrapsBank);
   const [chip, setChip] = React.useState(5);
   const [game, setGame] = React.useState({ phase: "comeout", point: null, bets: { pass: 0, dontPass: 0, odds: 0, field: 0 } });
@@ -274,7 +286,8 @@ export default function Craps() {
         }
         @keyframes crapsLand { 0% { transform: scale(1.25) rotate(6deg) } 60% { transform: scale(0.94) rotate(-2deg) } 100% { transform: none } }
       `}</style>
-      <CasinoHeader title="CRAPS" sub="PASS · DON'T · FIELD · TRUE ODDS · PRACTICE CHIPS" bank={bank} />
+      <CasinoHeader onHelp={() => setGuideOpen(true)} title="CRAPS" sub="PASS · DON'T · FIELD · TRUE ODDS · PRACTICE CHIPS" bank={bank} />
+      <Guide game="craps" title="CRAPS" steps={CRAPS_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <div style={{ flex: 1, maxWidth: 700, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 }}>
         {/* the felt */}

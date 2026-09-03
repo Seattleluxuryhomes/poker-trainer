@@ -1066,7 +1066,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.10.0";
+const APP_VERSION = "0.11.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1359,7 +1359,60 @@ function SoundToggle({ dark }) {
             color: muted ? CAS.faint : CAS.gold, fontSize: 13, lineHeight: 1,
         } }, muted ? "🔇" : "🔊"));
 }
-function CasinoHeader({ title, sub, bank }) {
+const guideKey = (game) => `poker-trainer:guide:${game}`;
+function guideUnseen(game) {
+    try {
+        return typeof window !== "undefined" && window.localStorage.getItem(guideKey(game)) == null;
+    }
+    catch {
+        return false;
+    }
+}
+function guideMarkSeen(game) {
+    try {
+        window.localStorage.setItem(guideKey(game), "seen");
+    }
+    catch { }
+}
+function Guide({ game, title, steps, open, onClose }) {
+    const [i, setI] = React.useState(0);
+    React.useEffect(() => { if (open)
+        setI(0); }, [open]);
+    if (!open)
+        return null;
+    const s = steps[i];
+    const last = i === steps.length - 1;
+    const done = () => { guideMarkSeen(game); onClose(); };
+    return (React.createElement("div", { onClick: done, style: { position: "fixed", inset: 0, zIndex: 90, background: "rgba(5,7,10,0.72)", backdropFilter: "blur(3px)", display: "flex", alignItems: "flex-end", justifyContent: "center" } },
+        React.createElement("div", { onClick: (e) => e.stopPropagation(), style: {
+                width: "100%", maxWidth: 560, margin: "0 10px calc(14px + env(safe-area-inset-bottom))", borderRadius: 20,
+                background: "linear-gradient(180deg, #141922, #0e1218)", border: `1px solid ${CAS.goldLine}`,
+                boxShadow: `0 -10px 60px rgba(0,0,0,0.7), 0 0 40px ${CAS.goldFaint}`, padding: "18px 20px 16px",
+                animation: "casPop 260ms cubic-bezier(0.2, 1.2, 0.4, 1) both", fontFamily: casSans, color: CAS.text,
+            } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+                React.createElement("span", { style: { fontFamily: casMono, fontSize: 9.5, letterSpacing: "0.22em", color: CAS.gold, fontWeight: 700 } },
+                    "TABLE GUIDE \u00B7 ",
+                    title),
+                React.createElement("span", { style: { marginLeft: "auto", fontFamily: casMono, fontSize: 10, color: CAS.faint } },
+                    i + 1,
+                    " / ",
+                    steps.length),
+                React.createElement("button", { onClick: done, "aria-label": "Close guide", style: {
+                        width: 28, height: 28, borderRadius: 8, cursor: "pointer", border: `1px solid ${CAS.line}`,
+                        background: "rgba(255,255,255,0.03)", color: CAS.dim, fontSize: 14, lineHeight: 1,
+                    } }, "\u00D7")),
+            React.createElement("div", { key: i, style: { animation: "casPop 200ms ease both" } },
+                React.createElement("div", { style: { fontSize: 17, fontWeight: 900, letterSpacing: "-0.01em", color: CAS.cream, margin: "12px 0 6px" } }, s.h),
+                React.createElement("div", { style: { fontSize: 13.5, lineHeight: 1.65, color: CAS.dim, minHeight: 66 } }, s.p),
+                s.tag && (React.createElement("div", { style: { display: "inline-block", marginTop: 10, fontFamily: casMono, fontSize: 10, letterSpacing: "0.05em", color: s.green ? CAS.green : CAS.gold, border: `1px solid ${s.green ? "rgba(0,230,118,0.35)" : CAS.goldLine}`, background: s.green ? "rgba(0,230,118,0.08)" : CAS.goldFaint, borderRadius: 7, padding: "3px 8px" } }, s.tag))),
+            React.createElement("div", { style: { display: "flex", gap: 5, justifyContent: "center", margin: "14px 0 12px" } }, steps.map((_, k) => (React.createElement("span", { key: k, style: { width: k === i ? 18 : 6, height: 6, borderRadius: 3, background: k === i ? CAS.gold : CAS.line, transition: "all 200ms ease" } })))),
+            React.createElement("div", { style: { display: "flex", gap: 8 } },
+                i > 0 && (React.createElement("button", { onClick: () => { sfx.click(); setI(i - 1); }, style: { ...casGhost(), flex: 1 } }, "BACK")),
+                React.createElement("button", { onClick: () => { sfx.click(); last ? done() : setI(i + 1); }, style: { ...casCta(false), flex: 2, padding: "13px 10px" } }, last ? "GOT IT — LET ME PLAY" : "NEXT")),
+            React.createElement("div", { style: { textAlign: "center", marginTop: 9, fontFamily: casMono, fontSize: 9.5, color: CAS.faint } }, "won't show again once closed \u2014 the ? up top brings it back"))));
+}
+function CasinoHeader({ title, sub, bank, onHelp }) {
     const shownBank = useCountUp(bank, 700);
     const [bankFlash, setBankFlash] = React.useState(0);
     const prevBank = React.useRef(bank);
@@ -1391,6 +1444,11 @@ function CasinoHeader({ title, sub, bank }) {
                 React.createElement("span", { style: { fontFamily: casSans, fontSize: 14, fontWeight: 900, color: CAS.gold, fontVariantNumeric: "tabular-nums" } },
                     "$",
                     shownBank.toLocaleString())),
+            onHelp && (React.createElement("button", { onClick: onHelp, "aria-label": "Open the table guide", style: {
+                    height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px",
+                    border: `1px solid ${CAS.line}`, background: "rgba(255,255,255,0.03)",
+                    color: CAS.dim, fontSize: 13, fontWeight: 900, lineHeight: 1, fontFamily: casSans,
+                } }, "?")),
             React.createElement(SoundToggle, { dark: true }),
             React.createElement(AccountArea, { dark: true }),
             React.createElement("a", { href: "index.html", "aria-label": "Home", style: {
@@ -1564,7 +1622,15 @@ function Wheel({ spinKey, resultIdx, size }) {
         spinKey && !ballIn && (React.createElement("div", { style: { position: "absolute", inset: "6%", borderRadius: "50%", animation: "rouBallOrbit 0.5s linear infinite", zIndex: 3 } },
             React.createElement("span", { style: { position: "absolute", top: "4%", left: "50%", width: 10, height: 10, marginLeft: -5, borderRadius: "50%", background: "#f4f2ea", boxShadow: "0 1px 3px rgba(0,0,0,0.8)" } })))));
 }
+const ROULETTE_GUIDE = [
+    { h: "38 pockets, one ball", p: "This is AMERICAN roulette: numbers 1\u201336 plus 0 and 00. The wheel doesn't remember anything \u2014 every spin, every pocket has exactly a 1-in-38 chance. That's the entire machine." },
+    { h: "Inside bets", p: "Tap a NUMBER to bet it straight up: 1/38 to hit, pays 35:1. Big payout, long odds \u2014 the same edge as everything else on this felt." },
+    { h: "Outside bets", p: "RED/BLACK, ODD/EVEN, 1\u201318/19\u201336 cover 18 pockets each and pay 1:1. Dozens and columns cover 12 and pay 2:1. Easier to hit, smaller payout \u2014 and still the same edge." },
+    { h: "The one honest number", p: "Every single bet here gives the house exactly 2/38 \u2248 5.26%. Not roughly \u2014 exactly, and the tray under the wheel proves it per bet as you tap. The five-number basket (7.89%) isn't offered, on principle.", tag: "EVERY BET \u22122/38, ENUMERATED" },
+    { h: "Place your bets", p: "Pick a chip size, tap any spots, then SPIN. Winning bets burst gold; the rest go quiet. Practice chips only \u2014 the math is real, the money never is.", tag: "PRACTICE CHIPS ONLY" },
+];
 function Roulette() {
+    const [guideOpen, setGuideOpen] = React.useState(() => guideUnseen("roulette"));
     const [bank, setBank] = React.useState(loadRouBank);
     const [chip, setChip] = React.useState(5);
     const [bets, setBets] = React.useState({});
@@ -1669,7 +1735,8 @@ function Roulette() {
         React.createElement("style", null, CAS_CSS + `
         @keyframes rouBallOrbit { from { transform: rotate(0deg) } to { transform: rotate(-360deg) } }
       `),
-        React.createElement(CasinoHeader, { title: "ROULETTE", sub: "AMERICAN 00 \u00B7 EVERY EDGE PRINTED \u00B7 PRACTICE CHIPS", bank: bank }),
+        React.createElement(CasinoHeader, { onHelp: () => setGuideOpen(true), title: "ROULETTE", sub: "AMERICAN 00 \u00B7 EVERY EDGE PRINTED \u00B7 PRACTICE CHIPS", bank: bank }),
+        React.createElement(Guide, { game: "roulette", title: "ROULETTE", steps: ROULETTE_GUIDE, open: guideOpen, onClose: () => setGuideOpen(false) }),
         React.createElement("div", { style: { flex: 1, display: "flex", flexWrap: "wrap", gap: 20, justifyContent: "center", alignItems: "flex-start", padding: "16px 14px 26px", maxWidth: 1060, margin: "0 auto", width: "100%", boxSizing: "border-box" } },
             React.createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 12, position: "relative" } },
                 React.createElement(Wheel, { spinKey: spinKey, resultIdx: resultIdx, size: Math.min(320, typeof window !== "undefined" ? window.innerWidth - 56 : 320) }),

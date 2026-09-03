@@ -155,8 +155,76 @@ function SoundToggle({ dark }) {
   );
 }
 
+/* ---- the table guide (demo mode) ----
+ * Every game explains itself in plain language the first time you sit down:
+ * a step-by-step card deck over the felt. "Got it" opts that game out forever
+ * (localStorage, per game); the ? in the header brings it back any time.
+ * It teaches the TABLE, never plays for you — no auto-bets, no nudging. */
+const guideKey = (game) => `poker-trainer:guide:${game}`;
+function guideUnseen(game) {
+  try { return typeof window !== "undefined" && window.localStorage.getItem(guideKey(game)) == null; } catch { return false; }
+}
+function guideMarkSeen(game) {
+  try { window.localStorage.setItem(guideKey(game), "seen"); } catch { /* private mode */ }
+}
+
+function Guide({ game, title, steps, open, onClose }) {
+  const [i, setI] = React.useState(0);
+  React.useEffect(() => { if (open) setI(0); }, [open]);
+  if (!open) return null;
+  const s = steps[i];
+  const last = i === steps.length - 1;
+  const done = () => { guideMarkSeen(game); onClose(); };
+  return (
+    <div onClick={done} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(5,7,10,0.72)", backdropFilter: "blur(3px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        width: "100%", maxWidth: 560, margin: "0 10px calc(14px + env(safe-area-inset-bottom))", borderRadius: 20,
+        background: "linear-gradient(180deg, #141922, #0e1218)", border: `1px solid ${CAS.goldLine}`,
+        boxShadow: `0 -10px 60px rgba(0,0,0,0.7), 0 0 40px ${CAS.goldFaint}`, padding: "18px 20px 16px",
+        animation: "casPop 260ms cubic-bezier(0.2, 1.2, 0.4, 1) both", fontFamily: casSans, color: CAS.text,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontFamily: casMono, fontSize: 9.5, letterSpacing: "0.22em", color: CAS.gold, fontWeight: 700 }}>
+            TABLE GUIDE · {title}
+          </span>
+          <span style={{ marginLeft: "auto", fontFamily: casMono, fontSize: 10, color: CAS.faint }}>{i + 1} / {steps.length}</span>
+          <button onClick={done} aria-label="Close guide" style={{
+            width: 28, height: 28, borderRadius: 8, cursor: "pointer", border: `1px solid ${CAS.line}`,
+            background: "rgba(255,255,255,0.03)", color: CAS.dim, fontSize: 14, lineHeight: 1,
+          }}>×</button>
+        </div>
+        <div key={i} style={{ animation: "casPop 200ms ease both" }}>
+          <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: "-0.01em", color: CAS.cream, margin: "12px 0 6px" }}>{s.h}</div>
+          <div style={{ fontSize: 13.5, lineHeight: 1.65, color: CAS.dim, minHeight: 66 }}>{s.p}</div>
+          {s.tag && (
+            <div style={{ display: "inline-block", marginTop: 10, fontFamily: casMono, fontSize: 10, letterSpacing: "0.05em", color: s.green ? CAS.green : CAS.gold, border: `1px solid ${s.green ? "rgba(0,230,118,0.35)" : CAS.goldLine}`, background: s.green ? "rgba(0,230,118,0.08)" : CAS.goldFaint, borderRadius: 7, padding: "3px 8px" }}>
+              {s.tag}
+            </div>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 5, justifyContent: "center", margin: "14px 0 12px" }}>
+          {steps.map((_, k) => (
+            <span key={k} style={{ width: k === i ? 18 : 6, height: 6, borderRadius: 3, background: k === i ? CAS.gold : CAS.line, transition: "all 200ms ease" }} />
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {i > 0 && (
+            <button onClick={() => { sfx.click(); setI(i - 1); }} style={{ ...casGhost(), flex: 1 }}>BACK</button>
+          )}
+          <button onClick={() => { sfx.click(); last ? done() : setI(i + 1); }} style={{ ...casCta(false), flex: 2, padding: "13px 10px" }}>
+            {last ? "GOT IT — LET ME PLAY" : "NEXT"}
+          </button>
+        </div>
+        <div style={{ textAlign: "center", marginTop: 9, fontFamily: casMono, fontSize: 9.5, color: CAS.faint }}>
+          won't show again once closed — the ? up top brings it back
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* One header for the whole floor: game name under the house style, live bankroll. */
-function CasinoHeader({ title, sub, bank }) {
+function CasinoHeader({ title, sub, bank, onHelp }) {
   const shownBank = useCountUp(bank, 700);
   const [bankFlash, setBankFlash] = React.useState(0);
   const prevBank = React.useRef(bank);
@@ -192,6 +260,13 @@ function CasinoHeader({ title, sub, bank }) {
             ${shownBank.toLocaleString()}
           </span>
         </div>
+        {onHelp && (
+          <button onClick={onHelp} aria-label="Open the table guide" style={{
+            height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px",
+            border: `1px solid ${CAS.line}`, background: "rgba(255,255,255,0.03)",
+            color: CAS.dim, fontSize: 13, fontWeight: 900, lineHeight: 1, fontFamily: casSans,
+          }}>?</button>
+        )}
         <SoundToggle dark />
         <AccountArea dark />
         <a href="index.html" aria-label="Home" style={{

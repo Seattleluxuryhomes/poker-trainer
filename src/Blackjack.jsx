@@ -245,7 +245,17 @@ const bjMoveBtn = (hot) => ({
   boxShadow: hot ? `0 0 18px ${CAS.goldFaint}` : "none",
 });
 
+
+const BJ_GUIDE = [
+  { h: "Get closer to 21 than the dealer", p: "Cards count face value; face cards are 10; an ace is 11 unless that busts you, then it's 1. Go over 21 and you bust \u2014 lose instantly. The dealer plays by a fixed rule: draw to 16, stand on all 17s. No decisions on their side, ever." },
+  { h: "Your four moves", p: "STAND keeps your total. HIT draws a card. DOUBLE doubles your bet, takes exactly one card, and stops. SPLIT (on a pair) plays two hands. A two-card 21 is BLACKJACK and pays 3:2 \u2014 the full, honest rate." },
+  { h: "The numbers on the buttons", p: "That's this casino's whole philosophy on three buttons: each move shows its exact expected value per $1, computed live from the cards actually left in this deck. EV +.615 means that move earns 61.5 cents per dollar in the long run. The \u2605 marks the best one.", tag: "ENUMERATED, NOT ESTIMATED" },
+  { h: "No charts, no memory", p: "Casinos sell \u201cbasic strategy\u201d cards. Here you don't need one: the math that MAKES those charts runs fresh for your exact hand, every decision. Split's label says \u2248 because it's the one honestly-approximate price \u2014 the page explains why." },
+  { h: "Learn by feel", p: "Follow the \u2605 and you're playing perfectly. Ignore it when you're curious \u2014 the EVs show you exactly what a hunch costs. Toggle \u201chide the math\u201d to sweat like a civilian. Practice chips only.", tag: "PRACTICE CHIPS ONLY" },
+];
+
 export default function Blackjack() {
+  const [guideOpen, setGuideOpen] = useState(() => guideUnseen("bj"));
   const [bank, setBank] = useState(loadBjBank);
   const [chip, setChip] = useState(25);
   const [phase, setPhase] = useState("bet"); // bet | play | reveal | done
@@ -401,7 +411,8 @@ export default function Blackjack() {
   return (
     <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "100vh", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
       <style>{CAS_CSS}</style>
-      <CasinoHeader title="BLACKJACK" sub="SINGLE DECK · DEALER STANDS ON 17 · BLACKJACK PAYS 3:2 · PRACTICE CHIPS" bank={bank} />
+      <CasinoHeader onHelp={() => setGuideOpen(true)} title="BLACKJACK" sub="SINGLE DECK · DEALER STANDS ON 17 · BLACKJACK PAYS 3:2 · PRACTICE CHIPS" bank={bank} />
+      <Guide game="bj" title="BLACKJACK" steps={BJ_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <div style={{ flex: 1, maxWidth: 640, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ ...feltPanel("18px 14px"), display: "flex", flexDirection: "column", alignItems: "center", gap: 12, overflow: "hidden" }}>

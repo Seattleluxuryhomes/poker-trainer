@@ -139,7 +139,17 @@ const pgLowName = (cards2) => {
   return s >= 1000000 ? `pair of ${rankLabel(cards2[0].r)}s` : `${rankLabel(cards2[0].r)}-${rankLabel(cards2[1].r)} high`;
 };
 
+
+const PAIGOW_GUIDE = [
+  { h: "Seven cards, two hands", p: "You get seven cards and split them into a FIVE-card high hand and a TWO-card low hand. The dealer does the same. Beat both of the dealer's hands and you win; split one-and-one and it's a push. Pushes are common \u2014 it's a slow, social game." },
+  { h: "The one rule that bites", p: "Your five-card hand must outrank your two-card hand. Set them backwards \u2014 low beats high \u2014 and that's a FOUL: an automatic loss. The table warns you in red before you can foul, so you never lose by accident.", tag: "FOUL-PROOFED" },
+  { h: "How to set", p: "Tap TWO cards for your low hand; the other five become your high hand automatically. Rule of thumb: keep your best poker hand in the five, and put your strongest leftover pair or high cards up front." },
+  { h: "The HOUSE WAY button", p: "Stuck? HOUSE WAY sets your cards exactly the way the dealer is required to set theirs \u2014 the same published algorithm, no secrets. Watch what it does a few times and you'll learn the patterns." },
+  { h: "The commission", p: "Wins pay even money minus a 5% commission \u2014 that's the house's cut, printed, not hidden in the odds. Ties on a hand go to the dealer; that's the second half of the edge. This table's overall edge is SIMULATED on your device and labeled exactly that.", tag: "\u22482.7% \u00b7 SIMULATED, AND IT SAYS SO" },
+];
+
 export default function PaiGow() {
+  const [guideOpen, setGuideOpen] = React.useState(() => guideUnseen("paigow"));
   const [bank, setBank] = React.useState(loadPgBank);
   const [chip, setChip] = React.useState(25);
   const [bet, setBet] = React.useState(0);
@@ -220,7 +230,8 @@ export default function PaiGow() {
   return (
     <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "100vh", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
       <style>{CAS_CSS}</style>
-      <CasinoHeader title="PAI GOW POKER" sub="SET FIVE HIGH · TWO LOW · 5% COMMISSION, PRINTED · PRACTICE CHIPS" bank={bank} />
+      <CasinoHeader onHelp={() => setGuideOpen(true)} title="PAI GOW POKER" sub="SET FIVE HIGH · TWO LOW · 5% COMMISSION, PRINTED · PRACTICE CHIPS" bank={bank} />
+      <Guide game="paigow" title="PAI GOW" steps={PAIGOW_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <div style={{ flex: 1, maxWidth: 640, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ ...feltPanel("18px 14px"), display: "flex", flexDirection: "column", alignItems: "center", gap: 12, overflow: "hidden" }}>

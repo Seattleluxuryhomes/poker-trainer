@@ -89,7 +89,16 @@ function VpCard({ card, w, held, best, faceDown, onClick, delay = 0 }) {
   );
 }
 
+
+const VP_GUIDE = [
+  { h: "Five cards, one draw", p: "Bet 1\u20135 coins and DEAL. You get five cards. Tap the ones you want to KEEP \u2014 they raise up and say HELD \u2014 then DRAW replaces the rest. Your final hand pays by the table up top." },
+  { h: "Read the paytable", p: "The highlighted column is your bet. A pair of jacks or better gets your money back; the royal flush pays 4000 \u2014 but only at max bet (5 coins). That last jump is why serious players always bet 5." },
+  { h: "The HINT knows", p: "Stuck on what to hold? HINT outlines the mathematically best hold in dashed gold \u2014 computed by enumerating every one of the 32 ways to hold and every possible draw. It's the same engine as the Hold Trainer, so the advice can never disagree.", tag: "EXACT ENUMERATION" },
+  { h: "Want to get good?", p: "The HOLD TRAINER (linked below) deals the same hands and shows every option ranked with full explanations \u2014 EV, hit chances, the works. Play here for fun; train there until the right hold is reflex. Practice credits only.", tag: "PRACTICE CHIPS ONLY" },
+];
+
 export default function PokerPlay() {
+  const [guideOpen, setGuideOpen] = useState(() => guideUnseen("play"));
   const [bank, setBank] = useState(loadBank);
   const [bet, setBet] = useState(5);
   const [phase, setPhase] = useState("bet"); // bet | hold | result
@@ -144,7 +153,8 @@ export default function PokerPlay() {
   return (
     <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "100vh", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
       <style>{CAS_CSS}</style>
-      <CasinoHeader title="VIDEO POKER" sub="9/6 JACKS OR BETTER · ROYAL PAYS 4000 AT MAX BET · PRACTICE CHIPS" bank={bank} />
+      <CasinoHeader onHelp={() => setGuideOpen(true)} title="VIDEO POKER" sub="9/6 JACKS OR BETTER · ROYAL PAYS 4000 AT MAX BET · PRACTICE CHIPS" bank={bank} />
+      <Guide game="play" title="VIDEO POKER" steps={VP_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <div style={{ flex: 1, maxWidth: 620, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 }}>
         {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
