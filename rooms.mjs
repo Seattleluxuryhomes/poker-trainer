@@ -71,6 +71,7 @@ function makeRoom({ hostName, charityNight, pledge, userId }) {
     ],
     charityNight: !!charityNight,
     pledges: charityNight && pledge > 0 ? { 0: pledge } : {},
+    donated: {},            // honor ledger: seat -> true, self-marked AFTER the pick
     charity: null,          // {winnerSeat, name, url, endedAt} once the night ends
     timer: null,
     subs: new Set(),        // {seat, res}
@@ -120,7 +121,7 @@ function payloadFor(room, viewerSeat) {
     seats: room.seats.map((s, i) => (s ? { human: true, name: s.name, connected: s.connected > 0 } : { human: false, name: room.state.players[i].name })),
     openSeats: room.seats.filter((s) => !s).length,
     charity: room.charityNight
-      ? { night: true, total, pledges: room.pledges, picked: room.charity, winnerSeat: room.charity ? room.charity.winnerSeat : null }
+      ? { night: true, total, pledges: room.pledges, picked: room.charity, winnerSeat: room.charity ? room.charity.winnerSeat : null, donated: room.donated }
       : { night: false },
     videos: room.videos.map((v) => ({ id: v.id, seat: v.seat, at: v.at })), // metadata only; bytes are fetched authed
   };
@@ -399,6 +400,19 @@ export async function handleRoom(req, res, path, { corsHeaders, userIdFrom }) {
       room.charity.name = name;
       room.charity.url = url || null;
       recordNight(room);
+      broadcast(room);
+      return send(200, { ok: true });
+    }
+
+    if (verb === "donated" && req.method === "POST") {
+      // The honor ledger. Purely self-reported, purely metadata: a player says
+      // "I made my donation, directly, on the charity's own page." The app
+      // still never holds, routes, or verifies a cent — this exists so the
+      // table can celebrate together, not so anyone can be chased.
+      if (!room.charityNight) err(400, "Not a charity night.");
+      if (!room.charity || !room.charity.name) err(409, "Donate after the pick — the charity isn't chosen yet.");
+      if (!(room.pledges[seat] > 0)) err(400, "No pledge at this seat.");
+      room.donated[seat] = true; // idempotent by construction
       broadcast(room);
       return send(200, { ok: true });
     }

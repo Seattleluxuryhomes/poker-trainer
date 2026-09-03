@@ -34,7 +34,7 @@
   a{color:inherit}
 
   /* ---------- entrance hero ---------- */
-  .hero{ position:relative; padding:56px 20px 30px; text-align:center; overflow:hidden }
+  .hero{ position:relative; padding:64px 20px 30px; text-align:center; overflow:hidden }
   .hero::before{ /* the table under the spotlight */
     content:""; position:absolute; left:50%; top:100%; transform:translate(-50%,-52%);
     width:1400px; height:560px; border-radius:50%;
@@ -43,7 +43,7 @@
     pointer-events:none; z-index:-1;
   }
   .wheelmark{
-    width:104px; height:104px; margin:0 auto 20px; position:relative;
+    width:104px; height:104px; margin:0 auto 20px; position:relative; z-index:1;
     animation:markIn 900ms cubic-bezier(0.2,1,0.3,1) both;
   }
   .wheelmark svg{ width:100%; height:100%; animation:slowSpin 36s linear infinite }
@@ -130,6 +130,81 @@
   footer a{ color:var(--dim) }
   .ver{ display:none }
 
+  /* ---------- the lights ---------- */
+  .marquee{ position:relative; height:14px; display:flex; gap:13px; justify-content:center; align-items:center; padding-top:10px }
+  .marquee i{ width:5px; height:5px; border-radius:50%; background:var(--gold); animation:bulb 1.4s ease-in-out infinite }
+  @keyframes bulb{ 0%,100%{ opacity:0.2; box-shadow:none } 50%{ opacity:1; box-shadow:0 0 8px rgba(245,197,66,0.9),0 0 16px rgba(245,197,66,0.45) } }
+
+  /* the hero's hand: a royal flush fanned out from behind the wheel */
+  .fan{ position:absolute; left:50%; top:148px; width:0; height:0; z-index:0; pointer-events:none }
+  .fan .card{
+    position:absolute; left:-29px; bottom:0; width:58px; height:82px; border-radius:8px;
+    background:linear-gradient(160deg,#fdfcf7,#efece1 70%,#ddd8c8); border:1px solid rgba(0,0,0,0.4);
+    box-shadow:0 8px 20px rgba(0,0,0,0.55); transform-origin:50% 130%;
+    display:flex; flex-direction:column; align-items:flex-start; padding:6px 0 0 8px;
+    font-weight:900; font-size:17px; color:#161a22; line-height:1;
+    animation:fanDeal 700ms cubic-bezier(0.2,1.2,0.3,1) both;
+  }
+  .fan .card small{ font-size:15px; margin-top:1px }
+  .fan .card:nth-child(1){ transform:rotate(-56deg); animation-delay:80ms }
+  .fan .card:nth-child(2){ transform:rotate(-28deg); animation-delay:160ms }
+  .fan .card:nth-child(3){ transform:rotate(0deg);   animation-delay:240ms }
+  .fan .card:nth-child(4){ transform:rotate(28deg);  animation-delay:320ms }
+  .fan .card:nth-child(5){ transform:rotate(56deg);  animation-delay:400ms }
+  @keyframes fanDeal{ from{ opacity:0; transform:translateY(26px) rotate(0) } }
+
+  /* twinkles + drifting suits: the room is alive */
+  .tw{ position:absolute; color:var(--gold); text-shadow:0 0 8px rgba(245,197,66,0.55); pointer-events:none;
+    animation:tw 2.6s ease-in-out infinite }
+  @keyframes tw{ 0%,100%{ opacity:0; transform:scale(0.3) } 50%{ opacity:0.95; transform:scale(1) rotate(20deg) } }
+  .drift{ position:absolute; bottom:-30px; color:rgba(245,197,66,0.10); font-size:26px; pointer-events:none;
+    animation:drift linear infinite }
+  @keyframes drift{ from{ transform:translateY(0) rotate(0) } to{ transform:translateY(-115vh) rotate(60deg); opacity:0 } }
+
+  .cta{
+    display:inline-block; margin-top:26px; padding:16px 44px; border-radius:14px; text-decoration:none;
+    font-weight:900; font-size:15px; letter-spacing:0.1em; color:#00230f;
+    background:linear-gradient(180deg,#2aff8f,#00e676 55%,#00a854);
+    box-shadow:0 6px 20px rgba(0,230,118,0.35), inset 0 1px 0 rgba(255,255,255,0.35);
+    animation:riseIn 700ms 480ms cubic-bezier(0.2,1,0.3,1) both, attract 1.8s 1.2s ease-in-out infinite;
+  }
+  @keyframes attract{ 0%,100%{ box-shadow:0 6px 20px rgba(0,230,118,0.35), inset 0 1px 0 rgba(255,255,255,0.35) }
+    50%{ box-shadow:0 6px 32px rgba(0,230,118,0.75), 0 0 26px rgba(0,230,118,0.4), inset 0 1px 0 rgba(255,255,255,0.5) } }
+
+  /* the odds ticker: an honest casino sign */
+  .ticker{ overflow:hidden; border-block:1px solid var(--line); background:rgba(255,255,255,0.015); margin-top:26px }
+  .ticker-track{ display:flex; gap:44px; white-space:nowrap; width:max-content; padding:9px 0;
+    font-family:var(--mono); font-size:11px; letter-spacing:0.06em; color:var(--dim);
+    animation:tick 38s linear infinite }
+  .ticker-track b{ color:var(--gold); font-weight:700 }
+  .ticker-track .g{ color:var(--green) }
+  @keyframes tick{ from{ transform:translateX(0) } to{ transform:translateX(-50%) } }
+
+  /* the back room: charity night */
+  .backroom{
+    max-width:1020px; margin:6px auto 30px; padding:0 18px; width:100%;
+  }
+  .backroom-inner{
+    position:relative; overflow:hidden; border-radius:20px; padding:30px 26px;
+    background:
+      radial-gradient(90% 130% at 50% -20%, rgba(0,230,118,0.12), transparent 60%),
+      var(--panel);
+    border:1px solid rgba(0,230,118,0.3);
+  }
+  .backroom h3{ margin:0 0 4px; font-size:12px; font-weight:900; letter-spacing:0.3em; color:var(--green) }
+  .backroom h2{ margin:0 0 10px; font-size:clamp(22px,4.5vw,30px); font-weight:900; letter-spacing:-0.02em; color:var(--cream) }
+  .backroom p{ margin:0 0 8px; font-size:14px; line-height:1.65; color:var(--dim); max-width:640px }
+  .backroom p b{ color:var(--text); font-weight:600 }
+  .br-steps{ display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); margin:18px 0 20px }
+  .br-step{ border:1px solid var(--line); border-radius:14px; padding:14px; background:rgba(0,0,0,0.25) }
+  .br-step .n{ font-family:var(--mono); font-size:10px; color:var(--green); letter-spacing:0.15em }
+  .br-step .s{ font-size:13px; color:var(--text); font-weight:600; margin-top:5px; line-height:1.45 }
+  .br-cta{ display:inline-block; padding:13px 30px; border-radius:12px; text-decoration:none; font-weight:900;
+    font-size:13px; letter-spacing:0.08em; color:var(--green); border:1px solid rgba(0,230,118,0.5);
+    background:rgba(0,230,118,0.1) }
+  .br-cta:hover{ background:rgba(0,230,118,0.18) }
+  .br-note{ font-family:var(--mono); font-size:10.5px; color:var(--faint); margin-top:14px }
+
   @keyframes riseIn{ from{ opacity:0; transform:translateY(16px) } to{ opacity:1; transform:none } }
   @keyframes markIn{ from{ opacity:0; transform:scale(0.7) } to{ opacity:1; transform:none } }
   @keyframes slowSpin{ from{ transform:rotate(0) } to{ transform:rotate(360deg) } }
@@ -138,7 +213,28 @@
 </style>
 </head>
 <body>
+  <div class="marquee" aria-hidden="true">
+    <i></i><i style="animation-delay:.12s"></i><i style="animation-delay:.24s"></i><i style="animation-delay:.36s"></i><i style="animation-delay:.48s"></i><i style="animation-delay:.6s"></i><i style="animation-delay:.72s"></i><i style="animation-delay:.84s"></i><i style="animation-delay:.96s"></i><i style="animation-delay:1.08s"></i><i style="animation-delay:1.2s"></i><i style="animation-delay:1.32s"></i><i style="animation-delay:1.44s"></i>
+  </div>
   <section class="hero">
+    <span class="tw" style="left:16%;top:22%;font-size:13px">&#10022;</span>
+    <span class="tw" style="left:82%;top:16%;font-size:17px;animation-delay:.7s">&#10022;</span>
+    <span class="tw" style="left:70%;top:58%;font-size:11px;animation-delay:1.3s">&#10022;</span>
+    <span class="tw" style="left:26%;top:64%;font-size:15px;animation-delay:1.9s">&#10022;</span>
+    <span class="tw" style="left:90%;top:44%;font-size:12px;animation-delay:.4s">&#10022;</span>
+    <span class="tw" style="left:8%;top:46%;font-size:12px;animation-delay:2.2s">&#10022;</span>
+    <span class="drift" style="left:8%;animation-duration:26s">&#9824;</span>
+    <span class="drift" style="left:24%;animation-duration:34s;animation-delay:6s">&#9829;</span>
+    <span class="drift" style="left:58%;animation-duration:30s;animation-delay:12s">&#9830;</span>
+    <span class="drift" style="left:76%;animation-duration:38s;animation-delay:3s">&#9827;</span>
+    <span class="drift" style="left:90%;animation-duration:28s;animation-delay:17s">&#9824;</span>
+    <div class="fan" aria-hidden="true">
+      <div class="card">10<small>&#9824;</small></div>
+      <div class="card">J<small>&#9824;</small></div>
+      <div class="card">Q<small>&#9824;</small></div>
+      <div class="card">K<small>&#9824;</small></div>
+      <div class="card">A<small>&#9824;</small></div>
+    </div>
     <div class="wheelmark" aria-hidden="true">
       <svg viewBox="-100 -100 200 200">
         <circle r="98" fill="none" stroke="#8a6508" stroke-width="4"/>
@@ -158,13 +254,18 @@
     </p>
     <div class="badges">
       <span class="badge gold">EVERY EDGE PRINTED</span>
-      <span class="badge">434 AUTOMATED PROOFS</span>
+      <span class="badge"><span id="proofs">504</span> AUTOMATED PROOFS</span>
       <span class="badge">PRACTICE CHIPS ONLY</span>
       <span class="badge">OPEN SOURCE</span>
     </div>
+    <a class="cta" href="#floor">STEP ONTO THE FLOOR</a>
   </section>
 
-  <main class="floor">
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track" id="tick"></div>
+  </div>
+
+  <main class="floor" id="floor">
     <div class="floorhead"><h2>THE FLOOR</h2><div class="rule"></div></div>
     <div class="cards">
       <a class="option" href="table.html" style="--i:0">
@@ -292,11 +393,34 @@
     </div>
   </main>
 
+  <section class="backroom">
+    <div class="backroom-inner">
+      <h3>THE BACK ROOM</h3>
+      <h2>Charity Night</h2>
+      <p>
+        Host a private table, and the night plays for something real — <b>without a single dollar
+        ever touching this app</b>. Everyone names a pledge on the way in. Whoever finishes on top
+        doesn't win money; they win the right to <b>choose where everyone's pledge goes</b>.
+      </p>
+      <div class="br-steps">
+        <div class="br-step"><div class="n">01 · PLEDGE</div><div class="s">Each player names their number joining the room. It's a promise, not a payment.</div></div>
+        <div class="br-step"><div class="n">02 · PLAY</div><div class="s">Real hold'em, all night — video, chat, the all-in broadcast, the whole show.</div></div>
+        <div class="br-step"><div class="n">03 · THE PICK</div><div class="s">The night's leader chooses the charity and shares its own donation page.</div></div>
+        <div class="br-step"><div class="n">04 · THE HONOR LEDGER</div><div class="s">Everyone donates directly on the charity's page, then marks it done. The table celebrates when the last one lands.</div></div>
+      </div>
+      <a class="br-cta" href="table.html">HOST A CHARITY NIGHT &#8250;</a>
+      <div class="br-note">
+        The app never holds, routes, or verifies money — pledges and the ledger are words between
+        friends. Donations happen on the charity's own site, receipts come from the charity.
+      </div>
+    </div>
+  </section>
+
   <footer>
     Built on the training-loop DNA of <a href="https://github.com/ghug/cribbage-trainer">cribbage-trainer</a>
     (public domain): objective enumeration, never heuristics. Practice stats and bankrolls stay
     with you — nothing is wagered, bought, or sold, anywhere, ever.
-    <span class="ver" id="ver">0.9.0</span>
+    <span class="ver" id="ver">0.10.0</span>
   </footer>
 
   <script>
@@ -317,7 +441,32 @@
         path.setAttribute("stroke-width", "0.6");
         g.appendChild(path);
       }
-      var v = "0.9.0";
+      // the honest ticker: every number on it is provable in this repo
+      var facts = [
+        "ROULETTE &middot; EVERY BET <b>&minus;2/38</b>, ENUMERATED",
+        "CRAPS PASS LINE &middot; P(WIN) <b>244/495</b>",
+        "FREE ODDS &middot; HOUSE EDGE <span class='g'>0.00%</span>, THE ONLY FAIR BET",
+        "FIELD (12 PAYS TRIPLE) &middot; EV <b>&minus;1/36</b> PER UNIT",
+        "BLACKJACK &middot; EVERY DECISION PRICED LIVE, <b>NO CHARTS</b>",
+        "9/6 JACKS OR BETTER &middot; ROYAL <b>4000</b> AT MAX BET",
+        "PAI GOW &middot; EDGE SIMULATED ON YOUR DEVICE, <b>LABELED</b>",
+        "ALL-IN &middot; LIVE WIN % AT EVERY SEAT",
+        "PRACTICE CHIPS &middot; <span class='g'>$0 REAL, EVER</span>"
+      ];
+      var track = document.getElementById("tick");
+      track.innerHTML = facts.concat(facts).map(function (f) { return "<span>" + f + "</span>"; }).join("");
+
+      // proofs count up on arrival
+      var target = 504, el2 = document.getElementById("proofs"), t0 = null;
+      function stepUp(ts) {
+        if (!t0) t0 = ts;
+        var k = Math.min(1, (ts - t0) / 1100);
+        el2.textContent = Math.round(target * (1 - Math.pow(1 - k, 3)));
+        if (k < 1) requestAnimationFrame(stepUp);
+      }
+      requestAnimationFrame(stepUp);
+
+      var v = "0.10.0";
       if (v.indexOf("-dev") !== -1) { var el = document.getElementById("ver"); el.style.display = "inline"; }
     })();
   </script>

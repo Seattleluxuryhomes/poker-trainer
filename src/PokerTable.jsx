@@ -910,21 +910,43 @@ function RoomTable({ code }) {
               {state.message}
             </div>
           )}
-          {charity.picked && charity.picked.name && (
-            <div style={{ background: "rgba(0,230,118,0.1)", border: "1px solid rgba(0,230,118,0.45)", borderRadius: 12, padding: "10px 16px", textAlign: "center", maxWidth: "90%" }}>
-              <div style={{ fontSize: 13.5, fontWeight: 800, color: N.green }}>
-                {state.players[charity.winnerSeat].name} picked {charity.picked.name}
+          {charity.picked && charity.picked.name && (() => {
+            const pledgers = Object.keys(charity.pledges).map(Number).filter((s) => charity.pledges[s] > 0);
+            const donatedCount = pledgers.filter((s) => charity.donated && charity.donated[s]).length;
+            const allIn = pledgers.length > 0 && donatedCount === pledgers.length;
+            const iPledged = charity.pledges[mySeat] > 0;
+            const iDonated = charity.donated && charity.donated[mySeat];
+            return (
+              <div style={{ position: "relative", background: allIn ? "rgba(255,213,79,0.12)" : "rgba(0,230,118,0.1)", border: `1px solid ${allIn ? "rgba(255,213,79,0.55)" : "rgba(0,230,118,0.45)"}`, borderRadius: 12, padding: "10px 16px", textAlign: "center", maxWidth: "90%" }}>
+                {allIn && <Burst fireKey={donatedCount} count={14} />}
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: allIn ? N.gold : N.green }}>
+                  {allIn ? `THE WHOLE TABLE CAME THROUGH FOR ${charity.picked.name.toUpperCase()}` : `${state.players[charity.winnerSeat].name} picked ${charity.picked.name}`}
+                </div>
+                <div style={{ fontSize: 12, color: "#c9cfda", marginTop: 3 }}>
+                  ${charity.total.toLocaleString()} pledged · everyone donates their own pledge, directly:
+                </div>
+                {charity.picked.url && (
+                  <a href={charity.picked.url} target="_blank" rel="noreferrer" style={{ color: N.gold, fontWeight: 800, fontSize: 13 }}>
+                    {charity.picked.url}
+                  </a>
+                )}
+                <div style={{ fontSize: 11.5, fontFamily: mono, color: N.dim, marginTop: 6 }}>
+                  {donatedCount} of {pledgers.length} donations made (on their honor)
+                </div>
+                {iPledged && !iDonated && (
+                  <button onClick={() => { sfx.win(false); post("donated"); }} style={{
+                    marginTop: 8, padding: "9px 20px", borderRadius: 10, cursor: "pointer",
+                    fontFamily: sans, fontSize: 12.5, fontWeight: 900, letterSpacing: "0.04em",
+                    border: "1px solid rgba(0,230,118,0.6)", background: "linear-gradient(180deg, rgba(0,230,118,0.25), rgba(0,230,118,0.1))",
+                    color: N.green,
+                  }}>✓ I MADE MY DONATION</button>
+                )}
+                {iPledged && iDonated && (
+                  <div style={{ marginTop: 6, fontSize: 12, fontWeight: 800, color: N.gold }}>your ${charity.pledges[mySeat]} is in — thank you ✦</div>
+                )}
               </div>
-              <div style={{ fontSize: 12, color: "#c9cfda", marginTop: 3 }}>
-                The table pledged ${charity.total.toLocaleString()} — everyone donates their own pledge directly:
-              </div>
-              {charity.picked.url && (
-                <a href={charity.picked.url} target="_blank" rel="noreferrer" style={{ color: N.gold, fontWeight: 800, fontSize: 13 }}>
-                  {charity.picked.url}
-                </a>
-              )}
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         <div style={{ position: "absolute", left: "50%", bottom: 0, transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", zIndex: 4, opacity: you.folded && state.phase === "betting" ? 0.5 : 1 }}>

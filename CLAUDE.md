@@ -244,3 +244,23 @@ settlement conservation, and the universal basic-strategy poles (11v6 double,
 The suite caught a real bug on first run: bjSettle returned the stake on a
 plain loss. Also v0.9.0: play.html (video poker) moved onto the casino design
 kit - same engine, same paytable law, new room.
+
+## Charity Night, first-class (v0.10.0)
+
+The founder keeps asking for real-money/crypto play; the standing answer is
+NO (unlicensed gambling — refused on 2026-09-01 and again 2026-09-02; WA RCW
+9.46.240 makes online wagering for anything of value a felony, and "the app
+has free will"/"we'll pay the taxes" don't change operator liability). What
+ships instead is Charity Night as the flagship social mode. New in v0.10.0:
+the HONOR LEDGER — after the night's leader picks the charity, each pledger
+can mark "I made my donation" (POST /room/:code/donated, only valid after
+the pick, idempotent, metadata only, self-reported); the table banner shows
+X-of-Y and celebrates when the last donation lands. The invariant is
+unchanged and non-negotiable: the app NEVER holds, routes, verifies, or pays
+money — pledges and the ledger are words between friends; donations happen
+on the charity's own site. verify_rooms covers the ledger (41 checks).
+The landing (v0.10.0 rebuild) got the cinematic entrance: royal-flush fan
+behind the wheel, marquee bulbs, twinkles, drifting suits, attract-mode CTA,
+the honest odds ticker (every fact on it is provable in this repo), a proof
+count-up, and THE BACK ROOM section that explains Charity Night in four
+steps with the never-touches-money rule printed at the bottom.

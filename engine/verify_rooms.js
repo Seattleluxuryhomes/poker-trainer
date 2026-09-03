@@ -9,6 +9,7 @@
  *   - a full hand plays to completion with two humans + two server bots,
  *     chips conserved;
  *   - charity night: end-night names the chip leader, only the leader may pick,
+ *     the donated honor ledger opens only after the pick and is idempotent,
  *     https enforced, the night lands in SQLite and the signed-in host's
  *     `raised` tally grows by their pledge.
  */
@@ -182,6 +183,7 @@ async function main() {
     const loserKey = seatKeys[loserSeat];
     const winnerKey = seatKeys[winnerSeat];
     check((await call("POST", `/room/${code}/charity`, { seat: loserSeat, key: loserKey, name: "X" })).status === 403, "only the leader picks the charity");
+    check((await call("POST", `/room/${code}/donated`, { seat: 0, key: hostKey })).status === 409, "the honor ledger opens only after the pick");
     if (winnerKey) {
       check((await call("POST", `/room/${code}/charity`, { seat: winnerSeat, key: winnerKey, name: "Food Lifeline", url: "http://insecure" })).status === 400, "non-https charity link rejected");
       const picked = await call("POST", `/room/${code}/charity`, { seat: winnerSeat, key: winnerKey, name: "Food Lifeline", url: "https://foodlifeline.org/donate" });
@@ -195,6 +197,13 @@ async function main() {
       check(night && night.charity_name === "Food Lifeline" && night.total_pledged === 20000, "the night is recorded (metadata only)");
       const me = await call("GET", "/auth/me", null, hostToken);
       check(me.body.stats.raised === 5000, `the signed-in host's raised tally grew by their pledge (got ${me.body.stats.raised})`);
+
+      /* the honor ledger: self-reported, idempotent, metadata only */
+      check((await call("POST", `/room/${code}/donated`, { seat: 0, key: hostKey })).status === 200, "a pledger marks their donation made");
+      check((await call("POST", `/room/${code}/donated`, { seat: 0, key: hostKey })).status === 200, "marking twice is a harmless no-op");
+      const withLedger = await waitFor(ben, (p) => p.charity.donated && p.charity.donated[0]);
+      check(!!withLedger, "the ledger reaches every screen");
+      check(withLedger && Object.keys(withLedger.charity.donated).length === 1, "only the seats that marked appear in the ledger");
     }
 
     ben.close(); marcus.close();
