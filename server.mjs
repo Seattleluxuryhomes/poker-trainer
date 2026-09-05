@@ -22,7 +22,7 @@ const PORT = process.env.PORT || 8080;
 
 assertSecretStrength();
 if (accountsEnabled()) openDb();
-else console.log("JWT_SECRET not set — accounts API disabled (503); static site unaffected");
+else console.log("no JWT secret (env unset and disk unwritable) — accounts API disabled (503); static site unaffected");
 
 const FILES = new Map([
   ["/", "index.html"],

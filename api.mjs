@@ -24,7 +24,35 @@ import { get, all, run, purgeLedgers, logEvent } from "./db.mjs";
 
 const ACCESS_HOURS = parseInt(process.env.ACCESS_TOKEN_EXPIRE_HOURS || "168", 10); // their default: 7 days
 const DELETE_GRACE_DAYS = 30;
-const JWT_SECRET = process.env.JWT_SECRET || "";
+/* The signing secret. maybe.love REQUIRES the env var at boot; this port
+ * deliberately deviates (documented, founder ask "I don't think I need to
+ * install variables"): when JWT_SECRET is unset, a 64-hex-char secret is
+ * generated ONCE and persisted next to the database, chmod 600. Same trust
+ * boundary as the env var — anyone who can read that disk can read the DB it
+ * protects. An explicit env JWT_SECRET always wins. Note: without a durable
+ * disk (the Railway volume), a redeploy makes a fresh secret AND a fresh DB
+ * together, so accounts reset as one — never a half-broken state. */
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { dirname, join as joinPath } from "node:path";
+function provisionSecret() {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  const secretPath = joinPath(dirname(process.env.DB_PATH || "./data/poker.db"), "jwt-secret");
+  try {
+    const s = readFileSync(secretPath, "utf8").trim();
+    if (s.length >= 32) return s;
+  } catch { /* first boot */ }
+  try {
+    mkdirSync(dirname(secretPath), { recursive: true });
+    const s = randomBytes(32).toString("hex");
+    writeFileSync(secretPath, s, { mode: 0o600 });
+    console.log("JWT secret self-provisioned at " + secretPath);
+    return s;
+  } catch (e) {
+    console.error("could not provision a JWT secret:", e.message);
+    return ""; // accounts stay disabled rather than running unsigned
+  }
+}
+const JWT_SECRET = provisionSecret();
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean);
 const AVATARS = ["🂠", "♠️", "♥️", "♦️", "♣️", "🎩", "🦊", "🦈", "🐺", "🃏", "🤠", "👑"];
 

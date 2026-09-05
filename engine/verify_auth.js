@@ -157,6 +157,50 @@ async function main() {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 
+  /* ---- zero-config mode: no JWT_SECRET anywhere ----
+   * The server must provision its own secret, persist it beside the DB, and a
+   * RESTART on the same disk must honor tokens minted before it. This is the
+   * founder's "I don't think I need to install variables" made a contract. */
+  {
+    const tmp2 = fs.mkdtempSync(path.join(os.tmpdir(), "poker-auth-zc-"));
+    const PORT2 = PORT + 1;
+    const env2 = { ...process.env, PORT: String(PORT2), DB_PATH: path.join(tmp2, "zc.db") };
+    delete env2.JWT_SECRET;
+    delete env2.REQUIRE_STRONG_SECRETS;
+    const boot = () => {
+      const p = spawn(process.execPath, [path.join(__dirname, "..", "server.mjs")], { env: env2 });
+      return p;
+    };
+    const waitUp = async () => {
+      for (let i = 0; i < 60; i++) {
+        try { const r = await fetch(`http://127.0.0.1:${PORT2}/api/health`); if (r.ok) return r.json(); } catch { /* booting */ }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      throw new Error("zero-config server did not start");
+    };
+    let p2 = boot();
+    try {
+      const health = await waitUp();
+      check(health.accounts === true, "no env vars at all: accounts are still ON (self-provisioned secret)");
+      const secretOnDisk = fs.readFileSync(path.join(tmp2, "jwt-secret"), "utf8").trim();
+      check(secretOnDisk.length === 64, "the provisioned secret is 64 hex chars beside the DB");
+      const su = await (await fetch(`http://127.0.0.1:${PORT2}/api/auth/signup`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "zc@test.com", password: "secret1234", display_name: "ZC", age_confirmed: true, date_of_birth: "1985-04-12" }),
+      })).json();
+      check(!!su.token, "signup works with zero configuration");
+      p2.kill();
+      await new Promise((r) => setTimeout(r, 300));
+      p2 = boot();
+      await waitUp();
+      const me = await fetch(`http://127.0.0.1:${PORT2}/api/auth/me`, { headers: { authorization: `Bearer ${su.token}` } });
+      check(me.status === 200, "after a restart on the same disk, the old token still works (secret persisted)");
+    } finally {
+      p2.kill();
+      fs.rmSync(tmp2, { recursive: true, force: true });
+    }
+  }
+
   console.log(fail === 0 ? `✓ verify_auth: all ${ok} checks passed` : `✗ verify_auth: ${fail} of ${ok + fail} checks FAILED`);
   process.exit(fail === 0 ? 0 : 1);
 }

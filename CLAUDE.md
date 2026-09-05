@@ -96,9 +96,14 @@ email infra exists: forgot/reset-password, email verification, Google.
 Porting gotchas carried from their recorded bugs: ownerView EVERYWHERE a
 user goes back to its owner; the public allowlist; never leak a DB id.
 `engine/verify_auth.js` boots the real server and re-proves all of it.
-Env: JWT_SECRET (required for accounts; absent = API answers 503 and the
-site stays guest-only), DB_PATH (Railway volume at /data), CORS_ORIGINS,
-ACCESS_TOKEN_EXPIRE_HOURS, REQUIRE_STRONG_SECRETS. Node ≥22.5 (node:sqlite).
+Env: JWT_SECRET (OPTIONAL since v0.14.0 — absent, the server provisions a
+64-hex-char secret once and persists it beside the DB, chmod 600; an env
+secret always wins; this is a documented deviation from maybe.love's
+required-at-boot guard, at the founder's ask), DB_PATH (Railway volume at
+/data), CORS_ORIGINS, ACCESS_TOKEN_EXPIRE_HOURS, REQUIRE_STRONG_SECRETS.
+Node ≥22.5 (node:sqlite). WITHOUT a durable disk a redeploy resets secret
+and DB together (accounts wipe as one, never half-broken) — the volume is
+the one remaining founder step for durable accounts.
 
 ## Known limitations / next steps (in order)
 
@@ -325,3 +330,16 @@ PRODUCTION CHECKLIST still on the founder (accounts stay hidden until
 done): Railway → Variables → JWT_SECRET (32+ random chars); Railway →
 volume mounted at /data + DB_PATH=/data/poker.db. Everything else runs
 guest-mode regardless.
+
+## Zero-config accounts (v0.14.0)
+
+Founder: "I don't think I need to install variables." Correct now: with no
+env vars at all, api.mjs provisions its own JWT secret (provisionSecret()),
+so accounts are ON by default in every deployment. verify_auth proves the
+contract: boot with no JWT_SECRET → health says accounts:true, signup
+works, the secret file is 64 hex chars beside the DB, and a RESTART on the
+same disk honors tokens minted before it (52 checks). The one thing code
+cannot do is attach persistent storage to Railway — without the /data
+volume, each deploy starts a fresh DB+secret pair. Sessions/accounts reset
+together and cleanly, but they DO reset; the volume remains the single
+recommended dashboard step for real durability.
