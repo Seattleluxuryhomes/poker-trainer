@@ -1066,7 +1066,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.14.0";
+const APP_VERSION = "0.14.1";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1159,7 +1159,6 @@ function AuthModal({ onClose }) {
     const [email, setEmail] = React.useState("");
     const [password, setPassword] = React.useState("");
     const [displayName, setDisplayName] = React.useState("");
-    const [dob, setDob] = React.useState("");
     const [ageOk, setAgeOk] = React.useState(false);
     const [msg, setMsg] = React.useState(null);
     const [busy, setBusy] = React.useState(false);
@@ -1172,7 +1171,7 @@ function AuthModal({ onClose }) {
             if (mode === "signin")
                 await acctSignin(email, password);
             else
-                await acctSignup({ email, password, display_name: displayName, date_of_birth: dob, age_confirmed: ageOk });
+                await acctSignup({ email, password, display_name: displayName, age_confirmed: ageOk });
             onClose();
         }
         catch (e) {
@@ -1205,12 +1204,10 @@ function AuthModal({ onClose }) {
             React.createElement("input", { style: fieldStyle, type: "password", placeholder: "password (8+ characters)", value: password, autoComplete: mode === "signin" ? "current-password" : "new-password", onChange: (e) => setPassword(e.target.value) }),
             mode === "signup" && (React.createElement(React.Fragment, null,
                 React.createElement("input", { style: fieldStyle, placeholder: "display name (shows at the table)", maxLength: 40, value: displayName, onChange: (e) => setDisplayName(e.target.value) }),
-                React.createElement("div", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, margin: "2px 0 4px" } }, "Date of birth"),
-                React.createElement("input", { style: fieldStyle, type: "date", value: dob, onChange: (e) => setDob(e.target.value) }),
                 React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "flex-start", fontFamily: mono, fontSize: 11.5, color: T.cream, margin: "4px 0 10px", cursor: "pointer" } },
                     React.createElement("input", { type: "checkbox", checked: ageOk, onChange: (e) => setAgeOk(e.target.checked), style: { marginTop: 2 } }),
                     React.createElement("span", null, "I confirm I am 18 or older.")),
-                React.createElement("div", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, lineHeight: 1.5, marginBottom: 10 } }, "We store: your email, display name, date of birth, avatar, and practice stats (chips, hands, trainer accuracy). Nothing else \u2014 no tracking, no analytics, practice chips only. Export or delete everything any time from your profile. Playing never requires an account."))),
+                React.createElement("div", { style: { fontFamily: mono, fontSize: 10.5, color: T.muted, lineHeight: 1.5, marginBottom: 10 } }, "We store: your email, display name, avatar, and practice stats (chips, hands, trainer accuracy). No birthday, no tracking, no analytics \u2014 practice chips only. Export or delete everything any time from your profile. Playing never requires an account."))),
             msg && React.createElement("div", { style: { fontFamily: mono, fontSize: 11.5, color: msg.err ? T.pegRed : T.good, margin: "2px 0 8px", lineHeight: 1.4 } }, msg.text),
             restorable && (React.createElement("button", { onClick: doRestore, disabled: busy, style: { ...segStyle(true), width: "100%", marginBottom: 8 } }, "Restore my account")),
             React.createElement("button", { onClick: go, disabled: busy, style: { ...segStyle(true), width: "100%", padding: "11px 6px", fontSize: 13 } }, busy ? "…" : mode === "signin" ? "Sign in" : "Create account"),

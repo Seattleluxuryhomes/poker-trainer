@@ -171,7 +171,6 @@ function AuthModal({ onClose }) {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [displayName, setDisplayName] = React.useState("");
-  const [dob, setDob] = React.useState("");
   const [ageOk, setAgeOk] = React.useState(false);
   const [msg, setMsg] = React.useState(null);       // {err|note, text}
   const [busy, setBusy] = React.useState(false);
@@ -181,7 +180,7 @@ function AuthModal({ onClose }) {
     setBusy(true); setMsg(null); setRestorable(false);
     try {
       if (mode === "signin") await acctSignin(email, password);
-      else await acctSignup({ email, password, display_name: displayName, date_of_birth: dob, age_confirmed: ageOk });
+      else await acctSignup({ email, password, display_name: displayName, age_confirmed: ageOk });
       onClose();
     } catch (e) {
       if (e.status === 410) setRestorable(true);
@@ -208,17 +207,15 @@ function AuthModal({ onClose }) {
           <>
             <input style={fieldStyle} placeholder="display name (shows at the table)" maxLength={40}
               value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-            <div style={{ fontFamily: mono, fontSize: 10.5, color: T.muted, margin: "2px 0 4px" }}>Date of birth</div>
-            <input style={fieldStyle} type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
             <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontFamily: mono, fontSize: 11.5, color: T.cream, margin: "4px 0 10px", cursor: "pointer" }}>
               <input type="checkbox" checked={ageOk} onChange={(e) => setAgeOk(e.target.checked)} style={{ marginTop: 2 }} />
               <span>I confirm I am 18 or older.</span>
             </label>
             <div style={{ fontFamily: mono, fontSize: 10.5, color: T.muted, lineHeight: 1.5, marginBottom: 10 }}>
-              We store: your email, display name, date of birth, avatar, and practice
-              stats (chips, hands, trainer accuracy). Nothing else — no tracking, no
-              analytics, practice chips only. Export or delete everything any time
-              from your profile. Playing never requires an account.
+              We store: your email, display name, avatar, and practice stats
+              (chips, hands, trainer accuracy). No birthday, no tracking, no
+              analytics — practice chips only. Export or delete everything any
+              time from your profile. Playing never requires an account.
             </div>
           </>
         )}

@@ -73,8 +73,10 @@ special-cases the ace-high straight (A-10-J-Q-K) and the royal.
 - GUEST data stays in this browser (localStorage); playing never requires an
   account, on any surface, ever. ACCOUNT data (deliberate amendment, founder
   ruling "trust is the most important") syncs to the poker backend and is:
-  minimal (email, display name, DOB, avatar, practice stats, metadata-only
-  events), one-tap exportable, one-tap deletable (30-day restore window, then
+  minimal (email, display name, avatar, practice stats, metadata-only
+  events — NO birthday since v0.14.1, founder ruling "don't ask for
+  birthday. this is practice": the 18+ gate is a one-tap attestation, no
+  date collected or stored), one-tap exportable, one-tap deletable (30-day restore window, then
   gone), never analyzed, never sold, no tracking. The leaderboard is OPT-IN
   (default off) and its endpoint serializes through an explicit allowlist —
   a field not on the list cannot leak.
@@ -343,3 +345,15 @@ cannot do is attach persistent storage to Railway — without the /data
 volume, each deploy starts a fresh DB+secret pair. Sessions/accounts reset
 together and cleanly, but they DO reset; the volume remains the single
 recommended dashboard step for real durability.
+
+## No birthday (v0.14.1)
+
+Founder ruling: "don't ask for birthday. this is practice." The 18+ gate is
+now a one-tap ATTESTATION (age_confirmed, still checked before any DB
+write); no date_of_birth is collected, stored, or echoed anywhere — signup,
+ownerView, and the export are all proven birthday-free by verify_auth (53
+checks). This deviates from the maybe.love port's DOB+computed-age gate,
+deliberately: a practice app with no wagering has no legal basis to demand
+a birthdate, and the trust rule is minimal data. The users table keeps its
+(now nullable) date_of_birth/age columns so pre-v0.14.1 rows stay valid;
+new rows write NULL.

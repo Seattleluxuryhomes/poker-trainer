@@ -105,7 +105,7 @@ function ownerView(u) {
   // The ONE way a user row goes back to its owner. Never the hash, never internals.
   return {
     id: u.id, email: u.email, display_name: u.display_name, avatar: u.avatar,
-    date_of_birth: u.date_of_birth, age: u.age, role: u.role,
+    role: u.role, // date_of_birth/age no longer collected (v0.14.1); old rows keep theirs in the DB until deleted
     leaderboard_ok: !!u.leaderboard_ok, created_at: u.created_at,
   };
 }
@@ -168,17 +168,12 @@ function signup(req, body) {
   const name = String(body.display_name || "").trim();
   if (name.length < 1 || name.length > 40) err(400, "Display name must be 1-40 characters");
 
-  // The 18+ gate, verbatim: confirmed + parseable DOB + computed age, all BEFORE any user write.
+  // The 18+ gate, reduced to an ATTESTATION (founder ruling 2026-09-05,
+  // "don't ask for birthday. this is practice"): one checkbox, still checked
+  // BEFORE any user write, and no birthdate is collected or stored — this is
+  // a practice app with no wagering, and the trust rule is minimal data.
+  // (Deviation from the maybe.love port's DOB+computed-age gate, documented.)
   if (!body.age_confirmed) err(400, "Must confirm 18+");
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(body.date_of_birth || ""));
-  const dob = m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null;
-  if (!dob || Number.isNaN(dob.getTime()) || dob.getUTCMonth() !== +m[2] - 1 || dob.getUTCDate() !== +m[3])
-    err(400, "Invalid date_of_birth (YYYY-MM-DD)");
-  const today = new Date();
-  let age = today.getUTCFullYear() - dob.getUTCFullYear();
-  if (today.getUTCMonth() < dob.getUTCMonth() ||
-      (today.getUTCMonth() === dob.getUTCMonth() && today.getUTCDate() < dob.getUTCDate())) age -= 1;
-  if (age < 18) err(400, "You must be 18 or older to use Poker Trainer");
 
   const email = String(body.email).toLowerCase();
   if (get("SELECT id FROM users WHERE email = ?", email)) err(409, "Email already registered");
@@ -186,8 +181,8 @@ function signup(req, body) {
   // SEC-001 (theirs, kept): never grant admin via signup.
   const uid = randomUUID();
   run(`INSERT INTO users (id, email, password_hash, display_name, date_of_birth, age, age_confirmed, role, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, 'user', ?)`,
-    uid, email, hashPw(body.password), name, body.date_of_birth, age, nowIso());
+       VALUES (?, ?, ?, ?, NULL, NULL, 1, 'user', ?)`,
+    uid, email, hashPw(body.password), name, nowIso());
   run("INSERT INTO stats (user_id, updated_at) VALUES (?, ?)", uid, nowIso());
   logEvent(uid, "signup", {});
   const user = get("SELECT * FROM users WHERE id = ?", uid);

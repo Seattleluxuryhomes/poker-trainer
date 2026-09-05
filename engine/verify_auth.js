@@ -81,17 +81,16 @@ async function main() {
     }
 
     /* signup contracts */
-    const su = await call("POST", "/auth/signup", { email: "Ben@Test.com", password: "secret1234", display_name: "Ben", age_confirmed: true, date_of_birth: "1985-04-12" });
+    const su = await call("POST", "/auth/signup", { email: "Ben@Test.com", password: "secret1234", display_name: "Ben", age_confirmed: true });
     check(su.status === 200 && su.body.token && su.body.user.email === "ben@test.com", "signup returns a session, email lowercased");
     check(su.body.user.id && !("password_hash" in su.body.user), "owner view has an id and no hash");
     check(su.body.stats.bankroll === 200 && su.body.stats.table_stack === 5000, "fresh stats carry the app defaults");
-    const dup = await call("POST", "/auth/signup", { email: "ben@test.com", password: "secret1234", display_name: "Ben2", age_confirmed: true, date_of_birth: "1985-04-12" });
+    const dup = await call("POST", "/auth/signup", { email: "ben@test.com", password: "secret1234", display_name: "Ben2", age_confirmed: true });
     check(dup.status === 409, `duplicate email is 409 (got ${dup.status})`);
-    const young = await call("POST", "/auth/signup", { email: "kid@test.com", password: "secret1234", display_name: "Kid", age_confirmed: true, date_of_birth: new Date().getFullYear() - 17 + "-01-01" });
-    check(young.status === 400, "17-year-old rejected");
-    const unconfirmed = await call("POST", "/auth/signup", { email: "x@test.com", password: "secret1234", display_name: "X", age_confirmed: false, date_of_birth: "1985-04-12" });
+    check(!("date_of_birth" in su.body.user) && !("age" in su.body.user), "no birthday collected, none echoed (practice app, minimal data)");
+    const unconfirmed = await call("POST", "/auth/signup", { email: "x@test.com", password: "secret1234", display_name: "X", age_confirmed: false });
     check(unconfirmed.status === 400 && /18\+/.test(unconfirmed.body.detail), "age_confirmed is required");
-    const shortpw = await call("POST", "/auth/signup", { email: "y@test.com", password: "short", display_name: "Y", age_confirmed: true, date_of_birth: "1985-04-12" });
+    const shortpw = await call("POST", "/auth/signup", { email: "y@test.com", password: "short", display_name: "Y", age_confirmed: true });
     check(shortpw.status === 400, "short password rejected");
 
     /* signin + token contracts */
@@ -122,7 +121,7 @@ async function main() {
     check(evil.body.stats.table_stack === 1e9, "values are clamped to sane bounds");
 
     /* leaderboard: opted-in only + allowlist */
-    const su2 = await call("POST", "/auth/signup", { email: "quiet@test.com", password: "secret1234", display_name: "Quiet", age_confirmed: true, date_of_birth: "1990-01-01" });
+    const su2 = await call("POST", "/auth/signup", { email: "quiet@test.com", password: "secret1234", display_name: "Quiet", age_confirmed: true });
     const lb = await call("GET", "/leaderboard");
     check(lb.status === 200 && lb.body.players.length === 1 && lb.body.players[0].display_name === "Ben", "leaderboard lists ONLY opted-in players");
     const lbKeys = Object.keys(lb.body.players[0]).sort().join(",");
@@ -131,6 +130,7 @@ async function main() {
     /* export */
     const ex = await call("GET", "/auth/export", null, tok);
     check(ex.status === 200 && ex.body.user && ex.body.stats && Array.isArray(ex.body.events), "export returns everything held");
+    check(!JSON.stringify(ex.body).includes("date_of_birth"), "the export holds no birthday — we never took one");
 
     /* soft delete -> 410 (password-gated) -> restore */
     const del = await call("DELETE", "/auth/me", null, su2.body.token);
@@ -186,7 +186,7 @@ async function main() {
       check(secretOnDisk.length === 64, "the provisioned secret is 64 hex chars beside the DB");
       const su = await (await fetch(`http://127.0.0.1:${PORT2}/api/auth/signup`, {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: "zc@test.com", password: "secret1234", display_name: "ZC", age_confirmed: true, date_of_birth: "1985-04-12" }),
+        body: JSON.stringify({ email: "zc@test.com", password: "secret1234", display_name: "ZC", age_confirmed: true }),
       })).json();
       check(!!su.token, "signup works with zero configuration");
       p2.kill();
