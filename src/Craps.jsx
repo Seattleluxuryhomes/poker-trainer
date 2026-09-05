@@ -14,6 +14,7 @@ import React, { useState, useEffect } from "react";
    ============================================================ */
 
 /* ---- dice truth, by enumeration ---- */
+const PLACE_NUMS = [4, 5, 6, 8, 9, 10];
 function diceWays(total) {
   let n = 0;
   for (let a = 1; a <= 6; a++) for (let b = 1; b <= 6; b++) if (a + b === total) n++;
@@ -58,6 +59,16 @@ function fieldEvPerUnit() {
 function oddsPayout(point) {
   return { 4: 2, 10: 2, 5: 1.5, 9: 1.5, 6: 1.2, 8: 1.2 }[point];
 }
+/* Place bets: back a number directly, paid at the casino's shaved ratios.
+ * True odds vs paid odds is the whole story, so both are printed. */
+function placeRatio(n) {
+  return { 4: 9 / 5, 10: 9 / 5, 5: 7 / 5, 9: 7 / 5, 6: 7 / 6, 8: 7 / 6 }[n];
+}
+/* Edge per resolved bet, exact from dice ways: (loseWays − winWays·ratio) / (winWays + loseWays). */
+function placeEdgeExact(n) {
+  const w = diceWays(n), l = diceWays(7);
+  return (l - w * placeRatio(n)) / (w + l);
+}
 
 /* ---- the pure state machine: one roll in, settlements out ----
  * state: { phase: "comeout"|"point", point, bets: {pass, dontPass, odds, field} }
@@ -65,10 +76,12 @@ function oddsPayout(point) {
  * player this roll (stakes were deducted when placed). */
 function resolveRoll(state, d1, d2) {
   const t = d1 + d2;
-  const s = { phase: state.phase, point: state.point, bets: { ...state.bets } };
+  const s = { phase: state.phase, point: state.point, bets: { ...state.bets, place: { ...(state.bets.place || {}) } } };
   let credit = 0;
   const events = [];
   const b = s.bets;
+  const pl = b.place;
+  const anyPlace = PLACE_NUMS.some((n) => pl[n] > 0);
 
   // field resolves every roll
   if (b.field > 0) {
@@ -80,6 +93,7 @@ function resolveRoll(state, d1, d2) {
   }
 
   if (s.phase === "comeout") {
+    if (t === 7 && anyPlace) events.push("Place bets are OFF on the come-out — they survive the seven");
     if (t === 7 || t === 11) {
       if (b.pass > 0) { credit += b.pass * 2; events.push(`Natural ${t} — pass line wins +$${b.pass}`); b.pass = 0; }
       if (b.dontPass > 0) { events.push(`Natural ${t} — don't pass loses`); b.dontPass = 0; }
@@ -97,8 +111,18 @@ function resolveRoll(state, d1, d2) {
       events.push(`Point is ${t} — the ${t} races the seven`);
     }
   } else {
+    if (pl[t] > 0 && t !== s.point) {
+      const winnings = Math.floor(pl[t] * placeRatio(t));
+      credit += winnings;
+      events.push(`Place ${t} hits — pays ${t === 6 || t === 8 ? "7:6" : t === 4 || t === 10 ? "9:5" : "7:5"}: +$${winnings} (bet stays working)`);
+    }
     if (t === s.point) {
       events.push(`Point ${t} made!`);
+      if (pl[t] > 0) {
+        const winnings = Math.floor(pl[t] * placeRatio(t));
+        credit += winnings;
+        events.push(`Place ${t} hits too: +$${winnings} (bet stays working)`);
+      }
       if (b.pass > 0) { credit += b.pass * 2; events.push(`Pass line wins +$${b.pass}`); b.pass = 0; }
       if (b.odds > 0) {
         const pay = oddsPayout(s.point);
@@ -113,6 +137,7 @@ function resolveRoll(state, d1, d2) {
       events.push("SEVEN OUT");
       if (b.pass > 0) { events.push("Pass line loses"); b.pass = 0; }
       if (b.odds > 0) { events.push("Odds lose"); b.odds = 0; }
+      for (const n of PLACE_NUMS) if (pl[n] > 0) { events.push(`Place ${n} loses`); pl[n] = 0; }
       if (b.dontPass > 0) { credit += b.dontPass * 2; events.push(`Don't pass wins +$${b.dontPass}`); b.dontPass = 0; }
       s.phase = "comeout"; s.point = null;
     } else {
@@ -184,6 +209,7 @@ const CRAPS_GUIDE = [
   { h: "The point phase", p: "Now the race: if the point rolls again before a 7, the pass line wins. If the 7 comes first \u2014 SEVEN OUT \u2014 the pass line loses and the cycle starts over. That's the whole game." },
   { h: "Free odds: the fair bet", p: "Once a point is set, you can put chips BEHIND your pass bet. These pay TRUE odds \u2014 2:1 on 4/10, 3:2 on 5/9, 6:5 on 6/8 \u2014 which makes the house edge exactly zero. The only bet like it in any casino. Load it every time.", tag: "EDGE 0.00% \u2014 EXACT", green: true },
   { h: "Don't pass & the field", p: "DON'T PASS is the mirror bet: you win when the seven wins (12 pushes on the come-out). The FIELD is a one-roll side bet on 2/3/4/9/10/11/12. Both print their enumerated edge right on the card." },
+  { h: "Place bets", p: "Want a number NOW? Place the 4, 5, 6, 8, 9, or 10 directly \u2014 it pays every time that number rolls before a seven, and the bet stays up after each hit. The casino shaves the payout (6/8 pay 7:6 instead of true 6:5) and that shave IS the edge, printed on each box. They only work while a point is on." },
   { h: "Read the felt", p: "Every bet here shows its exact edge \u2014 computed by counting all 36 dice combinations, never estimated. Pick a chip, tap a bet, and ROLL. Practice chips only, always.", tag: "PRACTICE CHIPS ONLY" },
 ];
 
@@ -191,7 +217,7 @@ export default function Craps() {
   const [guideOpen, setGuideOpen] = React.useState(() => guideUnseen("craps"));
   const [bank, setBank] = React.useState(loadCrapsBank);
   const [chip, setChip] = React.useState(5);
-  const [game, setGame] = React.useState({ phase: "comeout", point: null, bets: { pass: 0, dontPass: 0, odds: 0, field: 0 } });
+  const [game, setGame] = React.useState({ phase: "comeout", point: null, bets: { pass: 0, dontPass: 0, odds: 0, field: 0, place: { 4: 0, 5: 0, 6: 0, 8: 0, 9: 0, 10: 0 } } });
   const [dice, setDice] = React.useState([3, 4]);
   const [rolling, setRolling] = React.useState(false);
   const [feed, setFeed] = React.useState(["Welcome to the rail. Pass line, then roll."]);
@@ -203,8 +229,22 @@ export default function Craps() {
   React.useEffect(() => { try { window.localStorage.setItem(CRAPS_BANK_KEY, String(bank)); } catch { /* private */ } }, [bank]);
 
   const b = game.bets;
-  const staked = b.pass + b.dontPass + b.field + b.odds;
+  const placeTotal = PLACE_NUMS.reduce((a, n) => a + (b.place[n] || 0), 0);
+  const staked = b.pass + b.dontPass + b.field + b.odds + placeTotal;
   const say = (lines) => setFeed((f) => [...f, ...lines].slice(-60));
+
+  const placeNum = (n) => {
+    if (rolling || chip > bank) return;
+    sfx.chip();
+    setBank((v) => v - chip);
+    setGame((g) => ({ ...g, bets: { ...g.bets, place: { ...g.bets.place, [n]: g.bets.place[n] + chip } } }));
+  };
+  const takeDownPlaces = () => {
+    if (rolling || placeTotal === 0) return;
+    sfx.chips(3);
+    setBank((v) => v + placeTotal);
+    setGame((g) => ({ ...g, bets: { ...g.bets, place: { 4: 0, 5: 0, 6: 0, 8: 0, 9: 0, 10: 0 } } }));
+  };
 
   const place = (kind) => {
     if (rolling || chip > bank) return;
@@ -230,8 +270,9 @@ export default function Craps() {
       clearInterval(shake);
       setDice([d1, d2]);
       const out = resolveRoll(game, d1, d2);
-      const stakedBefore = game.bets.pass + game.bets.dontPass + game.bets.odds + game.bets.field;
-      const stakedAfter = out.state.bets.pass + out.state.bets.dontPass + out.state.bets.odds + out.state.bets.field;
+      const placeSum = (bets) => PLACE_NUMS.reduce((a, n) => a + (bets.place[n] || 0), 0);
+      const stakedBefore = game.bets.pass + game.bets.dontPass + game.bets.odds + game.bets.field + placeSum(game.bets);
+      const stakedAfter = out.state.bets.pass + out.state.bets.dontPass + out.state.bets.odds + out.state.bets.field + placeSum(out.state.bets);
       const resolvedStake = stakedBefore - stakedAfter;
       const net = out.credit - resolvedStake;
       setGame(out.state);
@@ -286,7 +327,7 @@ export default function Craps() {
         }
         @keyframes crapsLand { 0% { transform: scale(1.25) rotate(6deg) } 60% { transform: scale(0.94) rotate(-2deg) } 100% { transform: none } }
       `}</style>
-      <CasinoHeader onHelp={() => setGuideOpen(true)} title="CRAPS" sub="PASS · DON'T · FIELD · TRUE ODDS · PRACTICE CHIPS" bank={bank} />
+      <CasinoHeader onHelp={() => setGuideOpen(true)} title="CRAPS" sub="PASS · DON'T · FIELD · PLACE · TRUE ODDS · PRACTICE CHIPS" bank={bank} />
       <Guide game="craps" title="CRAPS" steps={CRAPS_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <div style={{ flex: 1, maxWidth: 700, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -337,6 +378,40 @@ export default function Craps() {
         <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
           {betCard("odds", `FREE ODDS${game.point ? ` · ${oddsPayout(game.point)}:1 TRUE` : ""}`, "Behind your pass bet once a point is set. Up to 3×.", 0, game.phase === "point" && b.pass > 0)}
           {betCard("field", "FIELD", "One roll: 2/3/4/9/10/11/12 win. 2 pays double, 12 pays TRIPLE.", fieldEdge, true)}
+        </div>
+
+        {/* the place row: back a number directly; pays shaved, edge printed, exact */}
+        <div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "2px 2px 7px" }}>
+            <span style={{ fontFamily: casMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.18em", color: CAS.faint }}>PLACE BETS · WORK ONLY WITH A POINT ON</span>
+            {placeTotal > 0 && !rolling && (
+              <button onClick={takeDownPlaces} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontFamily: casMono, fontSize: 10, color: CAS.gold, textDecoration: "underline", padding: 0 }}>
+                take all down (${placeTotal.toLocaleString()})
+              </button>
+            )}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 7 }}>
+            {PLACE_NUMS.map((n) => (
+              <button key={n} onClick={() => placeNum(n)} disabled={rolling} style={{
+                position: "relative", padding: "9px 2px 7px", borderRadius: 11, cursor: "pointer", textAlign: "center",
+                border: `1.5px solid ${b.place[n] > 0 ? CAS.gold : "rgba(245,197,66,0.18)"}`,
+                background: b.place[n] > 0 ? "linear-gradient(180deg, rgba(245,197,66,0.14), rgba(245,197,66,0.05))" : "rgba(255,255,255,0.045)",
+                color: CAS.cream, fontFamily: casSans,
+                boxShadow: b.place[n] > 0 ? `0 0 12px ${CAS.goldFaint}` : "inset 0 -2px 0 rgba(0,0,0,0.25)",
+                opacity: game.phase === "point" ? 1 : 0.65,
+              }}>
+                <div style={{ fontSize: 17, fontWeight: 900 }}>{n}</div>
+                <div style={{ fontSize: 8.5, fontFamily: casMono, color: CAS.dim }}>{n === 6 || n === 8 ? "7:6" : n === 4 || n === 10 ? "9:5" : "7:5"}</div>
+                <div style={{ fontSize: 8.5, fontFamily: casMono, color: CAS.goldDim, fontWeight: 700 }}>{(placeEdgeExact(n) * 100).toFixed(2)}%</div>
+                {b.place[n] > 0 && (
+                  <div style={{ position: "absolute", top: -8, right: -4 }}><BetChip amount={b.place[n]} /></div>
+                )}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontFamily: casMono, fontSize: 9.5, color: CAS.faint, marginTop: 6, lineHeight: 1.5 }}>
+            hits pay and STAY WORKING · all lost on SEVEN OUT · OFF on the come-out · pay exactly in multiples of $6 on 6/8, $5 elsewhere · edges exact from the 36 dice ways
+          </div>
         </div>
 
         {/* rail */}

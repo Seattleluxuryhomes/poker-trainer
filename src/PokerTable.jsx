@@ -46,12 +46,12 @@ function useViewportWidth() {
 
 function TableCard({ card, w }) {
   const red = isRed(card.s);
-  const col = red ? N.red : "#e8ebf2";
+  const col = red ? "#c62828" : "#161a22";
   return (
     <div style={{
       width: w, height: Math.round(w * 1.42), borderRadius: Math.max(8, w * 0.14),
-      background: `linear-gradient(160deg, #21252e, ${N.card} 60%)`,
-      border: `1px solid ${N.line2}`, boxShadow: "0 6px 14px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.05)",
+      background: "linear-gradient(160deg, #fdfcf7, #efece1 70%, #ddd8c8)",
+      border: "1px solid rgba(0,0,0,0.4)", boxShadow: "0 6px 14px rgba(0,0,0,0.55)",
       position: "relative", color: col, flex: "0 0 auto",
     }}>
       <div style={{ position: "absolute", top: w * 0.1, left: w * 0.14, lineHeight: 1, textAlign: "center" }}>
@@ -330,7 +330,7 @@ function SoloTable() {
     setState((s) => (s.phase === "betting" && s.toAct === USER_SEAT ? applyAction(s, action) : s));
   };
 
-  const OPP_SPOTS = [{ x: 14, y: 24 }, { x: 50, y: 9 }, { x: 86, y: 24 }];
+  const OPP_SPOTS = [{ x: 14, y: 26 }, { x: 50, y: 13 }, { x: 86, y: 26 }];
   const vw = useViewportWidth();
   const boardW = clampN(38, Math.round(vw * 0.115), 54);
   const holeW = clampN(54, Math.round(vw * 0.16), 74);
@@ -368,9 +368,9 @@ function SoloTable() {
       `}</style>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px 6px", flex: "0 0 auto" }}>
-        <div>
-          <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: "0.12em", color: N.dim }}>vs ACE MERIDIAN · WORLD #1</span>
-          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", color: N.faint, marginLeft: 8 }}>PRACTICE CHIPS ONLY</span>
+        <div style={{ minWidth: 0, marginRight: 8 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: "0.12em", color: N.dim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>vs ACE MERIDIAN · WORLD #1</div>
+          <div style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: "0.06em", color: N.faint }}>PRACTICE CHIPS ONLY</div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <SoundToggle dark />
@@ -788,7 +788,7 @@ function RoomTable({ code }) {
   /* --- the table (server-driven) --- */
   const you = state.players[mySeat];
   const others = [1, 2, 3].map((k) => (mySeat + k) % 4);
-  const OPP_SPOTS = [{ x: 14, y: 26 }, { x: 50, y: 11 }, { x: 86, y: 26 }];
+  const OPP_SPOTS = [{ x: 14, y: 27 }, { x: 50, y: 14 }, { x: 86, y: 27 }];
   const equities = payload.equities;
   const leadSeat = equities ? Number(Object.keys(equities).reduce((a, b) => (equities[a] >= equities[b] ? a : b))) : -1;
   const vw2 = Math.min(typeof window !== "undefined" ? window.innerWidth : 400, 900);

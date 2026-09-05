@@ -12,7 +12,7 @@
 <meta property="og:title" content="Craps" />
 <meta property="og:description" content="Craps with pass, don't pass, field, and true-odds free odds - the zero-edge bet, labeled. Practice chips only." />
 <title>Craps</title>
-<style>html,body{margin:0;background:#0f2417;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation}button,a{touch-action:manipulation}#root{min-height:100vh}input,textarea{-webkit-user-select:text;user-select:text}</style>
+<style>html,body{margin:0;background:#0a0c10;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}#root{min-height:100vh}input,textarea{-webkit-user-select:text;user-select:text}</style>
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
 </head>
@@ -1051,22 +1051,22 @@ const sfx = {
     },
 };
 const T = {
-    baize: "#1F423A", baizeHi: "#28534A",
-    woodD: "#5E3F26", woodM: "#8A5E37", woodL: "#B9824B",
-    pegRed: "#C8412B", pegIvory: "#ECDCB4",
-    ivory: "#F6EFDE", ink: "#241D14", suitRed: "#A8362A",
-    cream: "#ECE0C6", muted: "#C9BC9A", line: "rgba(236,224,182,0.16)",
-    good: "#5FA47C", goodDeep: "#3F7E5E", selBlue: "#5B95C2", gold: "#D9A441",
+    baize: "#141922", baizeHi: "#1a212c",
+    woodD: "#0c0f14", woodM: "#12161d", woodL: "#1a2028",
+    pegRed: "#e14b42", pegIvory: "#f5c542",
+    ivory: "#F6EFDE", ink: "#101318", suitRed: "#c62828",
+    cream: "#e8ebf2", muted: "#96a0b0", line: "#232833",
+    good: "#00c96b", goodDeep: "#00854a", selBlue: "#5B95C2", gold: "#f5c542",
 };
 const SUIT = ["♠", "♥", "♦", "♣"];
 const isRed = (s) => s === 1 || s === 2;
 const rankLabel = (r) => (r === 1 ? "A" : r === 11 ? "J" : r === 12 ? "Q" : r === 13 ? "K" : String(r));
 const tag = (c) => `${rankLabel(c.r)}${SUIT[c.s]}`;
 const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
-const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
+const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.12.0";
+const APP_VERSION = "0.13.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1226,7 +1226,7 @@ function AccountArea({ dark }) {
         return null;
     const skin = dark
         ? { border: "1px solid #2c303c", background: "rgba(255,255,255,0.04)", color: "#c9cfda" }
-        : { border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)", color: "#2A1B0E" };
+        : { border: "1px solid #232833", background: "rgba(255,255,255,0.04)", color: "#e8ebf2" };
     const h = dark ? 30 : 40;
     return (React.createElement(React.Fragment, null,
         acct.user ? (React.createElement("a", { href: "profile.html", title: "Your profile", style: {
@@ -1511,6 +1511,7 @@ const casGhost = () => ({
     background: "rgba(255,255,255,0.05)", color: CAS.text, border: `1px solid ${CAS.line}`,
 });
 const { useState, useEffect } = React;
+const PLACE_NUMS = [4, 5, 6, 8, 9, 10];
 function diceWays(total) {
     let n = 0;
     for (let a = 1; a <= 6; a++)
@@ -1565,12 +1566,21 @@ function fieldEvPerUnit() {
 function oddsPayout(point) {
     return { 4: 2, 10: 2, 5: 1.5, 9: 1.5, 6: 1.2, 8: 1.2 }[point];
 }
+function placeRatio(n) {
+    return { 4: 9 / 5, 10: 9 / 5, 5: 7 / 5, 9: 7 / 5, 6: 7 / 6, 8: 7 / 6 }[n];
+}
+function placeEdgeExact(n) {
+    const w = diceWays(n), l = diceWays(7);
+    return (l - w * placeRatio(n)) / (w + l);
+}
 function resolveRoll(state, d1, d2) {
     const t = d1 + d2;
-    const s = { phase: state.phase, point: state.point, bets: { ...state.bets } };
+    const s = { phase: state.phase, point: state.point, bets: { ...state.bets, place: { ...(state.bets.place || {}) } } };
     let credit = 0;
     const events = [];
     const b = s.bets;
+    const pl = b.place;
+    const anyPlace = PLACE_NUMS.some((n) => pl[n] > 0);
     if (b.field > 0) {
         if (t === 2) {
             credit += b.field * 3;
@@ -1589,6 +1599,8 @@ function resolveRoll(state, d1, d2) {
         b.field = 0;
     }
     if (s.phase === "comeout") {
+        if (t === 7 && anyPlace)
+            events.push("Place bets are OFF on the come-out — they survive the seven");
         if (t === 7 || t === 11) {
             if (b.pass > 0) {
                 credit += b.pass * 2;
@@ -1626,8 +1638,18 @@ function resolveRoll(state, d1, d2) {
         }
     }
     else {
+        if (pl[t] > 0 && t !== s.point) {
+            const winnings = Math.floor(pl[t] * placeRatio(t));
+            credit += winnings;
+            events.push(`Place ${t} hits — pays ${t === 6 || t === 8 ? "7:6" : t === 4 || t === 10 ? "9:5" : "7:5"}: +$${winnings} (bet stays working)`);
+        }
         if (t === s.point) {
             events.push(`Point ${t} made!`);
+            if (pl[t] > 0) {
+                const winnings = Math.floor(pl[t] * placeRatio(t));
+                credit += winnings;
+                events.push(`Place ${t} hits too: +$${winnings} (bet stays working)`);
+            }
             if (b.pass > 0) {
                 credit += b.pass * 2;
                 events.push(`Pass line wins +$${b.pass}`);
@@ -1657,6 +1679,11 @@ function resolveRoll(state, d1, d2) {
                 events.push("Odds lose");
                 b.odds = 0;
             }
+            for (const n of PLACE_NUMS)
+                if (pl[n] > 0) {
+                    events.push(`Place ${n} loses`);
+                    pl[n] = 0;
+                }
             if (b.dontPass > 0) {
                 credit += b.dontPass * 2;
                 events.push(`Don't pass wins +$${b.dontPass}`);
@@ -1721,13 +1748,14 @@ const CRAPS_GUIDE = [
     { h: "The point phase", p: "Now the race: if the point rolls again before a 7, the pass line wins. If the 7 comes first \u2014 SEVEN OUT \u2014 the pass line loses and the cycle starts over. That's the whole game." },
     { h: "Free odds: the fair bet", p: "Once a point is set, you can put chips BEHIND your pass bet. These pay TRUE odds \u2014 2:1 on 4/10, 3:2 on 5/9, 6:5 on 6/8 \u2014 which makes the house edge exactly zero. The only bet like it in any casino. Load it every time.", tag: "EDGE 0.00% \u2014 EXACT", green: true },
     { h: "Don't pass & the field", p: "DON'T PASS is the mirror bet: you win when the seven wins (12 pushes on the come-out). The FIELD is a one-roll side bet on 2/3/4/9/10/11/12. Both print their enumerated edge right on the card." },
+    { h: "Place bets", p: "Want a number NOW? Place the 4, 5, 6, 8, 9, or 10 directly \u2014 it pays every time that number rolls before a seven, and the bet stays up after each hit. The casino shaves the payout (6/8 pay 7:6 instead of true 6:5) and that shave IS the edge, printed on each box. They only work while a point is on." },
     { h: "Read the felt", p: "Every bet here shows its exact edge \u2014 computed by counting all 36 dice combinations, never estimated. Pick a chip, tap a bet, and ROLL. Practice chips only, always.", tag: "PRACTICE CHIPS ONLY" },
 ];
 function Craps() {
     const [guideOpen, setGuideOpen] = React.useState(() => guideUnseen("craps"));
     const [bank, setBank] = React.useState(loadCrapsBank);
     const [chip, setChip] = React.useState(5);
-    const [game, setGame] = React.useState({ phase: "comeout", point: null, bets: { pass: 0, dontPass: 0, odds: 0, field: 0 } });
+    const [game, setGame] = React.useState({ phase: "comeout", point: null, bets: { pass: 0, dontPass: 0, odds: 0, field: 0, place: { 4: 0, 5: 0, 6: 0, 8: 0, 9: 0, 10: 0 } } });
     const [dice, setDice] = React.useState([3, 4]);
     const [rolling, setRolling] = React.useState(false);
     const [feed, setFeed] = React.useState(["Welcome to the rail. Pass line, then roll."]);
@@ -1740,8 +1768,23 @@ function Craps() {
     }
     catch { } }, [bank]);
     const b = game.bets;
-    const staked = b.pass + b.dontPass + b.field + b.odds;
+    const placeTotal = PLACE_NUMS.reduce((a, n) => a + (b.place[n] || 0), 0);
+    const staked = b.pass + b.dontPass + b.field + b.odds + placeTotal;
     const say = (lines) => setFeed((f) => [...f, ...lines].slice(-60));
+    const placeNum = (n) => {
+        if (rolling || chip > bank)
+            return;
+        sfx.chip();
+        setBank((v) => v - chip);
+        setGame((g) => ({ ...g, bets: { ...g.bets, place: { ...g.bets.place, [n]: g.bets.place[n] + chip } } }));
+    };
+    const takeDownPlaces = () => {
+        if (rolling || placeTotal === 0)
+            return;
+        sfx.chips(3);
+        setBank((v) => v + placeTotal);
+        setGame((g) => ({ ...g, bets: { ...g.bets, place: { 4: 0, 5: 0, 6: 0, 8: 0, 9: 0, 10: 0 } } }));
+    };
     const place = (kind) => {
         if (rolling || chip > bank)
             return;
@@ -1777,8 +1820,9 @@ function Craps() {
             clearInterval(shake);
             setDice([d1, d2]);
             const out = resolveRoll(game, d1, d2);
-            const stakedBefore = game.bets.pass + game.bets.dontPass + game.bets.odds + game.bets.field;
-            const stakedAfter = out.state.bets.pass + out.state.bets.dontPass + out.state.bets.odds + out.state.bets.field;
+            const placeSum = (bets) => PLACE_NUMS.reduce((a, n) => a + (bets.place[n] || 0), 0);
+            const stakedBefore = game.bets.pass + game.bets.dontPass + game.bets.odds + game.bets.field + placeSum(game.bets);
+            const stakedAfter = out.state.bets.pass + out.state.bets.dontPass + out.state.bets.odds + out.state.bets.field + placeSum(out.state.bets);
             const resolvedStake = stakedBefore - stakedAfter;
             const net = out.credit - resolvedStake;
             setGame(out.state);
@@ -1832,7 +1876,7 @@ function Craps() {
         }
         @keyframes crapsLand { 0% { transform: scale(1.25) rotate(6deg) } 60% { transform: scale(0.94) rotate(-2deg) } 100% { transform: none } }
       `),
-        React.createElement(CasinoHeader, { onHelp: () => setGuideOpen(true), title: "CRAPS", sub: "PASS \u00B7 DON'T \u00B7 FIELD \u00B7 TRUE ODDS \u00B7 PRACTICE CHIPS", bank: bank }),
+        React.createElement(CasinoHeader, { onHelp: () => setGuideOpen(true), title: "CRAPS", sub: "PASS \u00B7 DON'T \u00B7 FIELD \u00B7 PLACE \u00B7 TRUE ODDS \u00B7 PRACTICE CHIPS", bank: bank }),
         React.createElement(Guide, { game: "craps", title: "CRAPS", steps: CRAPS_GUIDE, open: guideOpen, onClose: () => setGuideOpen(false) }),
         React.createElement("div", { style: { flex: 1, maxWidth: 700, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 } },
             React.createElement("div", { style: { ...feltPanel("20px 16px"), display: "flex", flexDirection: "column", alignItems: "center", gap: 14, overflow: "hidden" } },
@@ -1868,6 +1912,29 @@ function Craps() {
             React.createElement("div", { style: { display: "flex", gap: 9, flexWrap: "wrap" } },
                 betCard("odds", `FREE ODDS${game.point ? ` · ${oddsPayout(game.point)}:1 TRUE` : ""}`, "Behind your pass bet once a point is set. Up to 3×.", 0, game.phase === "point" && b.pass > 0),
                 betCard("field", "FIELD", "One roll: 2/3/4/9/10/11/12 win. 2 pays double, 12 pays TRIPLE.", fieldEdge, true)),
+            React.createElement("div", null,
+                React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 8, margin: "2px 2px 7px" } },
+                    React.createElement("span", { style: { fontFamily: casMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.18em", color: CAS.faint } }, "PLACE BETS \u00B7 WORK ONLY WITH A POINT ON"),
+                    placeTotal > 0 && !rolling && (React.createElement("button", { onClick: takeDownPlaces, style: { marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontFamily: casMono, fontSize: 10, color: CAS.gold, textDecoration: "underline", padding: 0 } },
+                        "take all down ($",
+                        placeTotal.toLocaleString(),
+                        ")"))),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 7 } }, PLACE_NUMS.map((n) => (React.createElement("button", { key: n, onClick: () => placeNum(n), disabled: rolling, style: {
+                        position: "relative", padding: "9px 2px 7px", borderRadius: 11, cursor: "pointer", textAlign: "center",
+                        border: `1.5px solid ${b.place[n] > 0 ? CAS.gold : "rgba(245,197,66,0.18)"}`,
+                        background: b.place[n] > 0 ? "linear-gradient(180deg, rgba(245,197,66,0.14), rgba(245,197,66,0.05))" : "rgba(255,255,255,0.045)",
+                        color: CAS.cream, fontFamily: casSans,
+                        boxShadow: b.place[n] > 0 ? `0 0 12px ${CAS.goldFaint}` : "inset 0 -2px 0 rgba(0,0,0,0.25)",
+                        opacity: game.phase === "point" ? 1 : 0.65,
+                    } },
+                    React.createElement("div", { style: { fontSize: 17, fontWeight: 900 } }, n),
+                    React.createElement("div", { style: { fontSize: 8.5, fontFamily: casMono, color: CAS.dim } }, n === 6 || n === 8 ? "7:6" : n === 4 || n === 10 ? "9:5" : "7:5"),
+                    React.createElement("div", { style: { fontSize: 8.5, fontFamily: casMono, color: CAS.goldDim, fontWeight: 700 } },
+                        (placeEdgeExact(n) * 100).toFixed(2),
+                        "%"),
+                    b.place[n] > 0 && (React.createElement("div", { style: { position: "absolute", top: -8, right: -4 } },
+                        React.createElement(BetChip, { amount: b.place[n] }))))))),
+                React.createElement("div", { style: { fontFamily: casMono, fontSize: 9.5, color: CAS.faint, marginTop: 6, lineHeight: 1.5 } }, "hits pay and STAY WORKING \u00B7 all lost on SEVEN OUT \u00B7 OFF on the come-out \u00B7 pay exactly in multiples of $6 on 6/8, $5 elsewhere \u00B7 edges exact from the 36 dice ways")),
             React.createElement("div", { style: { display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" } },
                 DCHIPS.map((v) => React.createElement(CasinoChip, { key: v, value: v, selected: chip === v, onClick: () => setChip(v) })),
                 React.createElement("span", { style: { marginLeft: "auto", fontFamily: casMono, fontSize: 12, color: CAS.dim } }, staked > 0 ? `$${staked.toLocaleString()} working` : "the felt is empty")),

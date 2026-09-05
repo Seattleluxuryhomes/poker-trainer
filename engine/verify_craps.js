@@ -26,8 +26,8 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext(body, sandbox);
-const { diceWays, pPassExact, pDontPassExact, fieldEvPerUnit, oddsPayout, resolveRoll } =
-  vm.runInContext("({ diceWays, pPassExact, pDontPassExact, fieldEvPerUnit, oddsPayout, resolveRoll })", sandbox);
+const { diceWays, pPassExact, pDontPassExact, fieldEvPerUnit, oddsPayout, resolveRoll, placeRatio, placeEdgeExact } =
+  vm.runInContext("({ diceWays, pPassExact, pDontPassExact, fieldEvPerUnit, oddsPayout, resolveRoll, placeRatio, placeEdgeExact })", sandbox);
 
 /* dice truth */
 check(diceWays(7) === 6 && diceWays(2) === 1 && diceWays(6) === 5 && diceWays(12) === 1, "dice combinatorics");
@@ -75,6 +75,33 @@ check(r.credit === 200, "come-out 7: pass wins, field loses — one credit strea
 const before = mk({ pass: 100 });
 resolveRoll(before, 4, 3);
 check(before.bets.pass === 100 && before.phase === "comeout", "resolveRoll is pure");
+
+console.log("verify_craps: place bets");
+{
+  const near = (a, b) => Math.abs(a - b) < 1e-12;
+  check(placeRatio(6) === 7 / 6 && placeRatio(8) === 7 / 6, "place 6/8 pay 7:6");
+  check(placeRatio(5) === 7 / 5 && placeRatio(9) === 7 / 5, "place 5/9 pay 7:5");
+  check(placeRatio(4) === 9 / 5 && placeRatio(10) === 9 / 5, "place 4/10 pay 9:5");
+  check(near(placeEdgeExact(6), (6 - 5 * (7 / 6)) / 11), "place 6 edge = (6 − 5·7/6)/11 exactly (≈1.52%)");
+  check(near(placeEdgeExact(5), (6 - 4 * (7 / 5)) / 10), "place 5 edge = (6 − 4·7/5)/10 exactly (4.00%)");
+  check(near(placeEdgeExact(4), (6 - 3 * (9 / 5)) / 9), "place 4 edge = (6 − 3·9/5)/9 exactly (≈6.67%)");
+  check(placeEdgeExact(4) > placeEdgeExact(5) && placeEdgeExact(5) > placeEdgeExact(6) && placeEdgeExact(6) > 0,
+    "the shave orders the edges: 4/10 worst, 6/8 best, all positive for the house");
+
+  const st = (phase, point, place) => ({ phase, point, bets: { pass: 0, dontPass: 0, odds: 0, field: 0, place: { 4: 0, 5: 0, 6: 0, 8: 0, 9: 0, 10: 0, ...place } } });
+  let out = resolveRoll(st("point", 4, { 6: 6 }), 3, 3);
+  check(out.credit === 7 && out.state.bets.place[6] === 6, "$6 place-6 hit pays exactly $7 and stays working");
+  out = resolveRoll(st("point", 4, { 6: 6, 9: 5 }), 3, 4);
+  check(out.credit === 0 && out.state.bets.place[6] === 0 && out.state.bets.place[9] === 0, "SEVEN OUT takes every place bet");
+  out = resolveRoll(st("comeout", null, { 8: 12 }), 3, 4);
+  check(out.state.bets.place[8] === 12 && out.credit === 0, "places are OFF on the come-out — a natural 7 doesn't touch them");
+  check(out.events.some((e) => /OFF on the come-out/.test(e)), "and the feed says why they survived");
+  out = resolveRoll(st("point", 6, { 6: 6 }), 2, 4);
+  check(out.events.some((e) => /Point 6 made/.test(e)) && out.credit === 7, "making the point pays the place on that number too");
+  const frozen = st("point", 5, { 4: 5 });
+  resolveRoll(frozen, 2, 2);
+  check(frozen.bets.place[4] === 5, "resolveRoll stays pure with places aboard");
+}
 
 console.log(fail === 0 ? `✓ verify_craps: all ${ok} checks passed` : `✗ verify_craps: ${fail} of ${ok + fail} checks FAILED`);
 process.exit(fail === 0 ? 0 : 1);

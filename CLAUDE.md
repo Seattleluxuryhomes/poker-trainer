@@ -290,3 +290,20 @@ are playable, and every felted-restake button (now on blackjack too)
 restakes $10,000. Existing saved bankrolls are untouched — only the
 defaults changed. Still practice chips, still the same enumerated math:
 bet size never changes an edge, and nothing here says otherwise.
+
+## The professional pass (v0.13.0)
+
+Founder: "redo all the games this needs to be professional quality." Four
+moves. (1) ONE HOUSE: chrome.jsx's T tokens were re-mapped from the
+reference's baize-and-wood onto the casino dark room — the trainer, profile,
+and every account modal now match the floor; the names stayed (dozens of
+call sites), only the values moved. The build shell's body went #0a0c10 and
+gained -webkit-tap-highlight-color:transparent. (2) The hold'em table got
+cream cards (same stock as the whole floor), an ellipsized one-line title,
+and seats nudged clear of the header. (3) CRAPS PLACE BETS: place
+4/5/6/8/9/10 at the real shaved ratios (9:5, 7:5, 7:6), edge per box
+computed exactly from dice ways (placeEdgeExact), hits pay and stay
+working, all lost on seven out, OFF on the come-out (they survive a
+come-out 7, and the feed says why), take-all-down control. verify_craps →
+37 checks. (4) The trainer stays the silent study room — dark now, but
+still no sounds, no marquee, by design.

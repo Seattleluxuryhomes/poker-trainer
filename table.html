@@ -12,7 +12,7 @@
 <meta property="og:title" content="Poker — Hold'em Table" />
 <meta property="og:description" content="A no-limit hold'em table UI with fold, call, and a raise slider. Practice chips only. Free and open-source." />
 <title>Poker — Hold'em Table</title>
-<style>html,body{margin:0;background:#0f2417;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation}button,a{touch-action:manipulation}#root{min-height:100vh}input,textarea{-webkit-user-select:text;user-select:text}</style>
+<style>html,body{margin:0;background:#0a0c10;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}#root{min-height:100vh}input,textarea{-webkit-user-select:text;user-select:text}</style>
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
 </head>
@@ -1051,22 +1051,22 @@ const sfx = {
     },
 };
 const T = {
-    baize: "#1F423A", baizeHi: "#28534A",
-    woodD: "#5E3F26", woodM: "#8A5E37", woodL: "#B9824B",
-    pegRed: "#C8412B", pegIvory: "#ECDCB4",
-    ivory: "#F6EFDE", ink: "#241D14", suitRed: "#A8362A",
-    cream: "#ECE0C6", muted: "#C9BC9A", line: "rgba(236,224,182,0.16)",
-    good: "#5FA47C", goodDeep: "#3F7E5E", selBlue: "#5B95C2", gold: "#D9A441",
+    baize: "#141922", baizeHi: "#1a212c",
+    woodD: "#0c0f14", woodM: "#12161d", woodL: "#1a2028",
+    pegRed: "#e14b42", pegIvory: "#f5c542",
+    ivory: "#F6EFDE", ink: "#101318", suitRed: "#c62828",
+    cream: "#e8ebf2", muted: "#96a0b0", line: "#232833",
+    good: "#00c96b", goodDeep: "#00854a", selBlue: "#5B95C2", gold: "#f5c542",
 };
 const SUIT = ["♠", "♥", "♦", "♣"];
 const isRed = (s) => s === 1 || s === 2;
 const rankLabel = (r) => (r === 1 ? "A" : r === 11 ? "J" : r === 12 ? "Q" : r === 13 ? "K" : String(r));
 const tag = (c) => `${rankLabel(c.r)}${SUIT[c.s]}`;
 const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
-const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
+const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.12.0";
+const APP_VERSION = "0.13.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1226,7 +1226,7 @@ function AccountArea({ dark }) {
         return null;
     const skin = dark
         ? { border: "1px solid #2c303c", background: "rgba(255,255,255,0.04)", color: "#c9cfda" }
-        : { border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)", color: "#2A1B0E" };
+        : { border: "1px solid #232833", background: "rgba(255,255,255,0.04)", color: "#e8ebf2" };
     const h = dark ? 30 : 40;
     return (React.createElement(React.Fragment, null,
         acct.user ? (React.createElement("a", { href: "profile.html", title: "Your profile", style: {
@@ -1531,11 +1531,11 @@ function useViewportWidth() {
 }
 function TableCard({ card, w }) {
     const red = isRed(card.s);
-    const col = red ? N.red : "#e8ebf2";
+    const col = red ? "#c62828" : "#161a22";
     return (React.createElement("div", { style: {
             width: w, height: Math.round(w * 1.42), borderRadius: Math.max(8, w * 0.14),
-            background: `linear-gradient(160deg, #21252e, ${N.card} 60%)`,
-            border: `1px solid ${N.line2}`, boxShadow: "0 6px 14px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.05)",
+            background: "linear-gradient(160deg, #fdfcf7, #efece1 70%, #ddd8c8)",
+            border: "1px solid rgba(0,0,0,0.4)", boxShadow: "0 6px 14px rgba(0,0,0,0.55)",
             position: "relative", color: col, flex: "0 0 auto",
         } },
         React.createElement("div", { style: { position: "absolute", top: w * 0.1, left: w * 0.14, lineHeight: 1, textAlign: "center" } },
@@ -1796,7 +1796,7 @@ function SoloTable() {
         }
         setState((s) => (s.phase === "betting" && s.toAct === USER_SEAT ? applyAction(s, action) : s));
     };
-    const OPP_SPOTS = [{ x: 14, y: 24 }, { x: 50, y: 9 }, { x: 86, y: 24 }];
+    const OPP_SPOTS = [{ x: 14, y: 26 }, { x: 50, y: 13 }, { x: 86, y: 26 }];
     const vw = useViewportWidth();
     const boardW = clampN(38, Math.round(vw * 0.115), 54);
     const holeW = clampN(54, Math.round(vw * 0.16), 74);
@@ -1830,9 +1830,9 @@ function SoloTable() {
         }
       `),
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px 6px", flex: "0 0 auto" } },
-            React.createElement("div", null,
-                React.createElement("span", { style: { fontSize: 12.5, fontWeight: 800, letterSpacing: "0.12em", color: N.dim } }, "vs ACE MERIDIAN \u00B7 WORLD #1"),
-                React.createElement("span", { style: { fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", color: N.faint, marginLeft: 8 } }, "PRACTICE CHIPS ONLY")),
+            React.createElement("div", { style: { minWidth: 0, marginRight: 8 } },
+                React.createElement("div", { style: { fontSize: 12.5, fontWeight: 800, letterSpacing: "0.12em", color: N.dim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, "vs ACE MERIDIAN \u00B7 WORLD #1"),
+                React.createElement("div", { style: { fontSize: 9.5, fontWeight: 600, letterSpacing: "0.06em", color: N.faint } }, "PRACTICE CHIPS ONLY")),
             React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
                 React.createElement(SoundToggle, { dark: true }),
                 React.createElement("button", { onClick: () => setFriendsOpen(true), style: {
@@ -2209,7 +2209,7 @@ function RoomTable({ code }) {
             React.createElement("div", { style: { color: N.dim, fontSize: 13 } }, "Taking your seat\u2026"));
     const you = state.players[mySeat];
     const others = [1, 2, 3].map((k) => (mySeat + k) % 4);
-    const OPP_SPOTS = [{ x: 14, y: 26 }, { x: 50, y: 11 }, { x: 86, y: 26 }];
+    const OPP_SPOTS = [{ x: 14, y: 27 }, { x: 50, y: 14 }, { x: 86, y: 27 }];
     const equities = payload.equities;
     const leadSeat = equities ? Number(Object.keys(equities).reduce((a, b) => (equities[a] >= equities[b] ? a : b))) : -1;
     const vw2 = Math.min(typeof window !== "undefined" ? window.innerWidth : 400, 900);

@@ -155,20 +155,20 @@ export default function PokerTrainer() {
               display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, lineHeight: 1,
               boxShadow: "inset 0 1px 2px rgba(255,255,255,0.12), 0 2px 5px rgba(0,0,0,0.35)",
             }}>♠</a>
-            <span style={{ fontFamily: mono, fontSize: 12, color: "rgba(42,27,14,0.8)", lineHeight: 1.3 }}>Hold Trainer — 9/6 Jacks or Better</span>
-            {IS_DEV_VERSION && <span style={{ fontFamily: mono, fontSize: 10, color: "rgba(42,27,14,0.55)", whiteSpace: "nowrap" }}>v{APP_VERSION}</span>}
+            <span style={{ fontFamily: mono, fontSize: 12, color: "#cfd6e2", letterSpacing: "0.06em", fontWeight: 700, lineHeight: 1.3 }}>Hold Trainer — 9/6 Jacks or Better</span>
+            {IS_DEV_VERSION && <span style={{ fontFamily: mono, fontSize: 10, color: "#5b6472", whiteSpace: "nowrap" }}>v{APP_VERSION}</span>}
           </div>
           <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
             <AccountArea />
             <button onClick={() => setAboutOpen(true)} aria-label="About" style={{
               width: 40, height: 40, borderRadius: 10, cursor: "pointer",
-              border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)",
-              color: "#2A1B0E", fontSize: 19, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
+              border: "1px solid #232833", background: "rgba(255,255,255,0.04)",
+              color: "#96a0b0", fontSize: 19, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
             }}>ⓘ</button>
           </div>
         </div>
         <div style={{ marginTop: 12 }}><ChipTrack pct={acc} /></div>
-        <div style={{ marginTop: 10, display: "flex", gap: 18, flexWrap: "wrap", fontFamily: mono, fontSize: 12, color: "#2A1B0E" }}>
+        <div style={{ marginTop: 10, display: "flex", gap: 18, flexWrap: "wrap", fontFamily: mono, fontSize: 12, color: "#e8ebf2" }}>
           <span><b style={{ fontSize: 15 }}>{stats.hands}</b> hands</span>
           <span><b style={{ fontSize: 15 }}>{stats.hands ? acc.toFixed(0) : "–"}%</b> optimal</span>
           <span><b style={{ fontSize: 15 }}>{stats.hands ? avgLost.toFixed(4) : "–"}</b> avg EV lost</span>

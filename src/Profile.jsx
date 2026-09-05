@@ -125,7 +125,7 @@ export default function Profile() {
             display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19,
             boxShadow: "inset 0 1px 2px rgba(255,255,255,0.12), 0 2px 5px rgba(0,0,0,0.35)",
           }}>♠</a>
-          <span style={{ fontFamily: mono, fontSize: 12, color: "rgba(42,27,14,0.8)" }}>Your profile</span>
+          <span style={{ fontFamily: mono, fontSize: 12, color: "#cfd6e2", letterSpacing: "0.06em", fontWeight: 700 }}>Your profile</span>
         </div>
         <AccountArea />
       </header>

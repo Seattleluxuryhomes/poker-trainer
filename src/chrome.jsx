@@ -10,19 +10,19 @@
 
 /* ---- theme + format ---- */
 const T = {
-  baize: "#1F423A", baizeHi: "#28534A",
-  woodD: "#5E3F26", woodM: "#8A5E37", woodL: "#B9824B",
-  pegRed: "#C8412B", pegIvory: "#ECDCB4",
-  ivory: "#F6EFDE", ink: "#241D14", suitRed: "#A8362A",
-  cream: "#ECE0C6", muted: "#C9BC9A", line: "rgba(236,224,182,0.16)",
-  good: "#5FA47C", goodDeep: "#3F7E5E", selBlue: "#5B95C2", gold: "#D9A441",
+  baize: "#141922", baizeHi: "#1a212c",
+  woodD: "#0c0f14", woodM: "#12161d", woodL: "#1a2028",
+  pegRed: "#e14b42", pegIvory: "#f5c542",
+  ivory: "#F6EFDE", ink: "#101318", suitRed: "#c62828",
+  cream: "#e8ebf2", muted: "#96a0b0", line: "#232833",
+  good: "#00c96b", goodDeep: "#00854a", selBlue: "#5B95C2", gold: "#f5c542",
 };
 const SUIT = ["♠", "♥", "♦", "♣"];
 const isRed = (s) => s === 1 || s === 2;
 const rankLabel = (r) => (r === 1 ? "A" : r === 11 ? "J" : r === 12 ? "Q" : r === 13 ? "K" : String(r));
 const tag = (c) => `${rankLabel(c.r)}${SUIT[c.s]}`;
 const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
-const serif = "'Hoefler Text', 'Iowan Old Style', Georgia, 'Times New Roman', serif";
+const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif"; // the house sans (name kept for its call sites)
 
 // Display names in CAT index order (engine's strength order).
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
@@ -250,7 +250,7 @@ function AccountArea({ dark }) {
   if (!acct.available) return null;
   const skin = dark
     ? { border: "1px solid #2c303c", background: "rgba(255,255,255,0.04)", color: "#c9cfda" }
-    : { border: "1px solid rgba(0,0,0,0.28)", background: "rgba(42,27,14,0.14)", color: "#2A1B0E" };
+    : { border: "1px solid #232833", background: "rgba(255,255,255,0.04)", color: "#e8ebf2" };
   const h = dark ? 30 : 40;
   return (
     <>
