@@ -54,6 +54,32 @@ async function main() {
   };
 
   try {
+    /* production front door: every page the build ships must actually be served.
+     * (v0.13.0 lesson: bj.html shipped in the build but not in the whitelist —
+     * the founder's phone found the 404 before we did. Never again.) */
+    const ORIGIN = BASE.replace(/\/api$/, "");
+    for (const page of ["/", "/index.html", "/trainer.html", "/play.html", "/table.html", "/profile.html", "/roulette.html", "/craps.html", "/paigow.html", "/bj.html"]) {
+      const r = await fetch(ORIGIN + page);
+      const ct = r.headers.get("content-type") || "";
+      check(r.status === 200 && ct.includes("text/html"), `served: ${page} (got ${r.status})`);
+    }
+    for (const asset of ["/favicon.svg", "/manifest.webmanifest", "/vendor/react.production.min.js", "/vendor/react-dom.production.min.js"]) {
+      const r = await fetch(ORIGIN + asset);
+      check(r.status === 200, `served: ${asset} (got ${r.status})`);
+    }
+    {
+      const r = await fetch(ORIGIN + "/does-not-exist.html");
+      const text404 = await r.text();
+      check(r.status === 404, "the whitelist still refuses everything else");
+      check(/NOT ON THE FLOOR/.test(text404) && /BACK TO THE ENTRANCE/.test(text404), "the 404 is a page of the house, with a way home");
+      const rHtml = await fetch(ORIGIN + "/index.html");
+      check((rHtml.headers.get("cache-control") || "") === "no-cache", "HTML revalidates on every load (deploys reach phones)");
+      const rVendor = await fetch(ORIGIN + "/vendor/react.production.min.js");
+      check(/immutable/.test(rVendor.headers.get("cache-control") || ""), "vendor React caches long");
+      const rGz = await fetch(ORIGIN + "/index.html", { headers: { "accept-encoding": "gzip" } });
+      check(rGz.status === 200 && (await rGz.text()).includes("<!doctype html"), "gzip-negotiated HTML still decodes to the page");
+    }
+
     /* signup contracts */
     const su = await call("POST", "/auth/signup", { email: "Ben@Test.com", password: "secret1234", display_name: "Ben", age_confirmed: true, date_of_birth: "1985-04-12" });
     check(su.status === 200 && su.body.token && su.body.user.email === "ben@test.com", "signup returns a session, email lowercased");

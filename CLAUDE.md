@@ -307,3 +307,21 @@ working, all lost on seven out, OFF on the come-out (they survive a
 come-out 7, and the feed says why), take-all-down control. verify_craps →
 37 checks. (4) The trainer stays the silent study room — dark now, but
 still no sounds, no marquee, by design.
+
+## Production hardening (v0.13.1)
+
+The founder's phone 404'd on /bj.html in production: blackjack shipped in
+the build but was never added to server.mjs's static whitelist (the
+whitelist is the security boundary — keep it explicit — but it must grow
+with every new page). Fixed, and verify_auth now proves THE FRONT DOOR:
+every built page and asset returns 200 text/html from the real server, and
+an unknown path still 404s. Also: HTML now serves cache-control: no-cache
+(deploys reach phones on a normal reload — the founder had been
+hard-refreshing all week), vendored React is immutable for a week, text
+responses gzip when negotiated, x-content-type-options: nosniff, and the
+404 is a styled page of the house with a BACK TO THE ENTRANCE button
+instead of bare "not found" text. verify_auth: 48 checks.
+PRODUCTION CHECKLIST still on the founder (accounts stay hidden until
+done): Railway → Variables → JWT_SECRET (32+ random chars); Railway →
+volume mounted at /data + DB_PATH=/data/poker.db. Everything else runs
+guest-mode regardless.
