@@ -278,6 +278,34 @@ function CasinoHeader({ title, sub, bank, onHelp }) {
   );
 }
 
+/* ---- THE WALLET: one bankroll for the whole floor (v0.15.0) ----
+ * Roulette, craps, pai gow, and blackjack share this single balance — win at
+ * one table, spend it at the next, like a real casino. Guests keep it in
+ * localStorage; signed-in players sync it to their profile (stats.wallet).
+ * First load migrates the old per-game banks: the largest one becomes the
+ * wallet (no summing — that would mint chips out of the migration). */
+const WALLET_KEY = "poker-trainer:wallet";
+const WALLET_START = 10000;
+function walletLoad() {
+  try {
+    const raw = window.localStorage.getItem(WALLET_KEY);
+    if (raw != null) {
+      const v = Number(raw);
+      if (Number.isFinite(v) && v >= 0) return v;
+    }
+    let best = WALLET_START;
+    for (const k of ["poker-trainer:rouletteBank", "poker-trainer:crapsBank", "poker-trainer:paigowBank", "poker-trainer:bjBank"]) {
+      const v = Number(window.localStorage.getItem(k));
+      if (Number.isFinite(v) && v > best) best = v;
+    }
+    return best;
+  } catch { return WALLET_START; }
+}
+function walletSave(v) {
+  try { window.localStorage.setItem(WALLET_KEY, String(v)); } catch { /* private mode */ }
+  try { reportStats({ set: { wallet: v } }); } catch { /* guest / offline */ }
+}
+
 /* A physical chip. */
 function CasinoChip({ value, selected, onClick, size = 46 }) {
   const skin = value === 1 ? { bg: "#e9e6dc", fg: "#14171d", ring: "#b9b4a4" }

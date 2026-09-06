@@ -111,7 +111,7 @@ function ownerView(u) {
 }
 function ownerStats(s) {
   return {
-    bankroll: s.bankroll, table_stack: s.table_stack, table_hands: s.table_hands,
+    bankroll: s.bankroll, wallet: s.wallet, table_stack: s.table_stack, table_hands: s.table_hands,
     table_wins: s.table_wins, biggest_pot: s.biggest_pot, raised: s.raised || 0,
     trainer_hands: s.trainer_hands, trainer_optimal: s.trainer_optimal, trainer_ev_lost: s.trainer_ev_lost,
   };
@@ -301,6 +301,7 @@ function putStats(req, body) {
   const mono = (v, prev) => Math.max(prev, num(v, 0, 1e9, prev));
   const next = {
     bankroll: num(body.bankroll, 0, 1e9, s.bankroll),
+    wallet: num(body.wallet, 0, 1e9, s.wallet),
     table_stack: num(body.table_stack, 0, 1e9, s.table_stack),
     table_hands: mono(body.table_hands, s.table_hands),
     table_wins: mono(body.table_wins, s.table_wins),
@@ -309,9 +310,9 @@ function putStats(req, body) {
     trainer_optimal: mono(body.trainer_optimal, s.trainer_optimal),
     trainer_ev_lost: Math.max(s.trainer_ev_lost, Number.isFinite(Number(body.trainer_ev_lost)) ? Math.min(1e9, Math.max(0, Number(body.trainer_ev_lost))) : s.trainer_ev_lost),
   };
-  run(`UPDATE stats SET bankroll=?, table_stack=?, table_hands=?, table_wins=?, biggest_pot=?,
+  run(`UPDATE stats SET bankroll=?, wallet=?, table_stack=?, table_hands=?, table_wins=?, biggest_pot=?,
        trainer_hands=?, trainer_optimal=?, trainer_ev_lost=?, updated_at=? WHERE user_id=?`,
-    next.bankroll, next.table_stack, next.table_hands, next.table_wins, next.biggest_pot,
+    next.bankroll, next.wallet, next.table_stack, next.table_hands, next.table_wins, next.biggest_pot,
     next.trainer_hands, next.trainer_optimal, next.trainer_ev_lost, nowIso(), user.id);
   if (body.today && typeof body.today === "object") {
     const day = nowIso().slice(0, 10);

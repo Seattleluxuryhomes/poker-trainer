@@ -181,6 +181,7 @@ export default function Profile() {
                 <h2 style={secHead}>Your numbers</h2>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                   <StatTile label="Table stack" value={`$${s.table_stack.toLocaleString()}`} />
+                  <StatTile label="Casino wallet" value={"$" + (s.wallet != null ? s.wallet : 10000).toLocaleString()} />
                   <StatTile label="Machine credits" value={s.bankroll.toLocaleString()} />
                   <StatTile label="Biggest pot" value={`$${s.biggest_pot.toLocaleString()}`} />
                   <StatTile label="Table hands" value={s.table_hands.toLocaleString()} />

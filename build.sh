@@ -82,6 +82,7 @@ build_one() {
 <meta property="og:title" content="${TITLE}" />
 <meta property="og:description" content="${DESC}" />
 <title>${TITLE}</title>
+<script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){})})</script>
 <style>html,body{margin:0;background:#0a0c10;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}#root{min-height:100vh}input,textarea{-webkit-user-select:text;user-select:text}</style>
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
@@ -107,6 +108,11 @@ HTML
 cp "$ROOT/src/landing.html" "$ROOT/index.html"
 echo "built index.html (landing)"
 
+# Service worker: copied with the version stamped into its cache name, so every
+# release invalidates the old cache on activation.
+cp "$ROOT/src/sw.js" "$ROOT/sw.js"
+echo "built sw.js"
+
 build_one "src/PokerTrainer.jsx" "trainer.html" "Poker Hold Trainer"      "PokerTrainer" "Practice optimal video-poker holds: every possible hold ranked by exact expected value, fully explained. Free and open-source."
 build_one "src/PokerPlay.jsx"    "play.html"    "Poker — Play"            "PokerPlay"    "Play 9/6 Jacks or Better with a practice bankroll; hints come from the trainer's exact-enumeration engine. Free, open-source, works offline."
 build_one "src/PokerTable.jsx"   "table.html"   "Poker — Hold'em Table"   "PokerTable"   "A no-limit hold'em table UI with fold, call, and a raise slider. Practice chips only. Free and open-source."
@@ -120,7 +126,7 @@ build_one "src/Blackjack.jsx"     "bj.html"       "Blackjack"               "Bla
 # placeholder. VERSION is the single source of truth: "<x.y.z>-dev.<n>" during
 # development, "<major.minor.patch>" on a release.
 VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION" 2>/dev/null)"
-for f in index.html trainer.html play.html table.html profile.html roulette.html craps.html paigow.html bj.html; do
+for f in index.html trainer.html play.html table.html profile.html roulette.html craps.html paigow.html bj.html sw.js; do
   sed -i "s/__APP_VERSION__/${VERSION}/g" "$ROOT/$f"
 done
 echo "stamped version v${VERSION}"

@@ -150,7 +150,7 @@ const PAIGOW_GUIDE = [
 
 export default function PaiGow() {
   const [guideOpen, setGuideOpen] = React.useState(() => guideUnseen("paigow"));
-  const [bank, setBank] = React.useState(loadPgBank);
+  const [bank, setBank] = React.useState(walletLoad);
   const [chip, setChip] = React.useState(25);
   const [bet, setBet] = React.useState(0);
   const [phase, setPhase] = React.useState("bet"); // bet | set | done
@@ -163,7 +163,7 @@ export default function PaiGow() {
   const [simming, setSimming] = React.useState(false);
   const [nudge, setNudge] = React.useState(0);
 
-  React.useEffect(() => { try { window.localStorage.setItem(PG_BANK_KEY, String(bank)); } catch { /* private */ } }, [bank]);
+  React.useEffect(() => { walletSave(bank); }, [bank]);
 
   const deal = () => {
     // One chip per deal, exactly as the rail copy says.

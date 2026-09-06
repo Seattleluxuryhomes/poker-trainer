@@ -12,6 +12,7 @@
 <meta property="og:title" content="Poker — Hold'em Table" />
 <meta property="og:description" content="A no-limit hold'em table UI with fold, call, and a raise slider. Practice chips only. Free and open-source." />
 <title>Poker — Hold'em Table</title>
+<script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){})})</script>
 <style>html,body{margin:0;background:#0a0c10;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}#root{min-height:100vh}input,textarea{-webkit-user-select:text;user-select:text}</style>
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
@@ -1066,7 +1067,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.14.1";
+const APP_VERSION = "0.15.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1452,6 +1453,38 @@ function CasinoHeader({ title, sub, bank, onHelp }) {
                     color: CAS.dim, textDecoration: "none", fontSize: 16, lineHeight: 1,
                     border: `1px solid ${CAS.line}`, borderRadius: 9, padding: "6px 10px", background: "rgba(255,255,255,0.02)",
                 } }, "\u2302"))));
+}
+const WALLET_KEY = "poker-trainer:wallet";
+const WALLET_START = 10000;
+function walletLoad() {
+    try {
+        const raw = window.localStorage.getItem(WALLET_KEY);
+        if (raw != null) {
+            const v = Number(raw);
+            if (Number.isFinite(v) && v >= 0)
+                return v;
+        }
+        let best = WALLET_START;
+        for (const k of ["poker-trainer:rouletteBank", "poker-trainer:crapsBank", "poker-trainer:paigowBank", "poker-trainer:bjBank"]) {
+            const v = Number(window.localStorage.getItem(k));
+            if (Number.isFinite(v) && v > best)
+                best = v;
+        }
+        return best;
+    }
+    catch {
+        return WALLET_START;
+    }
+}
+function walletSave(v) {
+    try {
+        window.localStorage.setItem(WALLET_KEY, String(v));
+    }
+    catch { }
+    try {
+        reportStats({ set: { wallet: v } });
+    }
+    catch { }
 }
 function CasinoChip({ value, selected, onClick, size = 46 }) {
     const skin = value === 1 ? { bg: "#e9e6dc", fg: "#14171d", ring: "#b9b4a4" }

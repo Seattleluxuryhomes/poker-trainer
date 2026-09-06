@@ -167,7 +167,7 @@ const ROULETTE_GUIDE = [
 
 export default function Roulette() {
   const [guideOpen, setGuideOpen] = React.useState(() => guideUnseen("roulette"));
-  const [bank, setBank] = React.useState(loadRouBank);
+  const [bank, setBank] = React.useState(walletLoad);
   const [chip, setChip] = React.useState(5);
   const [bets, setBets] = React.useState({});
   const [lastBets, setLastBets] = React.useState(null);
@@ -179,7 +179,7 @@ export default function Roulette() {
   const [history, setHistory] = React.useState([]);
   const [info, setInfo] = React.useState(null);
 
-  React.useEffect(() => { try { window.localStorage.setItem(ROU_BANK_KEY, String(bank)); } catch { /* private */ } }, [bank]);
+  React.useEffect(() => { walletSave(bank); }, [bank]);
 
   const staked = Object.values(bets).reduce((a, b) => a + b, 0);
 

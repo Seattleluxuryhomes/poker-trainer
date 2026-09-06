@@ -357,3 +357,22 @@ deliberately: a practice app with no wagering has no legal basis to demand
 a birthdate, and the trust rule is minimal data. The users table keeps its
 (now nullable) date_of_birth/age columns so pre-v0.14.1 rows stay valid;
 new rows write NULL.
+
+## One wallet + the pocket casino (v0.15.0)
+
+THE WALLET (casino.jsx walletLoad/walletSave, key `poker-trainer:wallet`):
+roulette, craps, pai gow, and blackjack now share ONE bankroll — win at one
+table, spend at the next. First load migrates the old per-game banks by
+taking the LARGEST (never the sum — summing would mint chips). Signed-in
+players sync it as stats.wallet (schema column + guarded ALTER for old DBs,
+clamped in putStats, shown on the profile as "Casino wallet"). Video poker
+credits and the hold'em table stack stay separate on purpose — machine
+credits and a table buy-in are different objects in a real casino too.
+PWA: src/sw.js (stamped with the version by build.sh) precaches every page
+and asset with RELATIVE paths (the Pages mirror under /poker-trainer/ works
+identically); navigations are network-first with cache fallback, assets
+cache-first, old caches deleted on activate. Registered from the built-page
+shell and the landing; /sw.js is whitelisted and no-cache. The site now
+installs to the home screen and the whole floor plays offline.
+verify_auth: 57 checks (wallet defaults/push/clamp, sw.js served). E2E: a
+$5 craps bet shows at blackjack; roulette loads with the network off.

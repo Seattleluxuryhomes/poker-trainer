@@ -3,7 +3,7 @@
   "short_name": "Poker",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0f2417",
-  "theme_color": "#0f2417",
+  "background_color": "#0a0c10",
+  "theme_color": "#0a0c10",
   "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
 }

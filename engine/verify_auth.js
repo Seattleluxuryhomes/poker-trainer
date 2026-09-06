@@ -63,7 +63,7 @@ async function main() {
       const ct = r.headers.get("content-type") || "";
       check(r.status === 200 && ct.includes("text/html"), `served: ${page} (got ${r.status})`);
     }
-    for (const asset of ["/favicon.svg", "/manifest.webmanifest", "/vendor/react.production.min.js", "/vendor/react-dom.production.min.js"]) {
+    for (const asset of ["/favicon.svg", "/manifest.webmanifest", "/sw.js", "/vendor/react.production.min.js", "/vendor/react-dom.production.min.js"]) {
       const r = await fetch(ORIGIN + asset);
       check(r.status === 200, `served: ${asset} (got ${r.status})`);
     }
@@ -85,6 +85,7 @@ async function main() {
     check(su.status === 200 && su.body.token && su.body.user.email === "ben@test.com", "signup returns a session, email lowercased");
     check(su.body.user.id && !("password_hash" in su.body.user), "owner view has an id and no hash");
     check(su.body.stats.bankroll === 200 && su.body.stats.table_stack === 5000, "fresh stats carry the app defaults");
+    check(su.body.stats.wallet === 10000, "the casino wallet starts at $10,000");
     const dup = await call("POST", "/auth/signup", { email: "ben@test.com", password: "secret1234", display_name: "Ben2", age_confirmed: true });
     check(dup.status === 409, `duplicate email is 409 (got ${dup.status})`);
     check(!("date_of_birth" in su.body.user) && !("age" in su.body.user), "no birthday collected, none echoed (practice app, minimal data)");
@@ -142,6 +143,14 @@ async function main() {
     const rest = await call("POST", "/auth/restore", { email: "quiet@test.com", password: "secret1234" });
     check(rest.status === 200 && rest.body.token, "restore returns a working session");
     check((await call("GET", "/auth/me", null, rest.body.token)).status === 200, "restored session works");
+
+    /* the wallet syncs and clamps like everything else */
+    {
+      const w = await call("PUT", "/stats", { wallet: 123456 }, su.body.token);
+      check(w.status === 200 && w.body.stats.wallet === 123456, "wallet pushes through PUT /stats");
+      const neg = await call("PUT", "/stats", { wallet: -50 }, su.body.token);
+      check(neg.body.stats.wallet === 0, "a negative wallet clamps to zero (practice chips can't go below broke)");
+    }
 
     /* signin ledger: 5 fails for one email -> 429 */
     for (let i = 0; i < 5; i++) await call("POST", "/auth/signin", { email: "quiet@test.com", password: "badbadbad" + i });

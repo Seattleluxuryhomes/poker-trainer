@@ -470,5 +470,6 @@
       if (v.indexOf("-dev") !== -1) { var el = document.getElementById("ver"); el.style.display = "inline"; }
     })();
   </script>
+  <script>if ("serviceWorker" in navigator) addEventListener("load", function () { navigator.serviceWorker.register("./sw.js").catch(function () {}); });</script>
 </body>
 </html>

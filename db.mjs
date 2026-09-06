@@ -39,6 +39,7 @@ export function openDb(path = DB_PATH) {
     CREATE TABLE IF NOT EXISTS stats (
       user_id TEXT PRIMARY KEY REFERENCES users(id),
       bankroll INTEGER NOT NULL DEFAULT 200,
+      wallet INTEGER NOT NULL DEFAULT 10000,
       table_stack INTEGER NOT NULL DEFAULT 5000,
       table_hands INTEGER NOT NULL DEFAULT 0,
       table_wins INTEGER NOT NULL DEFAULT 0,
@@ -83,6 +84,8 @@ export function openDb(path = DB_PATH) {
   // additive migration: charity-night tally on stats
   try { db.exec("ALTER TABLE stats ADD COLUMN raised INTEGER NOT NULL DEFAULT 0"); } catch { /* exists */ }
   return db;
+  try { db.exec("ALTER TABLE stats ADD COLUMN wallet INTEGER NOT NULL DEFAULT 10000"); } catch { /* column exists */ }
+
 }
 
 export const getDb = () => db;

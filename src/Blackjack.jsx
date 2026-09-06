@@ -256,7 +256,7 @@ const BJ_GUIDE = [
 
 export default function Blackjack() {
   const [guideOpen, setGuideOpen] = useState(() => guideUnseen("bj"));
-  const [bank, setBank] = useState(loadBjBank);
+  const [bank, setBank] = useState(walletLoad);
   const [chip, setChip] = useState(25);
   const [phase, setPhase] = useState("bet"); // bet | play | reveal | done
   const [shoe, setShoe] = useState(null);
@@ -268,7 +268,7 @@ export default function Blackjack() {
   const [winKey, setWinKey] = useState(0);
   const [showMath, setShowMath] = useState(true);
 
-  useEffect(() => { try { window.localStorage.setItem(BJ_BANK_KEY, String(bank)); } catch { /* private */ } }, [bank]);
+  useEffect(() => { walletSave(bank); }, [bank]);
 
   /* what the math may know: the fresh deck minus every card FACE UP on the table */
   const counts = React.useMemo(() => {

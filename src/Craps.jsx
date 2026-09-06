@@ -215,7 +215,7 @@ const CRAPS_GUIDE = [
 
 export default function Craps() {
   const [guideOpen, setGuideOpen] = React.useState(() => guideUnseen("craps"));
-  const [bank, setBank] = React.useState(loadCrapsBank);
+  const [bank, setBank] = React.useState(walletLoad);
   const [chip, setChip] = React.useState(5);
   const [game, setGame] = React.useState({ phase: "comeout", point: null, bets: { pass: 0, dontPass: 0, odds: 0, field: 0, place: { 4: 0, 5: 0, 6: 0, 8: 0, 9: 0, 10: 0 } } });
   const [dice, setDice] = React.useState([3, 4]);
@@ -226,7 +226,7 @@ export default function Craps() {
   const [winAmt, setWinAmt] = React.useState(0);
   const [flash, setFlash] = React.useState(null); // {text, tone, key}
 
-  React.useEffect(() => { try { window.localStorage.setItem(CRAPS_BANK_KEY, String(bank)); } catch { /* private */ } }, [bank]);
+  React.useEffect(() => { walletSave(bank); }, [bank]);
 
   const b = game.bets;
   const placeTotal = PLACE_NUMS.reduce((a, n) => a + (b.place[n] || 0), 0);
