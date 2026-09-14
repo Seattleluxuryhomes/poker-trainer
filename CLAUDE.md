@@ -376,3 +376,23 @@ shell and the landing; /sw.js is whitelisted and no-cache. The site now
 installs to the home screen and the whole floor plays offline.
 verify_auth: 57 checks (wallet defaults/push/clamp, sw.js served). E2E: a
 $5 craps bet shows at blackjack; roulette loads with the network off.
+
+## Showdown clarity + the in-app-browser fix (v0.15.1)
+
+Founder: "I don't see the pair this is inaccurate fix this" — the hand was
+CORRECT (a pair of 9s ON THE BOARD, won by his Jack kicker) but the banner
+said only "You win with Pair," which is how a right answer reads as a bug.
+Now holdem.js speaks like a dealer: describeScore() names the full hand ("a
+Pair of 9s, Ace-Jack kickers" — BOTH kickers, because naming only the top
+one can itself be a shared board card and mislead again), and bestFive()
+ships the exact five card ids per revealed seat (state.best5) so both
+tables LIGHT the winner's five in gold and step every other card back to
+42%. verify_table re-proves it on the founder's exact hand (J4 vs T6 on
+9♥7♣3♠9♣A♦) plus a spread of dealer lines, 78 checks. Writing the test
+caught my own first label being wrong the same way the old banner was.
+Also v0.15.1: every page's root now sizes to var(--vh) (100dvh when
+supported, 100vh fallback in the shell) — Facebook Messenger's in-app
+browser was pushing the hold'em action bar below the fold, making the
+table look dead ("fix cui"). The two table roots are height-fixed to the
+visible viewport so the action bar is ALWAYS on screen; proven at a 640px
+viewport in the sweep.

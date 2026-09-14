@@ -409,7 +409,7 @@ export default function Blackjack() {
   const MOVE_LABEL = { stand: "STAND", hit: "HIT", double: "DOUBLE", split: "SPLIT" };
 
   return (
-    <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "100vh", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
+    <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "var(--vh)", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
       <style>{CAS_CSS}</style>
       <CasinoHeader onHelp={() => setGuideOpen(true)} title="BLACKJACK" sub="SINGLE DECK · DEALER STANDS ON 17 · BLACKJACK PAYS 3:2 · PRACTICE CHIPS" bank={bank} />
       <Guide game="bj" title="BLACKJACK" steps={BJ_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />

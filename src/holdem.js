@@ -69,6 +69,43 @@ function score7(cards) {
 
 const scoreCatName = (s) => HOLDEM_CATS[Math.floor(s / P16[5])];
 
+/* The five cards (of seven) that actually make the score — deterministic:
+ * the first best subset in drop order. Lets the felt LIGHT UP the hand. */
+function bestFive(cards) {
+  let best = 0, bestPick = cards.slice(0, 5);
+  const pick = new Array(5);
+  for (let a = 0; a < 6; a++)
+    for (let b = a + 1; b < 7; b++) {
+      let k = 0;
+      for (let i = 0; i < 7; i++) if (i !== a && i !== b) pick[k++] = cards[i];
+      const s = score5H(pick);
+      if (s > best) { best = s; bestPick = pick.slice(); }
+    }
+  return bestPick;
+}
+
+/* A packed score, said the way a dealer would say it: "a Pair of 9s, Jack
+ * kicker" — because "You win with Pair" when the pair sits on the BOARD and
+ * only your kicker played reads like a bug (the founder caught exactly that). */
+const RANK_WORD = { 14: "Ace", 13: "King", 12: "Queen", 11: "Jack", 10: "10", 9: "9", 8: "8", 7: "7", 6: "6", 5: "5", 4: "4", 3: "3", 2: "2" };
+const rankPlural = (r) => (r >= 11 && r <= 14 ? RANK_WORD[r] + "s" : RANK_WORD[r] + "s");
+function describeScore(score) {
+  const cat = Math.floor(score / P16[5]);
+  const t = [];
+  for (let i = 0; i < 5; i++) t.push(Math.floor(score / P16[4 - i]) % 16);
+  switch (cat) {
+    case 8: return t[0] === 14 ? "a Royal Flush" : `a ${RANK_WORD[t[0]]}-high Straight Flush`;
+    case 7: return `Four of a Kind, ${rankPlural(t[0])}`;
+    case 6: return `a Full House, ${rankPlural(t[0])} over ${rankPlural(t[1])}`;
+    case 5: return `${t[0] === 14 || t[0] === 8 ? "an" : "a"} ${RANK_WORD[t[0]]}-high Flush`;
+    case 4: return `a ${RANK_WORD[t[0]]}-high Straight`;
+    case 3: return `Three of a Kind, ${rankPlural(t[0])}`;
+    case 2: return `Two Pair, ${rankPlural(t[0])} and ${rankPlural(t[1])}`;
+    case 1: return `a Pair of ${rankPlural(t[0])}, ${RANK_WORD[t[1]]}-${RANK_WORD[t[2]]} kickers`;
+    default: return `${RANK_WORD[t[0]]} high`;
+  }
+}
+
 /* ==================== MONTE CARLO EQUITY ====================
  * Rollouts of the unseen deck: deal each opponent a random hole,
  * complete the board, count wins (ties count fractionally). This
@@ -227,7 +264,7 @@ function startHand(state, rng) {
   s.deck = shuffledFrom(rng);
   s.board = []; s.street = 0; s.pot = 0;
   s.currentBet = 0; s.minRaise = BIG_BLIND;
-  s.message = ""; s.quip = null; s.winners = []; s.revealed = false;
+  s.message = ""; s.quip = null; s.winners = []; s.revealed = false; s.best5 = null;
   s.phase = "betting";
   for (const p of s.players) {
     if (p.stack < BIG_BLIND) { p.stack = START_STACK; p.rebuyNote = true; } else p.rebuyNote = false;
@@ -298,7 +335,10 @@ function settleShowdown(s) {
   s.phase = "over";
   const names = s.winners.map((i) => s.players[i].name).join(" & ");
   const plural = s.winners.length > 1 || s.winners.includes(USER_SEAT);
-  s.message = `${names} win${plural ? "" : "s"} with ${scoreCatName(overallBest)} · pot $${s.pot.toLocaleString()}`;
+  s.message = `${names} win${plural ? "" : "s"} with ${describeScore(overallBest)} · pot $${s.pot.toLocaleString()}`;
+  // the exact five each revealed hand plays, so the felt can light them up
+  s.best5 = {};
+  for (let i = 0; i < 4; i++) if (inHand(s.players[i])) s.best5[i] = bestFive([...s.players[i].hole, ...s.board]).map(cardId);
   s.toAct = -1; s.needs = [];
   return s;
 }

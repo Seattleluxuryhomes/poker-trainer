@@ -44,14 +44,24 @@ function useViewportWidth() {
   return w;
 }
 
-function TableCard({ card, w }) {
+
+/* At showdown, the winner's five light up and everything else steps back. */
+function litSetFor(state) {
+  if (!state || state.phase !== "over" || !state.best5 || !state.winners || !state.winners.length) return null;
+  const ids = new Set();
+  for (const w of state.winners) for (const id of state.best5[w] || []) ids.add(id);
+  return ids;
+}
+function TableCard({ card, w, lit, dim }) {
   const red = isRed(card.s);
   const col = red ? "#c62828" : "#161a22";
   return (
     <div style={{
       width: w, height: Math.round(w * 1.42), borderRadius: Math.max(8, w * 0.14),
       background: "linear-gradient(160deg, #fdfcf7, #efece1 70%, #ddd8c8)",
-      border: "1px solid rgba(0,0,0,0.4)", boxShadow: "0 6px 14px rgba(0,0,0,0.55)",
+      border: lit ? "2.5px solid #f5c542" : "1px solid rgba(0,0,0,0.4)",
+      boxShadow: lit ? "0 0 16px rgba(245,197,66,0.5), 0 6px 14px rgba(0,0,0,0.55)" : "0 6px 14px rgba(0,0,0,0.55)",
+      opacity: dim ? 0.42 : 1, transition: "opacity 300ms ease, box-shadow 300ms ease",
       position: "relative", color: col, flex: "0 0 auto",
     }}>
       <div style={{ position: "absolute", top: w * 0.1, left: w * 0.14, lineHeight: 1, textAlign: "center" }}>
@@ -201,7 +211,7 @@ function OppSeat({ player, seat, spot, state, cardW, equity, lead }) {
         {state.handNo === 0 ? null : player.folded ? (
           <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.14em", color: N.dim, alignSelf: "center" }}>FOLDED</span>
         ) : showCards ? (
-          player.hole.map((c) => <TableCard key={cardId(c)} card={c} w={Math.round(cardW * 0.62)} />)
+          player.hole.map((c) => { const l5 = litSetFor(state); return <TableCard key={cardId(c)} card={c} w={Math.round(cardW * 0.62)} lit={l5 ? l5.has(cardId(c)) : false} dim={l5 ? !l5.has(cardId(c)) : false} />; })
         ) : (
           <>
             <CardBack w={Math.round(cardW * 0.55)} />
@@ -332,6 +342,7 @@ function SoloTable() {
 
   const OPP_SPOTS = [{ x: 14, y: 26 }, { x: 50, y: 13 }, { x: 86, y: 26 }];
   const vw = useViewportWidth();
+  const lit5 = litSetFor(state);
   const boardW = clampN(38, Math.round(vw * 0.115), 54);
   const holeW = clampN(54, Math.round(vw * 0.16), 74);
   const streetNames = ["Pre-flop", "Flop", "Turn", "River"];
@@ -344,7 +355,7 @@ function SoloTable() {
   return (
     <div style={{
       background: `radial-gradient(130% 70% at 50% -10%, #10151b, ${N.bg} 60%)`,
-      minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: sans, color: N.text, overflow: "hidden",
+      height: "var(--vh)", minHeight: 480, display: "flex", flexDirection: "column", fontFamily: sans, color: N.text, overflow: "hidden",
     }}>
       <style>{`
         html, body { background: ${N.bg}; }
@@ -419,7 +430,7 @@ function SoloTable() {
             POT&nbsp;&nbsp;{money(state.pot)}
           </div>
           <div className="boardwrap" style={{ display: "flex", gap: "clamp(4px, 1.5vw, 8px)", justifyContent: "center" }}>
-            {state.board.map((c) => <TableCard key={cardId(c)} card={c} w={boardW} />)}
+            {state.board.map((c) => <TableCard key={cardId(c)} card={c} w={boardW} lit={lit5 ? lit5.has(cardId(c)) : false} dim={lit5 ? !lit5.has(cardId(c)) : false} />)}
             {Array.from({ length: 5 - state.board.length }, (_, i) => <CardSlot key={`s${i}`} w={boardW} />)}
           </div>
           {state.message && (
@@ -442,7 +453,7 @@ function SoloTable() {
             <div style={{ display: "flex", marginBottom: -10 }}>
               {you.hole.map((c, i) => (
                 <div key={cardId(c)} style={{ transform: `rotate(${i === 0 ? -6 : 6}deg) translateY(${i === 0 ? 2 : 0}px)`, marginLeft: i === 0 ? 0 : -Math.round(holeW * 0.24), zIndex: i }}>
-                  <TableCard card={c} w={holeW} />
+                  <TableCard card={c} w={holeW} lit={lit5 ? lit5.has(cardId(c)) : false} dim={lit5 ? !lit5.has(cardId(c)) : false} />
                 </div>
               ))}
             </div>
@@ -558,7 +569,7 @@ const darkBtn = (primary) => ({
 
 function RoomCard({ children, title }) {
   return (
-    <div style={{ minHeight: "100vh", background: N.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: sans, color: "#e8ebf2" }}>
+    <div style={{ minHeight: "var(--vh)", background: N.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: sans, color: "#e8ebf2" }}>
       <div style={{ width: "100%", maxWidth: 400, background: N.panel, border: `1px solid ${N.line}`, borderRadius: 16, padding: 22, boxShadow: "0 18px 50px rgba(0,0,0,0.6)" }}>
         <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 12 }}>{title}</div>
         {children}
@@ -792,6 +803,7 @@ function RoomTable({ code }) {
   const equities = payload.equities;
   const leadSeat = equities ? Number(Object.keys(equities).reduce((a, b) => (equities[a] >= equities[b] ? a : b))) : -1;
   const vw2 = Math.min(typeof window !== "undefined" ? window.innerWidth : 400, 900);
+  const lit5 = litSetFor(state);
   const boardW = clampN(38, Math.round(vw2 * 0.115), 54);
   const holeW = clampN(54, Math.round(vw2 * 0.16), 74);
   const streetNames = ["Pre-flop", "Flop", "Turn", "River"];
@@ -803,7 +815,7 @@ function RoomTable({ code }) {
   });
 
   return (
-    <div style={{ background: `radial-gradient(130% 70% at 50% -10%, #10151b, ${N.bg} 60%)`, minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: sans, color: N.text, overflow: "hidden" }}>
+    <div style={{ background: `radial-gradient(130% 70% at 50% -10%, #10151b, ${N.bg} 60%)`, height: "var(--vh)", minHeight: 480, display: "flex", flexDirection: "column", fontFamily: sans, color: N.text, overflow: "hidden" }}>
       <style>{`
         html, body { background: ${N.bg}; }
         button:active { filter: brightness(1.15); transform: translateY(1px); }
@@ -902,7 +914,7 @@ function RoomTable({ code }) {
             POT&nbsp;&nbsp;{money(state.pot)}
           </div>
           <div className="boardwrap" style={{ display: "flex", gap: "clamp(4px, 1.5vw, 8px)", justifyContent: "center" }}>
-            {state.board.map((c) => <TableCard key={cardId(c)} card={c} w={boardW} />)}
+            {state.board.map((c) => <TableCard key={cardId(c)} card={c} w={boardW} lit={lit5 ? lit5.has(cardId(c)) : false} dim={lit5 ? !lit5.has(cardId(c)) : false} />)}
             {Array.from({ length: 5 - state.board.length }, (_, i) => <CardSlot key={`s${i}`} w={boardW} />)}
           </div>
           {state.message && (
@@ -954,7 +966,7 @@ function RoomTable({ code }) {
             <div style={{ display: "flex", marginBottom: -10 }}>
               {you.hole.map((c, i) => (
                 <div key={cardId(c)} style={{ transform: `rotate(${i === 0 ? -6 : 6}deg) translateY(${i === 0 ? 2 : 0}px)`, marginLeft: i === 0 ? 0 : -Math.round(holeW * 0.24), zIndex: i }}>
-                  <TableCard card={c} w={holeW} />
+                  <TableCard card={c} w={holeW} lit={lit5 ? lit5.has(cardId(c)) : false} dim={lit5 ? !lit5.has(cardId(c)) : false} />
                 </div>
               ))}
             </div>

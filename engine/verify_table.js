@@ -35,10 +35,10 @@ const sandbox = {
 vm.createContext(sandbox);
 vm.runInContext(body, sandbox);
 const api = vm.runInContext(
-  "({ score5H, score7, equityVs, equityMulti, makeTable, startHand, legalActions, applyAction, botDecide, settleShowdown, runoutStep, mulberry32, cardId, SMALL_BLIND, BIG_BLIND, START_STACK })",
+  "({ score5H, score7, equityVs, equityMulti, makeTable, startHand, legalActions, applyAction, botDecide, settleShowdown, runoutStep, mulberry32, cardId, SMALL_BLIND, BIG_BLIND, START_STACK, bestFive, describeScore })",
   sandbox,
 );
-const { score5H, score7, equityVs, equityMulti, makeTable, startHand, legalActions, applyAction, botDecide, settleShowdown, runoutStep, mulberry32, cardId, SMALL_BLIND, BIG_BLIND, START_STACK } = api;
+const { score5H, score7, equityVs, equityMulti, makeTable, startHand, legalActions, applyAction, botDecide, settleShowdown, runoutStep, mulberry32, cardId, SMALL_BLIND, BIG_BLIND, START_STACK, bestFive, describeScore } = api;
 
 const c = (r, s) => ({ r, s });
 /* The pot value is kept for display after settlement, so conservation counts it
@@ -224,6 +224,40 @@ const totalChips = (st) => st.players.reduce((a, p) => a + p.stack, 0) + (st.pha
       if (totalChips(st) !== 4 * START_STACK) legal = false; // totalChips ignores the display pot once settled
     }
     check(legal && st.phase === "over", `seeded game ${seed}: bots legal, chips conserved, hand completes`);
+  }
+}
+
+console.log("verify_table: the dealer's voice (describeScore + bestFive)");
+{
+  const c = (r, s) => ({ r, s });
+  // the founder's exact hand: J4 vs T6 on 9♥ 7♣ 3♠ 9♣ A♦ — the pair is the board's
+  const board = [c(9, 1), c(7, 3), c(3, 0), c(9, 3), c(1, 2)];
+  const mine = [c(11, 3), c(4, 2)];
+  const theirs = [c(10, 1), c(6, 2)];
+  const sMine = score7([...mine, ...board]), sTheirs = score7([...theirs, ...board]);
+  check(sMine > sTheirs, "J kicker beats 10 kicker on the double-board-9s hand");
+  check(describeScore(sMine) === "a Pair of 9s, Ace-Jack kickers", `the dealer says WHICH pair and WHICH kickers (got "${describeScore(sMine)}")`);
+  const five = bestFive([...mine, ...board]);
+  check(five.length === 5 && score5H(five) === sMine, "bestFive returns five cards achieving exactly the best score");
+  const ids = new Set(five.map(cardId));
+  check(ids.has(cardId(c(9, 1))) && ids.has(cardId(c(9, 3))) && ids.has(cardId(c(11, 3))), "the lit five include both board 9s and the winning Jack");
+  check(!ids.has(cardId(c(4, 2))), "the dead 4 stays dark");
+  // a spread of dealer lines, each derivable by hand
+  check(describeScore(score5H([c(1, 0), c(13, 0), c(12, 0), c(11, 0), c(10, 0)])) === "a Royal Flush", "royal named");
+  check(describeScore(score5H([c(9, 0), c(8, 1), c(7, 2), c(6, 3), c(5, 0)])) === "a 9-high Straight", "straight named by its top card");
+  check(describeScore(score5H([c(1, 0), c(1, 1), c(5, 2), c(5, 3), c(13, 0)])) === "Two Pair, Aces and 5s", "two pair named high-low");
+  check(describeScore(score5H([c(3, 0), c(3, 1), c(3, 2), c(13, 3), c(13, 0)])) === "a Full House, 3s over Kings", "full house named over/under");
+  check(describeScore(score5H([c(1, 0), c(10, 0), c(7, 0), c(4, 0), c(2, 0)])) === "an Ace-high Flush", "flush named by its high card");
+  check(describeScore(score5H([c(1, 1), c(13, 2), c(9, 0), c(5, 3), c(2, 1)])) === "Ace high", "high card says so plainly");
+  // a settled game carries best5 for every revealed seat
+  const rng = mulberry32(7);
+  let st = startHand(makeTable(), rng);
+  for (let i = 0; i < 200 && st.phase === "betting"; i++) st = applyAction(st, botDecide(st, rng));
+  for (let i = 0; i < 10 && st.phase === "runout"; i++) st = runoutStep(st, rng);
+  if (st.phase === "over" && st.revealed) {
+    check(st.best5 && Object.keys(st.best5).length > 0, "settled showdown ships best5 per revealed seat");
+    const w0 = st.winners[0];
+    check((st.best5[w0] || []).length === 5, "the winner's lit hand is exactly five cards");
   }
 }
 

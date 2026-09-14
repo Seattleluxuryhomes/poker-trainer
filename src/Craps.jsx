@@ -316,7 +316,7 @@ export default function Craps() {
   );
 
   return (
-    <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "100vh", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
+    <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "var(--vh)", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
       <style>{CAS_CSS + `
         @keyframes crapsTumble {
           0% { transform: rotate(-14deg) translate(-8px, -10px) }

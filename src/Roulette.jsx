@@ -262,7 +262,7 @@ export default function Roulette() {
   const resultIdx = result != null ? WHEEL_ORDER.indexOf(result) : null;
 
   return (
-    <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "100vh", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
+    <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "var(--vh)", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
       <style>{CAS_CSS + `
         @keyframes rouBallOrbit { from { transform: rotate(0deg) } to { transform: rotate(-360deg) } }
       `}</style>

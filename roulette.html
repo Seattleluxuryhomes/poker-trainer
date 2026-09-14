@@ -13,7 +13,7 @@
 <meta property="og:description" content="American roulette with every probability enumerated and every house edge printed on the felt. Practice chips only." />
 <title>Roulette</title>
 <script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){})})</script>
-<style>html,body{margin:0;background:#0a0c10;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}#root{min-height:100vh}input,textarea{-webkit-user-select:text;user-select:text}</style>
+<style>html,body{margin:0;background:#0a0c10;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}#root{min-height:100vh}:root{--vh:100vh}@supports(height:100dvh){:root{--vh:100dvh}}input,textarea{-webkit-user-select:text;user-select:text}</style>
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
 </head>
@@ -243,6 +243,42 @@ function score7(cards) {
     return best;
 }
 const scoreCatName = (s) => HOLDEM_CATS[Math.floor(s / P16[5])];
+function bestFive(cards) {
+    let best = 0, bestPick = cards.slice(0, 5);
+    const pick = new Array(5);
+    for (let a = 0; a < 6; a++)
+        for (let b = a + 1; b < 7; b++) {
+            let k = 0;
+            for (let i = 0; i < 7; i++)
+                if (i !== a && i !== b)
+                    pick[k++] = cards[i];
+            const s = score5H(pick);
+            if (s > best) {
+                best = s;
+                bestPick = pick.slice();
+            }
+        }
+    return bestPick;
+}
+const RANK_WORD = { 14: "Ace", 13: "King", 12: "Queen", 11: "Jack", 10: "10", 9: "9", 8: "8", 7: "7", 6: "6", 5: "5", 4: "4", 3: "3", 2: "2" };
+const rankPlural = (r) => (r >= 11 && r <= 14 ? RANK_WORD[r] + "s" : RANK_WORD[r] + "s");
+function describeScore(score) {
+    const cat = Math.floor(score / P16[5]);
+    const t = [];
+    for (let i = 0; i < 5; i++)
+        t.push(Math.floor(score / P16[4 - i]) % 16);
+    switch (cat) {
+        case 8: return t[0] === 14 ? "a Royal Flush" : `a ${RANK_WORD[t[0]]}-high Straight Flush`;
+        case 7: return `Four of a Kind, ${rankPlural(t[0])}`;
+        case 6: return `a Full House, ${rankPlural(t[0])} over ${rankPlural(t[1])}`;
+        case 5: return `${t[0] === 14 || t[0] === 8 ? "an" : "a"} ${RANK_WORD[t[0]]}-high Flush`;
+        case 4: return `a ${RANK_WORD[t[0]]}-high Straight`;
+        case 3: return `Three of a Kind, ${rankPlural(t[0])}`;
+        case 2: return `Two Pair, ${rankPlural(t[0])} and ${rankPlural(t[1])}`;
+        case 1: return `a Pair of ${rankPlural(t[0])}, ${RANK_WORD[t[1]]}-${RANK_WORD[t[2]]} kickers`;
+        default: return `${RANK_WORD[t[0]]} high`;
+    }
+}
 function equityVs(hole, board, nOpps, trials, rng) {
     const seen = new Set([...hole, ...board].map(cardId));
     const pool = fullDeck().filter((c) => !seen.has(cardId(c)));
@@ -403,6 +439,7 @@ function startHand(state, rng) {
     s.quip = null;
     s.winners = [];
     s.revealed = false;
+    s.best5 = null;
     s.phase = "betting";
     for (const p of s.players) {
         if (p.stack < BIG_BLIND) {
@@ -484,7 +521,11 @@ function settleShowdown(s) {
     s.phase = "over";
     const names = s.winners.map((i) => s.players[i].name).join(" & ");
     const plural = s.winners.length > 1 || s.winners.includes(USER_SEAT);
-    s.message = `${names} win${plural ? "" : "s"} with ${scoreCatName(overallBest)} · pot $${s.pot.toLocaleString()}`;
+    s.message = `${names} win${plural ? "" : "s"} with ${describeScore(overallBest)} · pot $${s.pot.toLocaleString()}`;
+    s.best5 = {};
+    for (let i = 0; i < 4; i++)
+        if (inHand(s.players[i]))
+            s.best5[i] = bestFive([...s.players[i].hole, ...s.board]).map(cardId);
     s.toAct = -1;
     s.needs = [];
     return s;
@@ -1067,7 +1108,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.15.0";
+const APP_VERSION = "0.15.1";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1761,7 +1802,7 @@ function Roulette() {
     const m = info ? betMath(info) : null;
     const infoLabel = info ? (info.startsWith("n:") ? `Straight ${info.slice(2)}` : { red: "Red", black: "Black", odd: "Odd", even: "Even", low: "1–18", high: "19–36", dozen1: "1st dozen", dozen2: "2nd dozen", dozen3: "3rd dozen", col1: "Column 1", col2: "Column 2", col3: "Column 3" }[info]) : null;
     const resultIdx = result != null ? WHEEL_ORDER.indexOf(result) : null;
-    return (React.createElement("div", { style: { background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "100vh", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" } },
+    return (React.createElement("div", { style: { background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "var(--vh)", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" } },
         React.createElement("style", null, CAS_CSS + `
         @keyframes rouBallOrbit { from { transform: rotate(0deg) } to { transform: rotate(-360deg) } }
       `),

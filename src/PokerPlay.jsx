@@ -151,7 +151,7 @@ export default function PokerPlay() {
   const w = Math.min(74, Math.round(((typeof window !== "undefined" ? window.innerWidth : 400) - 80) / 5));
 
   return (
-    <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "100vh", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
+    <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "var(--vh)", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
       <style>{CAS_CSS}</style>
       <CasinoHeader onHelp={() => setGuideOpen(true)} title="VIDEO POKER" sub="9/6 JACKS OR BETTER · ROYAL PAYS 4000 AT MAX BET · PRACTICE CHIPS" bank={bank} />
       <Guide game="play" title="VIDEO POKER" steps={VP_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />

@@ -228,7 +228,7 @@ export default function PaiGow() {
   const w = Math.min(62, Math.round(((typeof window !== "undefined" ? window.innerWidth : 400) - 112) / 7));
 
   return (
-    <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "100vh", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
+    <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "var(--vh)", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
       <style>{CAS_CSS}</style>
       <CasinoHeader onHelp={() => setGuideOpen(true)} title="PAI GOW POKER" sub="SET FIVE HIGH · TWO LOW · 5% COMMISSION, PRINTED · PRACTICE CHIPS" bank={bank} />
       <Guide game="paigow" title="PAI GOW" steps={PAIGOW_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
