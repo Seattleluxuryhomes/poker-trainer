@@ -83,7 +83,7 @@ build_one() {
 <meta property="og:description" content="${DESC}" />
 <title>${TITLE}</title>
 <script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){})})</script>
-<style>html,body{margin:0;background:#0a0c10;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}#root{min-height:100vh}:root{--vh:100vh}@supports(height:100dvh){:root{--vh:100dvh}}input,textarea{-webkit-user-select:text;user-select:text}</style>
+<style>html,body{margin:0;background:#0a0c10;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}#root{min-height:100vh;min-height:100dvh}:root{--vh:100vh}@supports(height:100dvh){:root{--vh:100dvh}}input,textarea{-webkit-user-select:text;user-select:text}</style>
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
 </head>

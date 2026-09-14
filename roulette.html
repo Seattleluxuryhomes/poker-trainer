@@ -13,7 +13,7 @@
 <meta property="og:description" content="American roulette with every probability enumerated and every house edge printed on the felt. Practice chips only." />
 <title>Roulette</title>
 <script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){})})</script>
-<style>html,body{margin:0;background:#0a0c10;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}#root{min-height:100vh}:root{--vh:100vh}@supports(height:100dvh){:root{--vh:100dvh}}input,textarea{-webkit-user-select:text;user-select:text}</style>
+<style>html,body{margin:0;background:#0a0c10;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}#root{min-height:100vh;min-height:100dvh}:root{--vh:100vh}@supports(height:100dvh){:root{--vh:100dvh}}input,textarea{-webkit-user-select:text;user-select:text}</style>
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
 </head>
@@ -1108,7 +1108,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.15.1";
+const APP_VERSION = "0.15.2";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1868,13 +1868,19 @@ function Roulette() {
                         (-m.evPerUnit * 100).toFixed(2),
                         "%"),
                     " \u2014 enumerated, not estimated")) : "tap any bet to see its true odds"),
-                React.createElement("div", { style: { display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" } },
-                    CHIPS.map((v) => React.createElement(CasinoChip, { key: v, value: v, selected: chip === v, onClick: () => setChip(v) })),
-                    React.createElement("span", { style: { marginLeft: "auto", fontFamily: casMono, fontSize: 12, color: CAS.dim } }, staked > 0 ? `$${staked.toLocaleString()} on the felt` : "place your bets")),
-                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8 } },
-                    React.createElement("button", { onClick: spin, disabled: phase === "spinning" || staked === 0, style: casCta(phase === "spinning" || staked === 0, staked > 0) }, "SPIN"),
-                    React.createElement("button", { onClick: clearBets, disabled: phase === "spinning" || staked === 0, style: casGhost() }, "CLEAR"),
-                    React.createElement("button", { onClick: rebet, disabled: phase === "spinning" || !lastBets, style: casGhost() }, "REBET")),
+                React.createElement("div", { style: {
+                        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 20, padding: "10px 14px calc(10px + env(safe-area-inset-bottom))", maxWidth: 640, margin: "0 auto",
+                        background: "linear-gradient(180deg, rgba(10,12,16,0), rgba(10,12,16,0.94) 26%)",
+                        display: "flex", flexDirection: "column", gap: 9,
+                    } },
+                    React.createElement("div", { style: { display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" } },
+                        CHIPS.map((v) => React.createElement(CasinoChip, { key: v, value: v, selected: chip === v, onClick: () => setChip(v), size: 42 })),
+                        React.createElement("span", { style: { marginLeft: "auto", fontFamily: casMono, fontSize: 12, color: CAS.dim } }, staked > 0 ? `$${staked.toLocaleString()} on the felt` : "place your bets")),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8 } },
+                        React.createElement("button", { onClick: spin, disabled: phase === "spinning" || staked === 0, style: casCta(phase === "spinning" || staked === 0, staked > 0) }, "SPIN"),
+                        React.createElement("button", { onClick: clearBets, disabled: phase === "spinning" || staked === 0, style: casGhost() }, "CLEAR"),
+                        React.createElement("button", { onClick: rebet, disabled: phase === "spinning" || !lastBets, style: casGhost() }, "REBET"))),
+                React.createElement("div", { style: { height: 128, flex: "0 0 auto" } }),
                 bank === 0 && staked === 0 && (React.createElement("button", { onClick: () => setBank(10000), style: { ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` } }, "Felted \u2014 restake $10,000 practice chips")),
                 React.createElement("div", { style: { fontSize: 10.5, color: CAS.faint, lineHeight: 1.65, fontFamily: casMono } }, "Practice chips only. Every wager here gives the house exactly 2/38 \u2248 5.26% \u2014 the five-number basket (7.89%) is not offered on principle. The math never sleeps; the wheel doesn't care.")))));
 }

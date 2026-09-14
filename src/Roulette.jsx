@@ -344,18 +344,26 @@ export default function Roulette() {
             ) : "tap any bet to see its true odds"}
           </div>
 
-          <div style={{ display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" }}>
-            {CHIPS.map((v) => <CasinoChip key={v} value={v} selected={chip === v} onClick={() => setChip(v)} />)}
-            <span style={{ marginLeft: "auto", fontFamily: casMono, fontSize: 12, color: CAS.dim }}>
-              {staked > 0 ? `$${staked.toLocaleString()} on the felt` : "place your bets"}
-            </span>
+          {/* THE RAIL: sticky, so you can bet anywhere on the board and always
+              reach your chips and SPIN without scrolling — a real table's rail. */}
+          <div style={{
+            position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 20, padding: "10px 14px calc(10px + env(safe-area-inset-bottom))", maxWidth: 640, margin: "0 auto",
+            background: "linear-gradient(180deg, rgba(10,12,16,0), rgba(10,12,16,0.94) 26%)",
+            display: "flex", flexDirection: "column", gap: 9,
+          }}>
+            <div style={{ display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" }}>
+              {CHIPS.map((v) => <CasinoChip key={v} value={v} selected={chip === v} onClick={() => setChip(v)} size={42} />)}
+              <span style={{ marginLeft: "auto", fontFamily: casMono, fontSize: 12, color: CAS.dim }}>
+                {staked > 0 ? `$${staked.toLocaleString()} on the felt` : "place your bets"}
+              </span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8 }}>
+              <button onClick={spin} disabled={phase === "spinning" || staked === 0} style={casCta(phase === "spinning" || staked === 0, staked > 0)}>SPIN</button>
+              <button onClick={clearBets} disabled={phase === "spinning" || staked === 0} style={casGhost()}>CLEAR</button>
+              <button onClick={rebet} disabled={phase === "spinning" || !lastBets} style={casGhost()}>REBET</button>
+            </div>
           </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8 }}>
-            <button onClick={spin} disabled={phase === "spinning" || staked === 0} style={casCta(phase === "spinning" || staked === 0, staked > 0)}>SPIN</button>
-            <button onClick={clearBets} disabled={phase === "spinning" || staked === 0} style={casGhost()}>CLEAR</button>
-            <button onClick={rebet} disabled={phase === "spinning" || !lastBets} style={casGhost()}>REBET</button>
-          </div>
+          <div style={{ height: 128, flex: "0 0 auto" }} />
           {bank === 0 && staked === 0 && (
             <button onClick={() => setBank(10000)} style={{ ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` }}>
               Felted — restake $10,000 practice chips

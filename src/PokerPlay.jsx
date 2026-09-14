@@ -203,14 +203,20 @@ export default function PokerPlay() {
           </div>
         )}
 
-        {phase === "hold" ? (
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={draw} style={{ ...casCta(false, true), flex: 2 }}>DRAW</button>
-            <button onClick={askHint} style={{ ...casGhost(), flex: 1 }}>HINT</button>
-          </div>
-        ) : (
-          <button onClick={deal} disabled={broke} style={casCta(broke, !broke)}>DEAL · {bet} {bet === 1 ? "COIN" : "COINS"}</button>
-        )}
+        <div style={{
+          position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 20, padding: "10px 14px calc(10px + env(safe-area-inset-bottom))", maxWidth: 640, margin: "0 auto",
+          background: "linear-gradient(180deg, rgba(10,12,16,0), rgba(10,12,16,0.94) 26%)",
+        }}>
+          {phase === "hold" ? (
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={draw} style={{ ...casCta(false, true), flex: 2 }}>DRAW</button>
+              <button onClick={askHint} style={{ ...casGhost(), flex: 1 }}>HINT</button>
+            </div>
+          ) : (
+            <button onClick={deal} disabled={broke} style={{ ...casCta(broke, !broke), width: "100%" }}>DEAL · {bet} {bet === 1 ? "COIN" : "COINS"}</button>
+          )}
+        </div>
+        <div style={{ height: 84, flex: "0 0 auto" }} />
 
         {broke && (
           <div style={{ textAlign: "center", fontFamily: casMono, fontSize: 12, color: CAS.dim }}>

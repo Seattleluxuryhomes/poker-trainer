@@ -13,7 +13,7 @@
 <meta property="og:description" content="Craps with pass, don't pass, field, and true-odds free odds - the zero-edge bet, labeled. Practice chips only." />
 <title>Craps</title>
 <script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){})})</script>
-<style>html,body{margin:0;background:#0a0c10;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}#root{min-height:100vh}:root{--vh:100vh}@supports(height:100dvh){:root{--vh:100dvh}}input,textarea{-webkit-user-select:text;user-select:text}</style>
+<style>html,body{margin:0;background:#0a0c10;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}#root{min-height:100vh;min-height:100dvh}:root{--vh:100vh}@supports(height:100dvh){:root{--vh:100dvh}}input,textarea{-webkit-user-select:text;user-select:text}</style>
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
 </head>
@@ -1108,7 +1108,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.15.1";
+const APP_VERSION = "0.15.2";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,

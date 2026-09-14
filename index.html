@@ -28,7 +28,7 @@
     background:
       radial-gradient(70% 42% at 50% -6%, rgba(245,197,66,0.09), transparent 60%),
       radial-gradient(120% 60% at 50% 0%, var(--room), var(--bg) 65%);
-    color:var(--text); font-family:var(--sans); min-height:100vh;
+    color:var(--text); font-family:var(--sans); min-height:100vh; min-height:100dvh;
     display:flex; flex-direction:column; overflow-x:hidden;
   }
   a{color:inherit}
@@ -420,7 +420,7 @@
     Built on the training-loop DNA of <a href="https://github.com/ghug/cribbage-trainer">cribbage-trainer</a>
     (public domain): objective enumeration, never heuristics. Practice stats and bankrolls stay
     with you — nothing is wagered, bought, or sold, anywhere, ever.
-    <span class="ver" id="ver">0.15.1</span>
+    <span class="ver" id="ver">0.15.2</span>
   </footer>
 
   <script>
@@ -466,7 +466,7 @@
       }
       requestAnimationFrame(stepUp);
 
-      var v = "0.15.1";
+      var v = "0.15.2";
       if (v.indexOf("-dev") !== -1) { var el = document.getElementById("ver"); el.style.display = "inline"; }
     })();
   </script>

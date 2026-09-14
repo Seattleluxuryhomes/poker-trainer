@@ -396,3 +396,18 @@ browser was pushing the hold'em action bar below the fold, making the
 table look dead ("fix cui"). The two table roots are height-fixed to the
 visible viewport so the action bar is ALWAYS on screen; proven at a 640px
 viewport in the sweep.
+
+## The rail (v0.15.2)
+
+Founder: "fix all ui." Two-viewport audit (412×890 and 412×640, the
+Messenger-short case) of all nine pages found the floor's worst defect:
+roulette's SPIN sat ~1,000px below the fold — you had to scroll past the
+wheel and the whole board to spin. Roulette and video poker now have THE
+RAIL: a fixed bottom bar (chips + SPIN/CLEAR/REBET; bet segs + DEAL/DRAW)
+always on screen, with a gradient fade, safe-area padding, and a content
+spacer so nothing hides underneath. position:sticky bottom silently failed
+to pin in Chromium inside these flex columns — measured, not theorized —
+so the rails are position:fixed. Also: the last 100vh stragglers (shell
+#root, landing body) gained 100dvh fallbacks. Audit proof: every page's
+primary action reachable without scrolling at BOTH viewports; a mid-board
+bet then spin resolves end-to-end at both heights.
