@@ -411,3 +411,30 @@ so the rails are position:fixed. Also: the last 100vh stragglers (shell
 #root, landing body) gained 100dvh fallbacks. Audit proof: every page's
 primary action reachable without scrolling at BOTH viewports; a mid-board
 bet then spin resolves end-to-end at both heights.
+
+## Three more rooms + the quiet felt (v0.16.0)
+
+Founder: "backart. ad three more three Spanish 21 high flush" (decode:
+Baccarat, Spanish 21, High Card Flush) and mid-build: "no gibberish. clean
+the ui." Three games, one design ruling.
+BACCARAT (src/Baccarat.jsx, bac.html): punto banco, fresh 8-deck shoe every
+hand, tableau implemented verbatim, and bacEnumerate() walks every
+six-card path exactly on the device — the spots print P and edge from OUR
+enumeration; verify_baccarat (33) proves the tableau rule-by-rule, sum-to-1,
+rigged-shoe certainties, cross-checks the published 45.8597/44.6247/9.5156
+to 1e-4, and the floored 5% commission.
+SPANISH 21 (src/Spanish21.jsx, sp21.html): 48-card deck (no tens), YOUR 21
+ALWAYS WINS, count bonuses (5-card 3:2, 6-card 2:1, 7+ 3:1) INSIDE the
+exact EV recursion (memo only at 4+ cards so 3-card 678/777 stay exact at
+the mixed rate; suited premiums paid in play, priced mixed in EV — the one
+≈, printed). Doubling voids bonuses, in play and in math. verify_sp21 (35)
+includes the famous divergence: hard 12 v 6 HITS here, from our own math.
+HIGH CARD FLUSH (src/HighCardFlush.jsx, flush.html): 7 cards, longest
+flush; raise caps 1x/2x/3x by length; dealer qualifies at 9-high 3-flush;
+edge SIMULATED on-device with the printed strategy (T-8-6 boundary),
+labeled. verify_hcf (23): comparator (LENGTH beats rank), qualification
+boundary, settlement branches, deterministic sim.
+THE QUIET FELT: MathNote in casino.jsx — every page's fine print now lives
+behind one collapsed "Σ THE MATH" row; header subs cut to a few words. The
+honesty moved one tap away, not away. 13 suites, 652 checks (the landing
+counts up to it).

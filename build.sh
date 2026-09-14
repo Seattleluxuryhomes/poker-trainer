@@ -121,12 +121,15 @@ build_one "src/Roulette.jsx"      "roulette.html" "Roulette"                "Rou
 build_one "src/Craps.jsx"         "craps.html"    "Craps"                   "Craps"        "Craps with pass, don't pass, field, and true-odds free odds - the zero-edge bet, labeled. Practice chips only."
 build_one "src/PaiGow.jsx"        "paigow.html"   "Pai Gow Poker"           "PaiGow"       "Pai Gow Poker: set five high, two low, 5% commission printed, the edge simulated honestly on your device. Practice chips only."
 build_one "src/Blackjack.jsx"     "bj.html"       "Blackjack"               "Blackjack"    "Single-deck blackjack where every decision's expected value is enumerated exactly from the cards left and printed on the button. Practice chips only."
+build_one "src/Baccarat.jsx"      "bac.html"      "Baccarat"                "Baccarat"     "Punto banco with every probability enumerated exactly from the 8-deck shoe on your device - player, banker, and the tie's printed 14% edge. Practice chips only."
+build_one "src/Spanish21.jsx"     "sp21.html"     "Spanish 21"              "Spanish21"    "Spanish 21 on a 48-card deck: your 21 always wins, bonuses printed, and every decision's expected value enumerated live. Practice chips only."
+build_one "src/HighCardFlush.jsx" "flush.html"    "High Card Flush"         "HighCardFlush" "Seven cards, longest flush wins: ante, raise up to 3x, dealer qualifies at 9-high - the edge simulated honestly on your device. Practice chips only."
 
 # Stamp the version (read from the VERSION file) into each page's __APP_VERSION__
 # placeholder. VERSION is the single source of truth: "<x.y.z>-dev.<n>" during
 # development, "<major.minor.patch>" on a release.
 VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION" 2>/dev/null)"
-for f in index.html trainer.html play.html table.html profile.html roulette.html craps.html paigow.html bj.html sw.js; do
+for f in index.html trainer.html play.html table.html profile.html roulette.html craps.html paigow.html bj.html bac.html sp21.html flush.html sw.js; do
   sed -i "s/__APP_VERSION__/${VERSION}/g" "$ROOT/$f"
 done
 echo "stamped version v${VERSION}"

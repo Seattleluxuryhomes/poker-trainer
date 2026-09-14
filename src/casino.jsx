@@ -306,6 +306,30 @@ function walletSave(v) {
   try { reportStats({ set: { wallet: v } }); } catch { /* guest / offline */ }
 }
 
+/* The math, out of the way: every page's fine print lives behind one quiet
+ * tap. The felt stays clean; the honesty stays one touch away. */
+function MathNote({ children }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div style={{ background: CAS.panel, border: `1px solid ${CAS.line}`, borderRadius: 12, overflow: "hidden" }}>
+      <button onClick={() => { sfx.click(); setOpen(!open); }} style={{
+        width: "100%", textAlign: "left", padding: "10px 14px", cursor: "pointer",
+        background: "none", border: "none", color: CAS.faint, fontFamily: casMono,
+        fontSize: 10.5, letterSpacing: "0.14em", fontWeight: 700,
+        display: "flex", alignItems: "center", gap: 8,
+      }}>
+        <span style={{ color: CAS.goldDim }}>Σ</span> THE MATH
+        <span style={{ marginLeft: "auto", transform: open ? "rotate(90deg)" : "none", transition: "transform 160ms ease" }}>›</span>
+      </button>
+      {open && (
+        <div style={{ padding: "0 14px 12px", fontFamily: casMono, fontSize: 11, lineHeight: 1.75, color: CAS.dim }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* A physical chip. */
 function CasinoChip({ value, selected, onClick, size = 46 }) {
   const skin = value === 1 ? { bg: "#e9e6dc", fg: "#14171d", ring: "#b9b4a4" }

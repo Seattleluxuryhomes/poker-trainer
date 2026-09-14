@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'" />
 <meta name="theme-color" content="#0f2417" />
-<meta name="description" content="Practice optimal video-poker holds: every possible hold ranked by exact expected value, fully explained. Free and open-source." />
+<meta name="description" content="Spanish 21 on a 48-card deck: your 21 always wins, bonuses printed, and every decision's expected value enumerated live. Practice chips only." />
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Poker Hold Trainer" />
-<meta property="og:description" content="Practice optimal video-poker holds: every possible hold ranked by exact expected value, fully explained. Free and open-source." />
-<title>Poker Hold Trainer</title>
+<meta property="og:title" content="Spanish 21" />
+<meta property="og:description" content="Spanish 21 on a 48-card deck: your 21 always wins, bonuses printed, and every decision's expected value enumerated live. Practice chips only." />
+<title>Spanish 21</title>
 <script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){})})</script>
 <style>html,body{margin:0;background:#0a0c10;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}#root{min-height:100vh;min-height:100dvh}:root{--vh:100vh}@supports(height:100dvh){:root{--vh:100dvh}}input,textarea{-webkit-user-select:text;user-select:text}</style>
 <script src="vendor/react.production.min.js"></script>
@@ -1595,230 +1595,493 @@ const casGhost = () => ({
     fontWeight: 800, fontSize: 12, letterSpacing: "0.06em",
     background: "rgba(255,255,255,0.05)", color: CAS.text, border: `1px solid ${CAS.line}`,
 });
-const { useState, useMemo, useCallback, useEffect, useRef } = React;
-function randomHand() {
-    return shuffledDeck().slice(0, 5);
+const { useState, useEffect } = React;
+function sp21Counts() {
+    const c = new Array(11).fill(0);
+    for (let v = 1; v <= 9; v++)
+        c[v] = 4;
+    c[10] = 12;
+    return c;
 }
-function Explain({ opt }) {
-    const floor = opt.min > 0
-        ? `Guaranteed at least ${opt.min} — the held cards already pay no matter the draw.`
-        : "No guaranteed payout — this hold can finish with nothing.";
-    return (React.createElement("div", { style: { padding: "12px 12px 14px", background: "rgba(0,0,0,0.26)", borderRadius: 9, marginTop: 6, lineHeight: 1.5 } },
-        React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.muted, marginBottom: 6 } },
-            "EXACT \u2014 enumerated all ",
-            opt.draws.toLocaleString(),
-            " possible ",
-            opt.draws === 1 ? "outcome" : "draws",
-            " of the ",
-            5 - opt.idxs.length,
-            " replacement card",
-            5 - opt.idxs.length === 1 ? "" : "s"),
-        React.createElement("div", { style: { fontSize: 13.5, marginBottom: 8 } },
-            floor,
-            " Some winning hand arrives ",
-            (opt.hitRate * 100).toFixed(1),
-            "% of the time."),
-        React.createElement(CatBars, { cats: opt.cats, color: T.good }),
-        React.createElement("div", { style: { height: 1, background: T.line, margin: "12px 0" } }),
-        React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.cream, lineHeight: 1.7 } },
-            React.createElement("div", null,
-                "EV ",
-                React.createElement("b", null, opt.ev.toFixed(4)),
-                " \u00A0 sd ",
-                opt.sd.toFixed(2),
-                " \u00A0 floor ",
-                opt.min,
-                " \u00A0 ceiling ",
-                opt.max),
-            React.createElement("div", { style: { color: T.muted } }, "Bars show each category's share of the EV (probability \u00D7 payout)."))));
-}
-function buildNote(best, chosen, delta) {
-    const optimal = delta < 1e-6;
-    const bestLabel = best.idxs.length === 0 ? "drawing five" : `holding ${best.cards.map(tag).join(" ")}`;
-    if (optimal) {
-        if (best.idxs.length === 5)
-            return "Optimal — the made hand is worth more than any chase.";
-        if (best.min > 0)
-            return "Optimal — you kept the sure payout and the best upside.";
-        return "Optimal — that's the highest-EV hold in the deal.";
+const sp21CardsLeft = (c) => c.reduce((a, b) => a + b, 0);
+const sp21Val = (card) => Math.min(10, card.r);
+function sp21Total(vals) {
+    let t = 0, aces = 0;
+    for (const v of vals) {
+        t += v;
+        if (v === 1)
+            aces++;
     }
-    if (chosen.min > 0 && best.min === 0)
-        return `You kept the sure ${catName(PAY.indexOf(chosen.min))}, but ${bestLabel} is worth ${delta.toFixed(4)} more per coin — the chase pays better than the lock here.`;
-    if (chosen.idxs.length > best.idxs.length)
-        return `Too many keepers — ${bestLabel} frees better draws, worth ${delta.toFixed(4)} more per coin.`;
-    return `Close, but ${bestLabel} is worth ${delta.toFixed(4)} more per coin.`;
+    if (aces > 0 && t + 10 <= 21)
+        return { total: t + 10, soft: true };
+    return { total: t, soft: false };
 }
-function InlineSetup({ autoBest, onAutoBest }) {
-    return (React.createElement("div", { style: { background: "rgba(0,0,0,0.22)", border: `1px solid ${T.line}`, borderRadius: 10, padding: "12px 14px" } },
-        React.createElement("div", { style: { fontWeight: 700, fontSize: 13.5, marginBottom: 10 } }, "Setup"),
-        React.createElement("div", { style: { marginBottom: 10, fontFamily: mono, fontSize: 11, color: T.muted, lineHeight: 1.6 } }, "EV is coins per coin bet at max coins (royal = 800). On a new hand:"),
-        React.createElement("div", { style: { display: "flex", gap: 6 } },
-            React.createElement("button", { onClick: () => onAutoBest(false), style: segStyle(!autoBest) }, "I choose"),
-            React.createElement("button", { onClick: () => onAutoBest(true), style: segStyle(autoBest) }, "Show me the best"))));
+function sp21BonusRate(vals) {
+    const { total } = sp21Total(vals);
+    if (total !== 21)
+        return 0;
+    const n = vals.length;
+    if (n >= 7)
+        return 3;
+    if (n === 6)
+        return 2;
+    if (n === 5)
+        return 1.5;
+    if (n === 3) {
+        const s = vals.slice().sort((a, b) => a - b).join(",");
+        if (s === "6,7,8" || s === "7,7,7")
+            return 1.5;
+    }
+    return 1;
 }
-function PokerTrainer() {
-    const [hand, setHand] = useState(randomHand);
-    const [held, setHeld] = useState([]);
-    const [phase, setPhase] = useState("choose");
-    const [chosenId, setChosenId] = useState(null);
-    const [drawn, setDrawn] = useState(null);
-    const [expanded, setExpanded] = useState(null);
-    const [stats, setStats] = useState({ hands: 0, optimal: 0, lost: 0 });
-    const [autoBest, setAutoBest] = useState(false);
-    const [aboutOpen, setAboutOpen] = useState(false);
-    const opts = useMemo(() => (phase === "revealed" ? analyze(hand) : null), [phase, hand]);
-    const deal = useCallback(() => {
-        setHand(randomHand());
-        setHeld([]);
-        setChosenId(null);
-        setDrawn(null);
-        setExpanded(null);
-        setPhase("choose");
-    }, []);
-    const pick = useCallback((idxs, counted) => {
-        const id = idxs.slice().sort((a, b) => a - b).join(",");
-        const res = analyze(hand);
-        const best = res[0];
-        const chosen = res.find((o) => o.id === id);
-        const delta = best.ev - chosen.ev;
-        const pool = deckExcluding(hand);
-        for (let i = pool.length - 1; i > 0; i--) {
-            const j = (Math.random() * (i + 1)) | 0;
-            [pool[i], pool[j]] = [pool[j], pool[i]];
+function sp21DealerDist(counts, dealerVals, conditionNoBj) {
+    const memo = new Map();
+    const recurse = (cts, vals) => {
+        const { total, soft } = sp21Total(vals);
+        if (total > 21)
+            return [0, 0, 0, 0, 0, 1];
+        if (total >= 17) {
+            const out = [0, 0, 0, 0, 0, 0];
+            out[total - 17] = 1;
+            return out;
         }
-        let p = 0;
-        const final = hand.map((c, i) => (idxs.includes(i) ? c : pool[p++]));
-        setDrawn({ final, cat: categorizeCards(final) });
-        setChosenId(id);
-        setExpanded(null);
-        setPhase("revealed");
-        if (counted) {
-            setStats((s) => ({ hands: s.hands + 1, optimal: s.optimal + (delta < 1e-6 ? 1 : 0), lost: s.lost + delta }));
-            reportStats({ inc: { trainer_hands: 1, trainer_optimal: delta < 1e-6 ? 1 : 0, trainer_ev_lost: delta } });
+        const key = total * 2 + (soft ? 1 : 0) + ":" + cts.join(",");
+        const hit = memo.get(key);
+        if (hit)
+            return hit;
+        const n = sp21CardsLeft(cts);
+        const out = [0, 0, 0, 0, 0, 0];
+        for (let v = 1; v <= 10; v++) {
+            if (cts[v] === 0)
+                continue;
+            const p = cts[v] / n;
+            cts[v]--;
+            const sub = recurse(cts, vals.concat(v));
+            cts[v]++;
+            for (let i = 0; i < 6; i++)
+                out[i] += p * sub[i];
         }
-    }, [hand]);
-    const draw = useCallback(() => pick(held, true), [pick, held]);
-    useEffect(() => {
-        if (phase !== "choose" || !autoBest)
-            return;
-        pick(analyze(hand)[0].idxs, false);
-    }, [autoBest, phase, hand, pick]);
-    const toggleHold = useCallback((i) => {
-        setHeld((h) => (h.includes(i) ? h.filter((x) => x !== i) : [...h, i]));
-    }, []);
-    const best = opts ? opts[0] : null;
-    const chosen = opts ? opts.find((o) => o.id === chosenId) : null;
-    const acc = stats.hands ? (stats.optimal / stats.hands) * 100 : 0;
-    const avgLost = stats.hands ? stats.lost / stats.hands : 0;
-    const maxEV = opts ? opts[0].ev : 1;
-    const delta = best && chosen ? best.ev - chosen.ev : 0;
+        memo.set(key, out);
+        return out;
+    };
+    const cts = counts.slice();
+    if (conditionNoBj && dealerVals.length === 1 && (dealerVals[0] === 1 || dealerVals[0] === 10)) {
+        const up = dealerVals[0];
+        const bjRank = up === 1 ? 10 : 1;
+        const n = sp21CardsLeft(cts);
+        const pNoBj = 1 - cts[bjRank] / n;
+        const out = [0, 0, 0, 0, 0, 0];
+        for (let v = 1; v <= 10; v++) {
+            if (cts[v] === 0 || v === bjRank)
+                continue;
+            const p = cts[v] / n / pNoBj;
+            cts[v]--;
+            const sub = recurse(cts, [up, v]);
+            cts[v]++;
+            for (let i = 0; i < 6; i++)
+                out[i] += p * sub[i];
+        }
+        return out;
+    }
+    return recurse(cts, dealerVals.slice());
+}
+function sp21EvStandVsDist(total, dist) {
+    if (total > 21)
+        return -1;
+    let ev = dist[5];
+    for (let d = 17; d <= 21; d++) {
+        const p = dist[d - 17];
+        if (total > d)
+            ev += p;
+        else if (total < d)
+            ev -= p;
+    }
+    return ev;
+}
+function sp21EvStand(counts, playerVals, dealerUp) {
+    const { total } = sp21Total(playerVals);
+    if (total === 21)
+        return sp21BonusRate(playerVals);
+    return sp21EvStandVsDist(total, sp21DealerDist(counts, [dealerUp], true));
+}
+function sp21EvHit(counts, playerVals, dealerUp) {
+    const memo = new Map();
+    const best = (cts, vals) => {
+        const { total } = sp21Total(vals);
+        if (total > 21)
+            return -1;
+        if (total === 21)
+            return sp21BonusRate(vals);
+        return Math.max(sp21EvStandVsDist(total, sp21DealerDist(cts, [dealerUp], true)), hit(cts, vals));
+    };
+    const hit = (cts, vals) => {
+        const { total, soft } = sp21Total(vals);
+        const nc = Math.min(vals.length, 7);
+        const useMemo = vals.length >= 3;
+        const key = useMemo ? `${total}|${soft ? 1 : 0}|${nc}|${cts.join(",")}` : null;
+        if (useMemo) {
+            const got = memo.get(key);
+            if (got !== undefined)
+                return got;
+        }
+        const n = sp21CardsLeft(cts);
+        let ev = 0;
+        for (let v = 1; v <= 10; v++) {
+            if (cts[v] === 0)
+                continue;
+            const p = cts[v] / n;
+            cts[v]--;
+            ev += p * best(cts, vals.concat(v));
+            cts[v]++;
+        }
+        if (useMemo)
+            memo.set(key, ev);
+        return ev;
+    };
+    return hit(counts.slice(), playerVals.slice());
+}
+function sp21EvDouble(counts, playerVals, dealerUp) {
+    const cts = counts.slice();
+    const n = sp21CardsLeft(cts);
+    let ev = 0;
+    for (let v = 1; v <= 10; v++) {
+        if (cts[v] === 0)
+            continue;
+        const p = cts[v] / n;
+        cts[v]--;
+        const { total } = sp21Total(playerVals.concat(v));
+        ev += p * 2 * (total > 21 ? -1 : total === 21 ? 1 : sp21EvStandVsDist(total, sp21DealerDist(cts, [dealerUp], true)));
+        cts[v]++;
+    }
+    return ev;
+}
+function sp21EvSplit(counts, pairVal, dealerUp) {
+    const cts = counts.slice();
+    const n = sp21CardsLeft(cts);
+    let ev = 0;
+    for (let v = 1; v <= 10; v++) {
+        if (cts[v] === 0)
+            continue;
+        const p = cts[v] / n;
+        cts[v]--;
+        const vals = [pairVal, v];
+        if (pairVal === 1) {
+            const { total } = sp21Total(vals);
+            ev += p * (total === 21 ? 1 : sp21EvStandVsDist(total, sp21DealerDist(cts, [dealerUp], true)));
+        }
+        else {
+            ev += p * Math.max(sp21EvStand(cts, vals, dealerUp), sp21EvHit(cts, vals, dealerUp), sp21EvDouble(cts, vals, dealerUp));
+        }
+        cts[v]++;
+    }
+    return 2 * ev;
+}
+function sp21Advise(counts, playerVals, dealerUp, canDouble, canSplit) {
+    const evs = { stand: sp21EvStand(counts, playerVals, dealerUp), hit: sp21EvHit(counts, playerVals, dealerUp) };
+    if (canDouble)
+        evs.double = sp21EvDouble(counts, playerVals, dealerUp);
+    if (canSplit)
+        evs.split = sp21EvSplit(counts, playerVals[0], dealerUp);
+    let best = "stand";
+    for (const m of Object.keys(evs))
+        if (evs[m] > evs[best])
+            best = m;
+    return { evs, best };
+}
+function sp21Payout(cards, doubled, fromSplit, dealerTotal, dealerBj, bet) {
+    const vals = cards.map(sp21Val);
+    const { total } = sp21Total(vals);
+    if (total > 21)
+        return 0;
+    const natural = !fromSplit && cards.length === 2 && total === 21;
+    if (natural)
+        return bet + Math.floor(bet * 1.5);
+    if (dealerBj)
+        return 0;
+    if (total === 21) {
+        if (doubled)
+            return bet * 2;
+        let rate = sp21BonusRate(vals);
+        if (cards.length === 3 && rate === 1.5) {
+            const s = vals.slice().sort((a, b) => a - b).join(",");
+            if (s === "6,7,8" || s === "7,7,7") {
+                const suited = cards.every((c) => c.s === cards[0].s);
+                if (suited)
+                    rate = cards[0].s === 0 ? 3 : 2;
+            }
+        }
+        return bet + Math.floor(bet * rate);
+    }
+    if (dealerTotal > 21)
+        return bet * 2;
+    if (total > dealerTotal)
+        return bet * 2;
+    if (total < dealerTotal)
+        return 0;
+    return bet;
+}
+const SP21_GUIDE = [
+    { h: "Blackjack, minus the tens", p: "The four 10-spot cards are gone from every deck (jacks, queens, kings stay). That alone would tilt the game to the house — so the rules hand it back, and then some." },
+    { h: "Your 21 always wins", p: "Not 'usually' — ALWAYS. Dealer makes 21 too? You still win. Your blackjack beats the dealer's and pays 3:2, every time. There is no worse feeling in regular blackjack than a pushed 21; this game deleted it.", tag: "THE HOUSE RULE THAT GIVES BACK" },
+    { h: "Long 21s pay bonuses", p: "A 21 made of 5 cards pays 3:2, 6 cards pays 2:1, 7 or more pays 3:1. And 6-7-8 or 7-7-7 pays 3:2 — 2:1 suited, 3:1 in spades. One catch, printed here honestly: doubling voids all bonuses." },
+    { h: "The math knows the bonuses", p: "STAND / HIT / DOUBLE each show their exact EV, recomputed from the cards actually left — and the count bonuses are inside that math, exactly. The suited 6-7-8/7-7-7 premiums are the one ≈: paid in full at the table, priced at the mixed rate in the EV.", tag: "ENUMERATED, NOT ESTIMATED" },
+    { h: "Follow the star, or don't", p: "The ★ marks the best move for this exact deck. Spanish 21 strategy is famously different from blackjack — you'll hit hands you'd never hit there, because the missing tens change everything. Watch the numbers move. Practice chips only.", tag: "PRACTICE CHIPS ONLY" },
+];
+const SP21_CHIPS = [5, 25, 100, 500, 1000];
+const sp21Deck = () => fullDeck().filter((c) => c.r !== 10);
+function SpCard({ card, w, faceDown, delay = 0 }) {
+    const red = isRed(card.s);
     return (React.createElement("div", { style: {
-            minHeight: "100%", background: `radial-gradient(120% 90% at 50% 0%, ${T.baizeHi}, ${T.baize})`,
-            color: T.cream, fontFamily: serif, padding: "0 0 28px",
-        } },
-        React.createElement("style", null, `
-        @keyframes dealIn {from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-        .dealwrap > * {animation:dealIn 260ms ease both}
-        .dealwrap > *:nth-child(2){animation-delay:40ms}
-        .dealwrap > *:nth-child(3){animation-delay:80ms}
-        .dealwrap > *:nth-child(4){animation-delay:120ms}
-        .dealwrap > *:nth-child(5){animation-delay:160ms}
-        button{font-family:inherit}
-        button:focus-visible{outline:2px solid ${T.pegIvory}}
-        @media (prefers-reduced-motion: reduce){.dealwrap > *{animation:none}}
-      `),
-        React.createElement("header", { style: {
-                background: `linear-gradient(180deg, ${T.woodL}, ${T.woodM} 55%, ${T.woodD})`,
-                padding: "14px 18px 16px", boxShadow: "0 6px 18px rgba(0,0,0,0.4)", borderBottom: "2px solid rgba(0,0,0,0.3)",
-            } },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 } },
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, minWidth: 0 } },
-                    React.createElement("a", { href: "index.html", "aria-label": "Home", title: "Home", style: {
-                            flex: "0 0 auto", width: 34, height: 34, borderRadius: 8, background: T.baize, color: T.ivory, textDecoration: "none",
-                            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, lineHeight: 1,
-                            boxShadow: "inset 0 1px 2px rgba(255,255,255,0.12), 0 2px 5px rgba(0,0,0,0.35)",
-                        } }, "\u2660"),
-                    React.createElement("span", { style: { fontFamily: mono, fontSize: 12, color: "#cfd6e2", letterSpacing: "0.06em", fontWeight: 700, lineHeight: 1.3 } }, "Hold Trainer \u2014 9/6 Jacks or Better"),
-                    IS_DEV_VERSION && React.createElement("span", { style: { fontFamily: mono, fontSize: 10, color: "#5b6472", whiteSpace: "nowrap" } },
-                        "v",
-                        APP_VERSION)),
-                React.createElement("div", { style: { display: "flex", gap: 8, flex: "0 0 auto" } },
-                    React.createElement(AccountArea, null),
-                    React.createElement("button", { onClick: () => setAboutOpen(true), "aria-label": "About", style: {
-                            width: 40, height: 40, borderRadius: 10, cursor: "pointer",
-                            border: "1px solid #232833", background: "rgba(255,255,255,0.04)",
-                            color: "#96a0b0", fontSize: 19, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                        } }, "\u24D8"))),
-            React.createElement("div", { style: { marginTop: 12 } },
-                React.createElement(ChipTrack, { pct: acc })),
-            React.createElement("div", { style: { marginTop: 10, display: "flex", gap: 18, flexWrap: "wrap", fontFamily: mono, fontSize: 12, color: "#e8ebf2" } },
-                React.createElement("span", null,
-                    React.createElement("b", { style: { fontSize: 15 } }, stats.hands),
-                    " hands"),
-                React.createElement("span", null,
-                    React.createElement("b", { style: { fontSize: 15 } },
-                        stats.hands ? acc.toFixed(0) : "–",
-                        "%"),
-                    " optimal"),
-                React.createElement("span", null,
-                    React.createElement("b", { style: { fontSize: 15 } }, stats.hands ? avgLost.toFixed(4) : "–"),
-                    " avg EV lost"))),
-        React.createElement("main", { style: { maxWidth: 560, margin: "0 auto", padding: "18px 16px 0" } },
-            aboutOpen && React.createElement(AboutModal, { onClose: () => setAboutOpen(false) }),
-            React.createElement("p", { style: { fontFamily: mono, fontSize: 12, color: T.muted, margin: "2px 2px 10px" } }, phase === "choose"
-                ? `Tap the cards to HOLD (${held.length} held), then Draw.`
-                : "Every hold, ranked by exact expected value — tap a row for the full explanation."),
-            React.createElement("div", { className: phase === "choose" ? "dealwrap" : "", style: { display: "flex", gap: 8, justifyContent: "center", paddingTop: 22, paddingBottom: phase === "choose" ? 4 : 20 } }, hand.map((card, i) => (React.createElement(CardFace, { key: cardId(card), card: card, held: phase === "choose" ? held.includes(i) : chosen && chosen.idxs.includes(i), disabled: phase !== "choose", onClick: () => toggleHold(i), badge: phase === "revealed" && best && best.idxs.includes(i) ? "BEST" : null })))),
-            phase === "choose" && (React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", margin: "16px 0 18px" } },
-                React.createElement("button", { onClick: draw, style: {
-                        padding: "12px 34px", borderRadius: 10, cursor: "pointer", fontFamily: mono, fontSize: 15, fontWeight: 700,
-                        background: `linear-gradient(180deg, ${T.good}, ${T.goodDeep})`, color: "#0d2417", border: "1px solid rgba(0,0,0,0.3)",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-                    } }, "Draw"),
-                React.createElement("button", { onClick: deal, style: {
-                        padding: "12px 22px", borderRadius: 10, cursor: "pointer", fontFamily: mono, fontSize: 13,
-                        background: "rgba(0,0,0,0.22)", color: T.cream, border: `1px solid ${T.line}`,
-                    } }, "New hand"))),
-            phase === "choose" && React.createElement(InlineSetup, { autoBest: autoBest, onAutoBest: setAutoBest }),
-            phase === "revealed" && opts && chosen && (React.createElement(React.Fragment, null,
-                React.createElement("div", { style: {
-                        padding: "12px 14px", borderRadius: 10, marginBottom: 8,
-                        background: delta < 1e-6 ? "rgba(95,164,124,0.16)" : "rgba(200,65,43,0.14)",
-                        border: `1px solid ${delta < 1e-6 ? "rgba(95,164,124,0.5)" : "rgba(200,65,43,0.45)"}`,
-                    } },
-                    React.createElement("div", { style: { fontWeight: 700, fontSize: 15 } }, buildNote(best, chosen, delta)),
-                    drawn && (React.createElement("div", { style: { fontFamily: mono, fontSize: 11.5, color: T.muted, marginTop: 5 } },
-                        "Drew ",
-                        drawn.final.map(tag).join(" "),
-                        " \u2014 ",
-                        catName(drawn.cat),
-                        PAY[drawn.cat] > 0 ? ` (pays ${PAY[drawn.cat]}/coin)` : ""))),
-                React.createElement("div", { style: { display: "grid", gap: 5 } }, opts.map((o, rank) => {
-                    const isChosen = o.id === chosenId;
-                    const isOpen = expanded === o.id;
-                    return (React.createElement("div", { key: o.id },
-                        React.createElement("button", { onClick: () => setExpanded(isOpen ? null : o.id), "aria-expanded": isOpen, style: {
-                                width: "100%", textAlign: "left", display: "grid", gridTemplateColumns: "22px 128px 1fr 64px 34px", gap: 8, alignItems: "center",
-                                padding: "8px 10px", borderRadius: 8, cursor: "pointer",
-                                background: isChosen ? "rgba(236,220,180,0.14)" : "rgba(0,0,0,0.18)",
-                                border: `1px solid ${isChosen ? "rgba(236,220,180,0.5)" : T.line}`, color: T.cream,
-                            } },
-                            React.createElement("span", { style: { fontFamily: mono, fontSize: 11, color: rank === 0 ? T.pegIvory : T.muted } }, rank + 1),
-                            React.createElement("span", { style: { fontFamily: mono, fontSize: 12.5, fontWeight: rank === 0 || isChosen ? 700 : 400 } }, o.idxs.length === 0 ? "Draw 5" : o.cards.map(tag).join(" ")),
-                            React.createElement("span", { style: { height: 9, borderRadius: 5, background: "rgba(0,0,0,0.3)", overflow: "hidden" } },
-                                React.createElement("span", { style: { display: "block", height: "100%", width: `${maxEV > 0 ? (o.ev / maxEV) * 100 : 0}%`, background: rank === 0 ? T.pegIvory : T.good, borderRadius: 5 } })),
-                            React.createElement("span", { style: { fontFamily: mono, fontSize: 12, textAlign: "right" } }, o.ev.toFixed(4)),
-                            React.createElement("span", { style: { fontFamily: mono, fontSize: 10, color: T.gold, textAlign: "right" } }, isChosen ? "YOU" : "")),
-                        isOpen && React.createElement(Explain, { opt: o })));
-                })),
-                React.createElement("div", { style: { display: "flex", justifyContent: "center", margin: "18px 0 6px" } },
-                    React.createElement("button", { onClick: deal, style: {
-                            padding: "12px 34px", borderRadius: 10, cursor: "pointer", fontFamily: mono, fontSize: 15, fontWeight: 700,
-                            background: `linear-gradient(180deg, ${T.good}, ${T.goodDeep})`, color: "#0d2417", border: "1px solid rgba(0,0,0,0.3)",
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-                        } }, "Next hand")))))));
+            width: w, height: Math.round(w * 1.42), borderRadius: Math.max(8, w * 0.13), flex: "0 0 auto",
+            background: faceDown
+                ? "repeating-linear-gradient(45deg, #1c2733, #1c2733 5px, #141b24 5px, #141b24 10px)"
+                : "linear-gradient(160deg, #fdfcf7, #efece1 70%, #ddd8c8)",
+            border: "1px solid rgba(0,0,0,0.35)", color: red ? "#c62828" : "#161a22",
+            boxShadow: "0 5px 12px rgba(0,0,0,0.5)", position: "relative", fontFamily: casSans,
+            animation: `casChipDrop 300ms ease ${delay}ms both`,
+        } }, !faceDown && (React.createElement(React.Fragment, null,
+        React.createElement("span", { style: { position: "absolute", top: w * 0.07, left: w * 0.1, fontSize: w * 0.3, fontWeight: 900, lineHeight: 1 } }, rankLabel(card.r)),
+        React.createElement("span", { style: { position: "absolute", bottom: w * 0.06, right: w * 0.08, fontSize: w * 0.44, lineHeight: 1 } }, SUIT[card.s])))));
 }
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(PokerTrainer));
+const spMoveBtn = (hot) => ({
+    padding: "11px 8px", borderRadius: 12, cursor: "pointer", fontFamily: casSans, fontWeight: 900,
+    fontSize: 13, letterSpacing: "0.06em", flex: 1, minWidth: 0,
+    border: `1px solid ${hot ? "rgba(245,197,66,0.7)" : CAS.line}`,
+    background: hot ? "linear-gradient(180deg, rgba(245,197,66,0.25), rgba(245,197,66,0.1))" : "rgba(255,255,255,0.04)",
+    color: hot ? CAS.goldHi : CAS.text,
+});
+function Spanish21() {
+    const [guideOpen, setGuideOpen] = useState(() => guideUnseen("sp21"));
+    const [bank, setBank] = useState(walletLoad);
+    const [chip, setChip] = useState(25);
+    const [phase, setPhase] = useState("bet");
+    const [shoe, setShoe] = useState(null);
+    const [hands, setHands] = useState([]);
+    const [active, setActive] = useState(0);
+    const [dealer, setDealer] = useState([]);
+    const [holeUp, setHoleUp] = useState(false);
+    const [result, setResult] = useState(null);
+    const [winKey, setWinKey] = useState(0);
+    useEffect(() => { walletSave(bank); }, [bank]);
+    const counts = React.useMemo(() => {
+        if (phase !== "play")
+            return null;
+        const c = sp21Counts();
+        for (const h of hands)
+            for (const card of h.cards)
+                c[sp21Val(card)]--;
+        if (dealer[0])
+            c[sp21Val(dealer[0])]--;
+        return c;
+    }, [phase, hands, dealer]);
+    const hand = hands[active];
+    const advice = React.useMemo(() => {
+        if (phase !== "play" || !counts || !hand || hand.done)
+            return null;
+        const vals = hand.cards.map(sp21Val);
+        const canDouble = hand.cards.length === 2 && bank >= hand.bet;
+        const canSplit = hands.length === 1 && hand.cards.length === 2 && sp21Val(hand.cards[0]) === sp21Val(hand.cards[1]) && bank >= hand.bet;
+        return { ...sp21Advise(counts, vals, sp21Val(dealer[0]), canDouble, canSplit), canDouble, canSplit };
+    }, [phase, counts, hands, active, dealer, bank]);
+    const deal = () => {
+        if (phase === "play" || phase === "reveal" || chip > bank)
+            return;
+        const d = sp21Deck();
+        for (let i = d.length - 1; i > 0; i--) {
+            const j = ((Math.random() * (i + 1)) | 0);
+            [d[i], d[j]] = [d[j], d[i]];
+        }
+        sfx.chip();
+        sfx.cards(4);
+        setBank((b) => b - chip);
+        const p = [d[0], d[2]], dl = [d[1], d[3]];
+        setShoe(d.slice(4));
+        setHands([{ cards: p, bet: chip, done: false, doubled: false, fromSplit: false }]);
+        setActive(0);
+        setDealer(dl);
+        setHoleUp(false);
+        setResult(null);
+        const pBj = sp21Total(p.map(sp21Val)).total === 21;
+        const dBj = sp21Total(dl.map(sp21Val)).total === 21;
+        if (pBj || dBj) {
+            setPhase("reveal");
+            setTimeout(() => finish([{ cards: p, bet: chip, done: true, doubled: false, fromSplit: false }], dl, d.slice(4)), 650);
+        }
+        else
+            setPhase("play");
+    };
+    const drawOne = (s) => [s[0], s.slice(1)];
+    const act = (move) => {
+        if (phase !== "play" || !hand || hand.done)
+            return;
+        let s = shoe, hs = hands.map((h) => ({ ...h, cards: h.cards.slice() }));
+        const h = hs[active];
+        if (move === "hit") {
+            sfx.card();
+            const [c, rest] = drawOne(s);
+            s = rest;
+            h.cards.push(c);
+            const t = sp21Total(h.cards.map(sp21Val)).total;
+            if (t >= 21)
+                h.done = true;
+        }
+        else if (move === "stand") {
+            sfx.click();
+            h.done = true;
+        }
+        else if (move === "double") {
+            if (!(h.cards.length === 2 && bank >= h.bet))
+                return;
+            sfx.chips(3);
+            setBank((b) => b - h.bet);
+            const [c, rest] = drawOne(s);
+            s = rest;
+            h.cards.push(c);
+            h.bet *= 2;
+            h.doubled = true;
+            h.done = true;
+        }
+        else if (move === "split") {
+            if (!(hs.length === 1 && h.cards.length === 2 && sp21Val(h.cards[0]) === sp21Val(h.cards[1]) && bank >= h.bet))
+                return;
+            sfx.chips(2);
+            sfx.cards(2);
+            setBank((b) => b - h.bet);
+            const aces = sp21Val(h.cards[0]) === 1;
+            const [c1, r1] = drawOne(s);
+            const [c2, r2] = drawOne(r1);
+            s = r2;
+            hs = [
+                { cards: [h.cards[0], c1], bet: h.bet, done: aces, doubled: false, fromSplit: true },
+                { cards: [h.cards[1], c2], bet: h.bet, done: aces, doubled: false, fromSplit: true },
+            ];
+        }
+        const next = hs.findIndex((x) => !x.done);
+        setShoe(s);
+        setHands(hs);
+        if (next === -1) {
+            const needsDealer = hs.some((x) => { const t = sp21Total(x.cards.map(sp21Val)).total; return t < 21; });
+            setPhase("reveal");
+            setTimeout(() => (needsDealer ? runDealer(hs, s) : finish(hs, dealer, s)), 500);
+        }
+        else
+            setActive(next);
+    };
+    const runDealer = (hs, s) => {
+        setHoleUp(true);
+        sfx.card();
+        const dl = dealer.slice();
+        let rest = s;
+        const step = () => {
+            const { total } = sp21Total(dl.map(sp21Val));
+            if (total >= 17) {
+                finish(hs, dl, rest);
+                return;
+            }
+            const [c, r2] = drawOne(rest);
+            rest = r2;
+            dl.push(c);
+            sfx.card();
+            setDealer(dl.slice());
+            setTimeout(step, 620);
+        };
+        setTimeout(step, 620);
+    };
+    const finish = (hs, dl, s) => {
+        setHoleUp(true);
+        const dTot = sp21Total(dl.map(sp21Val)).total;
+        const dBj = dl.length === 2 && dTot === 21;
+        let credit = 0, staked = 0;
+        const lines = [];
+        hs.forEach((h, i) => {
+            const c = sp21Payout(h.cards, h.doubled, h.fromSplit, dTot, dBj, h.bet);
+            credit += c;
+            staked += h.bet;
+            const vals = h.cards.map(sp21Val);
+            const t = sp21Total(vals).total;
+            const name = hs.length > 1 ? `Hand ${i + 1}` : "You";
+            if (t > 21)
+                lines.push(`${name} bust (${t})`);
+            else if (t === 21 && c > h.bet * 2)
+                lines.push(`${name}: 21 with a BONUS — +$${c - h.bet}`);
+            else if (t === 21 && c > h.bet)
+                lines.push(`${name}: 21 always wins — +$${c - h.bet}`);
+            else if (dBj)
+                lines.push(`Dealer blackjack — ${name} loses`);
+            else if (dTot > 21)
+                lines.push(`Dealer busts (${dTot}) — ${name} +$${c - h.bet}`);
+            else if (c > h.bet)
+                lines.push(`${name} ${t} beats ${dTot} — +$${c - h.bet}`);
+            else if (c === h.bet)
+                lines.push(`${name} pushes ${t}`);
+            else
+                lines.push(`${name} ${t} loses to ${dTot}`);
+        });
+        const net = credit - staked;
+        setBank((b) => b + credit);
+        setResult({ net, lines });
+        if (net > 0)
+            setWinKey((k) => k + 1);
+        setPhase("done");
+        reportStats({ inc: { sp21_hands: hs.length } });
+    };
+    const dealerShown = holeUp ? dealer : dealer.length ? [dealer[0], { r: 1, s: 0, down: true }] : [];
+    const w = Math.min(60, Math.round(((typeof window !== "undefined" ? window.innerWidth : 400) - 90) / 6));
+    const fmtEv = (x) => (x >= 0 ? "+" : "−") + Math.abs(x).toFixed(3).replace(/^0/, "");
+    const MOVE_LABEL = { stand: "STAND", hit: "HIT", double: "DOUBLE", split: "SPLIT" };
+    return (React.createElement("div", { style: { background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "var(--vh)", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" } },
+        React.createElement("style", null, CAS_CSS),
+        React.createElement(CasinoHeader, { onHelp: () => setGuideOpen(true), title: "SPANISH 21", sub: "YOUR 21 ALWAYS WINS \u00B7 PRACTICE CHIPS", bank: bank }),
+        React.createElement(Guide, { game: "sp21", title: "SPANISH 21", steps: SP21_GUIDE, open: guideOpen, onClose: () => setGuideOpen(false) }),
+        React.createElement("div", { style: { flex: 1, maxWidth: 640, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 } },
+            React.createElement("div", { style: { ...feltPanel("18px 14px"), display: "flex", flexDirection: "column", alignItems: "center", gap: 12, overflow: "hidden" } },
+                React.createElement(MarqueeLights, null),
+                React.createElement(BigWin, { amount: result && result.net > 0 ? result.net : 0, fireKey: winKey }),
+                React.createElement("div", { style: { width: "100%", textAlign: "center" } },
+                    React.createElement("div", { style: { fontSize: 10, fontWeight: 900, letterSpacing: "0.2em", color: CAS.faint, marginBottom: 6 } },
+                        "DEALER",
+                        holeUp && dealer.length ? ` · ${sp21Total(dealer.map(sp21Val)).total}` : ""),
+                    React.createElement("div", { style: { display: "flex", gap: 6, justifyContent: "center", minHeight: Math.round(w * 1.42) } }, dealerShown.length ? dealerShown.map((c, i) => (c.down ? React.createElement(SpCard, { key: i, card: c, faceDown: true, w: w }) : React.createElement(SpCard, { key: i, card: c, w: w, delay: i * 70 }))) : React.createElement("div", { style: { fontFamily: casMono, fontSize: 12, color: CAS.faint, alignSelf: "center" } }, "no tens in this deck \u2014 count them if you don't believe it"))),
+                React.createElement("div", { style: { width: "70%", height: 1, background: "rgba(245,197,66,0.18)" } }),
+                React.createElement("div", { style: { width: "100%", display: "flex", justifyContent: "center", gap: 18, flexWrap: "wrap" } },
+                    hands.map((h, i) => {
+                        const t = sp21Total(h.cards.map(sp21Val));
+                        const isActive = phase === "play" && i === active && !h.done;
+                        return (React.createElement("div", { key: i, style: { textAlign: "center", padding: 6, borderRadius: 14, background: isActive ? "rgba(245,197,66,0.07)" : "transparent", border: `1px solid ${isActive ? CAS.goldLine : "transparent"}` } },
+                            React.createElement("div", { style: { display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" } }, h.cards.map((c, j) => React.createElement(SpCard, { key: j, card: c, w: hands.length > 1 ? Math.round(w * 0.86) : w, delay: j * 70 }))),
+                            React.createElement("div", { style: { fontFamily: casMono, fontSize: 11.5, marginTop: 6, color: t.total > 21 ? "#ff8a80" : isActive ? CAS.gold : CAS.dim, fontWeight: isActive ? 700 : 400 } },
+                                t.total > 21 ? `bust · ${t.total}` : `${t.soft ? "soft " : ""}${t.total}`,
+                                " \u00B7 $",
+                                h.bet.toLocaleString(),
+                                h.doubled ? " · doubled (bonuses void)" : "")));
+                    }),
+                    !hands.length && (React.createElement("div", { style: { fontFamily: casMono, fontSize: 12, color: CAS.faint, padding: "20px 0" } }, "place a bet \u2014 your 21 always wins here, and the long ones pay extra"))),
+                result && (React.createElement("div", { style: { fontFamily: casMono, fontSize: 11.5, color: result.net > 0 ? CAS.green : result.net < 0 ? CAS.dim : CAS.text, textAlign: "center", lineHeight: 1.7 } }, result.lines.map((l, i) => React.createElement("div", { key: i }, l))))),
+            phase === "play" && advice && (React.createElement("div", { style: { display: "flex", gap: 8 } }, ["stand", "hit", "double", "split"].map((m) => {
+                const ev = advice.evs[m];
+                if (ev === undefined)
+                    return null;
+                const hot = advice.best === m;
+                return (React.createElement("button", { key: m, onClick: () => act(m), style: spMoveBtn(hot) },
+                    React.createElement("div", null,
+                        hot ? "★ " : "",
+                        MOVE_LABEL[m]),
+                    React.createElement("div", { style: { fontFamily: casMono, fontSize: 10, fontWeight: 400, marginTop: 3, color: hot ? CAS.gold : CAS.faint } },
+                        m === "split" ? "≈" : "EV",
+                        " ",
+                        fmtEv(ev))));
+            }))),
+            (phase === "bet" || phase === "done") && (React.createElement(React.Fragment, null,
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" } },
+                    SP21_CHIPS.map((v) => React.createElement(CasinoChip, { key: v, value: v, selected: chip === v, onClick: () => setChip(v), size: 42 })),
+                    React.createElement("div", { style: { marginLeft: "auto", fontFamily: casMono, fontSize: 12, color: CAS.dim } }, chip > bank ? "not enough chips" : `$${chip.toLocaleString()} a hand`)),
+                React.createElement("button", { onClick: deal, disabled: chip > bank, style: casCta(chip > bank, true) },
+                    "DEAL \u00B7 $",
+                    chip.toLocaleString()),
+                bank < 5 && (React.createElement("button", { onClick: () => setBank(10000), style: { ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` } }, "Felted \u2014 restake $10,000 practice chips")))),
+            React.createElement(MathNote, null, "48-card Spanish deck (no tens). Your 21 and your blackjack always win; naturals pay 3:2. Bonus 21s: 5 cards 3:2, 6 cards 2:1, 7+ 3:1; 6-7-8 and 7-7-7 pay 3:2 (2:1 suited, 3:1 in spades). Doubling voids bonuses. Dealer stands on all 17s; split once. Button EVs are enumerated with the count bonuses inside the math; suited premiums are the one \u2248, priced at the mixed rate. Practice chips only."))));
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(Spanish21));
 
 </script>
 </body>

@@ -230,7 +230,7 @@ export default function PaiGow() {
   return (
     <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "var(--vh)", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
       <style>{CAS_CSS}</style>
-      <CasinoHeader onHelp={() => setGuideOpen(true)} title="PAI GOW POKER" sub="SET FIVE HIGH · TWO LOW · 5% COMMISSION, PRINTED · PRACTICE CHIPS" bank={bank} />
+      <CasinoHeader onHelp={() => setGuideOpen(true)} title="PAI GOW POKER" sub="FIVE HIGH · TWO LOW · PRACTICE CHIPS" bank={bank} />
       <Guide game="paigow" title="PAI GOW" steps={PAIGOW_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <div style={{ flex: 1, maxWidth: 640, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -330,15 +330,14 @@ export default function PaiGow() {
             Felted — restake $10,000 practice chips
           </button>
         )}
-        <div style={{
-          background: CAS.panel, border: `1px solid ${CAS.line}`, borderRadius: 10,
-          padding: "9px 13px", fontSize: 11, fontFamily: casMono, color: CAS.dim, lineHeight: 1.6,
-        }}>
+        <MathNote>
+          52 cards, no joker; the dealer sets by a published house way; wins pay even minus the
+          printed 5% commission.{" "}
           {edge != null
-            ? <>house edge ≈ <b style={{ color: CAS.gold }}>{(-edge * 100).toFixed(2)}%</b> — <b>SIMULATED</b> (4,000 hands on this device, both sides house-way). Not enumerated: full Pai Gow enumeration is infeasible, and we don't dress estimates as facts.</>
-            : <>Pai Gow's edge can't be enumerated like the other tables — <button onClick={runSim} disabled={simming} style={{ background: "none", border: "none", color: CAS.gold, textDecoration: "underline", cursor: "pointer", fontFamily: casMono, fontSize: 11, padding: 0 }}>{simming ? "simulating…" : "simulate it on your device"}</button> and it will be labeled as exactly that.</>}
-          {" "}52 cards, no joker — stated plainly. Practice chips only.
-        </div>
+            ? <>House edge ≈ <b style={{ color: CAS.gold }}>{(-edge * 100).toFixed(2)}%</b> — SIMULATED on this device (4,000 hands), never dressed as enumerated.</>
+            : <><button onClick={runSim} disabled={simming} style={{ background: "none", border: "none", color: CAS.gold, textDecoration: "underline", cursor: "pointer", fontFamily: casMono, fontSize: 11, padding: 0 }}>{simming ? "simulating…" : "Simulate the edge on this device"}</button> — it will be labeled exactly that.</>}
+          {" "}Practice chips only.
+        </MathNote>
       </div>
     </div>
   );

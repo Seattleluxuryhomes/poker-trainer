@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'" />
 <meta name="theme-color" content="#0a0c10" />
-<meta name="description" content="A practice casino where every probability is enumerated and every house edge is printed on the felt. Poker vs a fictional world champion, rooms for friends, roulette, craps, Pai Gow, blackjack. Free, open-source, practice chips only." />
+<meta name="description" content="A practice casino where every probability is enumerated and every house edge is printed on the felt. Poker vs a fictional world champion, rooms for friends, roulette, craps, Pai Gow, blackjack, baccarat, Spanish 21, High Card Flush. Free, open-source, practice chips only." />
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta property="og:type" content="website" />
@@ -112,6 +112,9 @@
   .pip.craps{ background:linear-gradient(180deg,#f6f3ea,#c4bfae); color:#14171d }
   .pip.paigow{ background:linear-gradient(180deg,var(--gold),#8a6508); color:#231a05 }
   .pip.bj{ background:linear-gradient(180deg,#1f6f45,#0a3320); color:#f4efe4 }
+  .pip.bac{ background:linear-gradient(180deg,#2e3d52,#1a2433); color:#f4efe4 }
+  .pip.sp21{ background:linear-gradient(180deg,#c62f2f,#7d1d1d); font-weight:900; font-size:18px }
+  .pip.flush{ background:linear-gradient(180deg,#6d3bb8,#3d1f6e) }
   .pip.profile{ background:linear-gradient(180deg,#8a5e37,#4a3018) }
   .opt-title{ font-size:18px; font-weight:800; letter-spacing:-0.01em; color:var(--cream) }
   .opt-sub{ font-family:var(--mono); font-size:10.5px; color:var(--faint); margin-top:3px; letter-spacing:0.03em }
@@ -248,13 +251,13 @@
     </div>
     <h1>The casino that<br/><span class="gold">shows you the math.</span></h1>
     <p class="creed">
-      Seven games, one rule: <b>every probability is enumerated and every house edge is
+      Ten games, one rule: <b>every probability is enumerated and every house edge is
       printed on the felt</b> — and when a number can only be estimated, it says so.
       Practice chips only. No accounts required. No tracking, ever.
     </p>
     <div class="badges">
       <span class="badge gold">EVERY EDGE PRINTED</span>
-      <span class="badge"><span id="proofs">504</span> AUTOMATED PROOFS</span>
+      <span class="badge"><span id="proofs">652</span> AUTOMATED PROOFS</span>
       <span class="badge">PRACTICE CHIPS ONLY</span>
       <span class="badge">OPEN SOURCE</span>
     </div>
@@ -375,7 +378,52 @@
         </div>
         <span class="edge">EVERY DECISION PRICED, ENUMERATED</span>
       </a>
-      <a class="option" href="profile.html" style="--i:7">
+      <a class="option" href="bac.html" style="--i:7">
+        <div class="opt-row">
+          <span class="pip bac">&#127183;</span>
+          <div>
+            <div class="opt-title">Baccarat</div>
+            <div class="opt-sub">PUNTO BANCO &middot; THE TABLEAU DECIDES</div>
+          </div>
+          <span class="arrow">&#8250;</span>
+        </div>
+        <div class="opt-desc">
+          Nobody makes a decision after the bets &mdash; which is why every probability here is
+          exact: enumerated from the 8-deck shoe on your device, including what the tie really costs.
+        </div>
+        <span class="edge">BANKER 1.06% &middot; TIE 14.36% &middot; ENUMERATED</span>
+      </a>
+      <a class="option" href="sp21.html" style="--i:8">
+        <div class="opt-row">
+          <span class="pip sp21">21</span>
+          <div>
+            <div class="opt-title">Spanish 21</div>
+            <div class="opt-sub">NO TENS &middot; YOUR 21 ALWAYS WINS</div>
+          </div>
+          <span class="arrow">&#8250;</span>
+        </div>
+        <div class="opt-desc">
+          Blackjack's wilder cousin: bonuses for long 21s, and every decision's expected value
+          enumerated live &mdash; watch the strategy diverge from blackjack in real numbers.
+        </div>
+        <span class="edge">EVERY DECISION PRICED, ENUMERATED</span>
+      </a>
+      <a class="option" href="flush.html" style="--i:9">
+        <div class="opt-row">
+          <span class="pip flush">&#9830;</span>
+          <div>
+            <div class="opt-title">High Card Flush</div>
+            <div class="opt-sub">SEVEN CARDS &middot; LONGEST FLUSH WINS</div>
+          </div>
+          <span class="arrow">&#8250;</span>
+        </div>
+        <div class="opt-desc">
+          Ante, see seven cards, fold or raise up to 3&times;. The dealer must qualify at
+          9-high &mdash; and the edge is simulated on your device, labeled exactly that.
+        </div>
+        <span class="edge">~2.7% &middot; SIMULATED, AND IT SAYS SO</span>
+      </a>
+      <a class="option" href="profile.html" style="--i:10">
         <div class="opt-row">
           <span class="pip profile">&#127183;</span>
           <div>
@@ -420,7 +468,7 @@
     Built on the training-loop DNA of <a href="https://github.com/ghug/cribbage-trainer">cribbage-trainer</a>
     (public domain): objective enumeration, never heuristics. Practice stats and bankrolls stay
     with you — nothing is wagered, bought, or sold, anywhere, ever.
-    <span class="ver" id="ver">0.15.2</span>
+    <span class="ver" id="ver">0.16.0</span>
   </footer>
 
   <script>
@@ -448,6 +496,8 @@
         "FREE ODDS &middot; HOUSE EDGE <span class='g'>0.00%</span>, THE ONLY FAIR BET",
         "FIELD (12 PAYS TRIPLE) &middot; EV <b>&minus;1/36</b> PER UNIT",
         "BLACKJACK &middot; EVERY DECISION PRICED LIVE, <b>NO CHARTS</b>",
+        "BACCARAT &middot; BANKER <b>45.86%</b>, ENUMERATED FROM THE SHOE",
+        "SPANISH 21 &middot; YOUR 21 <b>ALWAYS WINS</b>",
         "9/6 JACKS OR BETTER &middot; ROYAL <b>4000</b> AT MAX BET",
         "PAI GOW &middot; EDGE SIMULATED ON YOUR DEVICE, <b>LABELED</b>",
         "ALL-IN &middot; LIVE WIN % AT EVERY SEAT",
@@ -457,7 +507,7 @@
       track.innerHTML = facts.concat(facts).map(function (f) { return "<span>" + f + "</span>"; }).join("");
 
       // proofs count up on arrival
-      var target = 504, el2 = document.getElementById("proofs"), t0 = null;
+      var target = 652, el2 = document.getElementById("proofs"), t0 = null;
       function stepUp(ts) {
         if (!t0) t0 = ts;
         var k = Math.min(1, (ts - t0) / 1100);
@@ -466,7 +516,7 @@
       }
       requestAnimationFrame(stepUp);
 
-      var v = "0.15.2";
+      var v = "0.16.0";
       if (v.indexOf("-dev") !== -1) { var el = document.getElementById("ver"); el.style.display = "inline"; }
     })();
   </script>

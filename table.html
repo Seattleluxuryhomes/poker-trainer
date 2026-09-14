@@ -1108,7 +1108,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.15.2";
+const APP_VERSION = "0.16.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1526,6 +1526,20 @@ function walletSave(v) {
         reportStats({ set: { wallet: v } });
     }
     catch { }
+}
+function MathNote({ children }) {
+    const [open, setOpen] = React.useState(false);
+    return (React.createElement("div", { style: { background: CAS.panel, border: `1px solid ${CAS.line}`, borderRadius: 12, overflow: "hidden" } },
+        React.createElement("button", { onClick: () => { sfx.click(); setOpen(!open); }, style: {
+                width: "100%", textAlign: "left", padding: "10px 14px", cursor: "pointer",
+                background: "none", border: "none", color: CAS.faint, fontFamily: casMono,
+                fontSize: 10.5, letterSpacing: "0.14em", fontWeight: 700,
+                display: "flex", alignItems: "center", gap: 8,
+            } },
+            React.createElement("span", { style: { color: CAS.goldDim } }, "\u03A3"),
+            " THE MATH",
+            React.createElement("span", { style: { marginLeft: "auto", transform: open ? "rotate(90deg)" : "none", transition: "transform 160ms ease" } }, "\u203A")),
+        open && (React.createElement("div", { style: { padding: "0 14px 12px", fontFamily: casMono, fontSize: 11, lineHeight: 1.75, color: CAS.dim } }, children))));
 }
 function CasinoChip({ value, selected, onClick, size = 46 }) {
     const skin = value === 1 ? { bg: "#e9e6dc", fg: "#14171d", ring: "#b9b4a4" }

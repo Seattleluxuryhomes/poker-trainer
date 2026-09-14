@@ -411,7 +411,7 @@ export default function Blackjack() {
   return (
     <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "var(--vh)", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
       <style>{CAS_CSS}</style>
-      <CasinoHeader onHelp={() => setGuideOpen(true)} title="BLACKJACK" sub="SINGLE DECK · DEALER STANDS ON 17 · BLACKJACK PAYS 3:2 · PRACTICE CHIPS" bank={bank} />
+      <CasinoHeader onHelp={() => setGuideOpen(true)} title="BLACKJACK" sub="SINGLE DECK · 3:2 · PRACTICE CHIPS" bank={bank} />
       <Guide game="bj" title="BLACKJACK" steps={BJ_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <div style={{ flex: 1, maxWidth: 640, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -508,12 +508,12 @@ export default function Blackjack() {
           </>
         )}
 
-        <div style={{ background: CAS.panel, border: `1px solid ${CAS.line}`, borderRadius: 12, padding: "12px 14px", fontFamily: casMono, fontSize: 11.5, lineHeight: 1.75, color: CAS.dim }}>
-          The EV on every button is <b style={{ color: CAS.text }}>enumerated, not estimated</b>: a full
-          recursion over the cards actually left in this deck, conditioned on the dealer's peek. Split
-          is the one ≈ — it prices one split hand exactly and doubles it. Single deck, reshuffled every
-          hand; dealer stands on all 17s; blackjack pays 3:2, printed. Practice chips only.
-        </div>
+        <MathNote>
+          The EV on every button is enumerated, not estimated: a full recursion over the cards
+          actually left in this deck, conditioned on the dealer's peek. Split is the one ≈.
+          Single deck, reshuffled every hand; dealer stands on all 17s; blackjack pays 3:2.
+          Practice chips only.
+        </MathNote>
       </div>
     </div>
   );

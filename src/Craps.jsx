@@ -327,7 +327,7 @@ export default function Craps() {
         }
         @keyframes crapsLand { 0% { transform: scale(1.25) rotate(6deg) } 60% { transform: scale(0.94) rotate(-2deg) } 100% { transform: none } }
       `}</style>
-      <CasinoHeader onHelp={() => setGuideOpen(true)} title="CRAPS" sub="PASS · DON'T · FIELD · PLACE · TRUE ODDS · PRACTICE CHIPS" bank={bank} />
+      <CasinoHeader onHelp={() => setGuideOpen(true)} title="CRAPS" sub="THE DICE TABLE · PRACTICE CHIPS" bank={bank} />
       <Guide game="craps" title="CRAPS" steps={CRAPS_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <div style={{ flex: 1, maxWidth: 700, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -409,9 +409,7 @@ export default function Craps() {
               </button>
             ))}
           </div>
-          <div style={{ fontFamily: casMono, fontSize: 9.5, color: CAS.faint, marginTop: 6, lineHeight: 1.5 }}>
-            hits pay and STAY WORKING · all lost on SEVEN OUT · OFF on the come-out · pay exactly in multiples of $6 on 6/8, $5 elsewhere · edges exact from the 36 dice ways
-          </div>
+
         </div>
 
         {/* rail */}
@@ -430,11 +428,13 @@ export default function Craps() {
             Felted — restake $10,000 practice chips
           </button>
         )}
-        <div style={{ fontSize: 10.5, color: CAS.faint, lineHeight: 1.65, fontFamily: casMono }}>
-          Practice chips only. Pass line: {(pp * 100).toFixed(2)}% to win (244/495, enumerated).
-          Load the free odds to 3× and your combined edge is the thinnest legally
-          purchasable feeling of being alive.
-        </div>
+        <MathNote>
+          Pass line wins {(pp * 100).toFixed(2)}% of the time (244/495, enumerated). Free odds
+          pay true and carry zero edge — load them to 3× every time. Place bets: hits pay and
+          stay working, all lost on seven out, OFF on the come-out; pay exactly in multiples of
+          $6 on 6/8, $5 elsewhere. Every edge on this felt is exact from the 36 dice ways.
+          Practice chips only.
+        </MathNote>
       </div>
 
       {logOpen && (

@@ -153,7 +153,7 @@ export default function PokerPlay() {
   return (
     <div style={{ background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "var(--vh)", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" }}>
       <style>{CAS_CSS}</style>
-      <CasinoHeader onHelp={() => setGuideOpen(true)} title="VIDEO POKER" sub="9/6 JACKS OR BETTER · ROYAL PAYS 4000 AT MAX BET · PRACTICE CHIPS" bank={bank} />
+      <CasinoHeader onHelp={() => setGuideOpen(true)} title="VIDEO POKER" sub="9/6 JACKS OR BETTER · PRACTICE CHIPS" bank={bank} />
       <Guide game="play" title="VIDEO POKER" steps={VP_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <div style={{ flex: 1, maxWidth: 620, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -227,12 +227,12 @@ export default function PokerPlay() {
           </div>
         )}
 
-        <div style={{ background: CAS.panel, border: `1px solid ${CAS.line}`, borderRadius: 12, padding: "12px 14px", fontFamily: casMono, fontSize: 11, lineHeight: 1.7, color: CAS.dim }}>
-          Practice credits only — nothing is wagered, bought, or sent anywhere. Hint uses the trainer's
-          exact-enumeration engine, so advice here and analysis there can never disagree. Want the full
-          ranked list? Take the hand to the <a href="trainer.html" style={{ color: CAS.gold }}>Hold Trainer</a>.
+        <MathNote>
+          Practice credits only — nothing is wagered, bought, or sent anywhere. HINT uses the
+          trainer's exact-enumeration engine. For the full ranked analysis, take the hand to
+          the <a href="trainer.html" style={{ color: CAS.gold }}>Hold Trainer</a>.
           {" "}<button onClick={() => setAboutOpen(true)} style={{ background: "none", border: "none", color: CAS.gold, textDecoration: "underline", cursor: "pointer", fontFamily: casMono, fontSize: 11, padding: 0 }}>About</button>
-        </div>
+        </MathNote>
       </div>
     </div>
   );

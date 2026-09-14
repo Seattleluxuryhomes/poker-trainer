@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'" />
 <meta name="theme-color" content="#0f2417" />
-<meta name="description" content="Practice optimal video-poker holds: every possible hold ranked by exact expected value, fully explained. Free and open-source." />
+<meta name="description" content="Seven cards, longest flush wins: ante, raise up to 3x, dealer qualifies at 9-high - the edge simulated honestly on your device. Practice chips only." />
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
 <link rel="manifest" href="manifest.webmanifest" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Poker Hold Trainer" />
-<meta property="og:description" content="Practice optimal video-poker holds: every possible hold ranked by exact expected value, fully explained. Free and open-source." />
-<title>Poker Hold Trainer</title>
+<meta property="og:title" content="High Card Flush" />
+<meta property="og:description" content="Seven cards, longest flush wins: ante, raise up to 3x, dealer qualifies at 9-high - the edge simulated honestly on your device. Practice chips only." />
+<title>High Card Flush</title>
 <script>if("serviceWorker" in navigator)addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){})})</script>
 <style>html,body{margin:0;background:#0a0c10;min-height:100%;-webkit-user-select:none;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button,a{touch-action:manipulation}#root{min-height:100vh;min-height:100dvh}:root{--vh:100vh}@supports(height:100dvh){:root{--vh:100dvh}}input,textarea{-webkit-user-select:text;user-select:text}</style>
 <script src="vendor/react.production.min.js"></script>
@@ -1595,230 +1595,231 @@ const casGhost = () => ({
     fontWeight: 800, fontSize: 12, letterSpacing: "0.06em",
     background: "rgba(255,255,255,0.05)", color: CAS.text, border: `1px solid ${CAS.line}`,
 });
-const { useState, useMemo, useCallback, useEffect, useRef } = React;
-function randomHand() {
-    return shuffledDeck().slice(0, 5);
-}
-function Explain({ opt }) {
-    const floor = opt.min > 0
-        ? `Guaranteed at least ${opt.min} — the held cards already pay no matter the draw.`
-        : "No guaranteed payout — this hold can finish with nothing.";
-    return (React.createElement("div", { style: { padding: "12px 12px 14px", background: "rgba(0,0,0,0.26)", borderRadius: 9, marginTop: 6, lineHeight: 1.5 } },
-        React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.muted, marginBottom: 6 } },
-            "EXACT \u2014 enumerated all ",
-            opt.draws.toLocaleString(),
-            " possible ",
-            opt.draws === 1 ? "outcome" : "draws",
-            " of the ",
-            5 - opt.idxs.length,
-            " replacement card",
-            5 - opt.idxs.length === 1 ? "" : "s"),
-        React.createElement("div", { style: { fontSize: 13.5, marginBottom: 8 } },
-            floor,
-            " Some winning hand arrives ",
-            (opt.hitRate * 100).toFixed(1),
-            "% of the time."),
-        React.createElement(CatBars, { cats: opt.cats, color: T.good }),
-        React.createElement("div", { style: { height: 1, background: T.line, margin: "12px 0" } }),
-        React.createElement("div", { style: { fontFamily: mono, fontSize: 11, color: T.cream, lineHeight: 1.7 } },
-            React.createElement("div", null,
-                "EV ",
-                React.createElement("b", null, opt.ev.toFixed(4)),
-                " \u00A0 sd ",
-                opt.sd.toFixed(2),
-                " \u00A0 floor ",
-                opt.min,
-                " \u00A0 ceiling ",
-                opt.max),
-            React.createElement("div", { style: { color: T.muted } }, "Bars show each category's share of the EV (probability \u00D7 payout)."))));
-}
-function buildNote(best, chosen, delta) {
-    const optimal = delta < 1e-6;
-    const bestLabel = best.idxs.length === 0 ? "drawing five" : `holding ${best.cards.map(tag).join(" ")}`;
-    if (optimal) {
-        if (best.idxs.length === 5)
-            return "Optimal — the made hand is worth more than any chase.";
-        if (best.min > 0)
-            return "Optimal — you kept the sure payout and the best upside.";
-        return "Optimal — that's the highest-EV hold in the deal.";
+const { useState, useEffect } = React;
+function flushEval(cards) {
+    const bySuit = [[], [], [], []];
+    for (const c of cards)
+        bySuit[c.s].push(hiRank(c.r));
+    let best = null;
+    for (let s = 0; s < 4; s++) {
+        const ranks = bySuit[s].sort((a, b) => b - a);
+        if (!best || ranks.length > best.ranks.length ||
+            (ranks.length === best.ranks.length && cmpRanks(ranks, best.ranks) > 0)) {
+            best = { suit: s, ranks };
+        }
     }
-    if (chosen.min > 0 && best.min === 0)
-        return `You kept the sure ${catName(PAY.indexOf(chosen.min))}, but ${bestLabel} is worth ${delta.toFixed(4)} more per coin — the chase pays better than the lock here.`;
-    if (chosen.idxs.length > best.idxs.length)
-        return `Too many keepers — ${bestLabel} frees better draws, worth ${delta.toFixed(4)} more per coin.`;
-    return `Close, but ${bestLabel} is worth ${delta.toFixed(4)} more per coin.`;
+    return best;
 }
-function InlineSetup({ autoBest, onAutoBest }) {
-    return (React.createElement("div", { style: { background: "rgba(0,0,0,0.22)", border: `1px solid ${T.line}`, borderRadius: 10, padding: "12px 14px" } },
-        React.createElement("div", { style: { fontWeight: 700, fontSize: 13.5, marginBottom: 10 } }, "Setup"),
-        React.createElement("div", { style: { marginBottom: 10, fontFamily: mono, fontSize: 11, color: T.muted, lineHeight: 1.6 } }, "EV is coins per coin bet at max coins (royal = 800). On a new hand:"),
-        React.createElement("div", { style: { display: "flex", gap: 6 } },
-            React.createElement("button", { onClick: () => onAutoBest(false), style: segStyle(!autoBest) }, "I choose"),
-            React.createElement("button", { onClick: () => onAutoBest(true), style: segStyle(autoBest) }, "Show me the best"))));
+function cmpRanks(a, b) {
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        const x = a[i] || 0, y = b[i] || 0;
+        if (x !== y)
+            return x - y;
+    }
+    return 0;
 }
-function PokerTrainer() {
-    const [hand, setHand] = useState(randomHand);
-    const [held, setHeld] = useState([]);
-    const [phase, setPhase] = useState("choose");
-    const [chosenId, setChosenId] = useState(null);
-    const [drawn, setDrawn] = useState(null);
-    const [expanded, setExpanded] = useState(null);
-    const [stats, setStats] = useState({ hands: 0, optimal: 0, lost: 0 });
-    const [autoBest, setAutoBest] = useState(false);
-    const [aboutOpen, setAboutOpen] = useState(false);
-    const opts = useMemo(() => (phase === "revealed" ? analyze(hand) : null), [phase, hand]);
-    const deal = useCallback(() => {
-        setHand(randomHand());
-        setHeld([]);
-        setChosenId(null);
-        setDrawn(null);
-        setExpanded(null);
-        setPhase("choose");
-    }, []);
-    const pick = useCallback((idxs, counted) => {
-        const id = idxs.slice().sort((a, b) => a - b).join(",");
-        const res = analyze(hand);
-        const best = res[0];
-        const chosen = res.find((o) => o.id === id);
-        const delta = best.ev - chosen.ev;
-        const pool = deckExcluding(hand);
-        for (let i = pool.length - 1; i > 0; i--) {
-            const j = (Math.random() * (i + 1)) | 0;
-            [pool[i], pool[j]] = [pool[j], pool[i]];
+function flushCompare(mine, theirs) {
+    if (mine.ranks.length !== theirs.ranks.length)
+        return mine.ranks.length - theirs.ranks.length;
+    return cmpRanks(mine.ranks, theirs.ranks);
+}
+function hcfQualifies(f) {
+    if (f.ranks.length >= 4)
+        return true;
+    if (f.ranks.length === 3)
+        return f.ranks[0] >= 9;
+    return false;
+}
+const hcfMaxRaise = (len) => (len >= 6 ? 3 : len === 5 ? 2 : 1);
+function hcfSettle(folded, dealerQualifies, cmp, ante, raise) {
+    if (folded)
+        return 0;
+    if (!dealerQualifies)
+        return ante * 2 + raise;
+    if (cmp > 0)
+        return (ante + raise) * 2;
+    if (cmp < 0)
+        return 0;
+    return ante + raise;
+}
+function hcfShouldRaise(f) {
+    if (f.ranks.length >= 4)
+        return true;
+    if (f.ranks.length === 3)
+        return cmpRanks(f.ranks, [10, 8, 6]) >= 0;
+    return false;
+}
+function hcfSimulate(hands, rng) {
+    let net = 0;
+    for (let h = 0; h < hands; h++) {
+        const d = fullDeck();
+        for (let i = d.length - 1; i > 0; i--) {
+            const j = (rng() * (i + 1)) | 0;
+            [d[i], d[j]] = [d[j], d[i]];
         }
-        let p = 0;
-        const final = hand.map((c, i) => (idxs.includes(i) ? c : pool[p++]));
-        setDrawn({ final, cat: categorizeCards(final) });
-        setChosenId(id);
-        setExpanded(null);
-        setPhase("revealed");
-        if (counted) {
-            setStats((s) => ({ hands: s.hands + 1, optimal: s.optimal + (delta < 1e-6 ? 1 : 0), lost: s.lost + delta }));
-            reportStats({ inc: { trainer_hands: 1, trainer_optimal: delta < 1e-6 ? 1 : 0, trainer_ev_lost: delta } });
+        const mine = flushEval(d.slice(0, 7));
+        const dealer = flushEval(d.slice(7, 14));
+        const ante = 1;
+        if (!hcfShouldRaise(mine)) {
+            net -= ante;
+            continue;
         }
-    }, [hand]);
-    const draw = useCallback(() => pick(held, true), [pick, held]);
-    useEffect(() => {
-        if (phase !== "choose" || !autoBest)
-            return;
-        pick(analyze(hand)[0].idxs, false);
-    }, [autoBest, phase, hand, pick]);
-    const toggleHold = useCallback((i) => {
-        setHeld((h) => (h.includes(i) ? h.filter((x) => x !== i) : [...h, i]));
-    }, []);
-    const best = opts ? opts[0] : null;
-    const chosen = opts ? opts.find((o) => o.id === chosenId) : null;
-    const acc = stats.hands ? (stats.optimal / stats.hands) * 100 : 0;
-    const avgLost = stats.hands ? stats.lost / stats.hands : 0;
-    const maxEV = opts ? opts[0].ev : 1;
-    const delta = best && chosen ? best.ev - chosen.ev : 0;
+        const raise = ante * hcfMaxRaise(mine.ranks.length);
+        const credit = hcfSettle(false, hcfQualifies(dealer), flushCompare(mine, dealer), ante, raise);
+        net += credit - (ante + raise);
+    }
+    return net / hands;
+}
+const HCF_GUIDE = [
+    { h: "Seven cards, longest flush", p: "Post an ante and get seven cards. Your hand is your LONGEST flush — most cards of one suit. Pairs, straights, nothing else matters. Four hearts beats three aces of anything." },
+    { h: "Fold or raise", p: "After seeing your seven: FOLD (lose the ante) or RAISE. The cap grows with your flush — up to four cards 1x the ante, five cards 2x, six or seven 3x. Big hands get to bet big; that's the game." },
+    { h: "The dealer must qualify", p: "The dealer needs a three-card flush headed by a 9 or better. Short of that, your raise pushes back and the ante pays even money — you can't lose the raise to a dealer who never showed up." },
+    { h: "The showdown", p: "Longer flush wins, even money on ante and raise. Same length compares card by card, ace high. An exact tie pushes everything." },
+    { h: "The honest number", p: "This game's edge can't be enumerated on a phone — the fold decision sits on top of 133 million deals. So the felt SIMULATES it on your device with the printed strategy, and labels it exactly that. Practice chips only.", tag: "SIMULATED, AND IT SAYS SO" },
+];
+const HCF_CHIPS = [5, 25, 100, 500, 1000];
+function FCard({ card, w, lit, dim, faceDown, delay = 0 }) {
+    const red = isRed(card.s);
     return (React.createElement("div", { style: {
-            minHeight: "100%", background: `radial-gradient(120% 90% at 50% 0%, ${T.baizeHi}, ${T.baize})`,
-            color: T.cream, fontFamily: serif, padding: "0 0 28px",
-        } },
-        React.createElement("style", null, `
-        @keyframes dealIn {from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-        .dealwrap > * {animation:dealIn 260ms ease both}
-        .dealwrap > *:nth-child(2){animation-delay:40ms}
-        .dealwrap > *:nth-child(3){animation-delay:80ms}
-        .dealwrap > *:nth-child(4){animation-delay:120ms}
-        .dealwrap > *:nth-child(5){animation-delay:160ms}
-        button{font-family:inherit}
-        button:focus-visible{outline:2px solid ${T.pegIvory}}
-        @media (prefers-reduced-motion: reduce){.dealwrap > *{animation:none}}
-      `),
-        React.createElement("header", { style: {
-                background: `linear-gradient(180deg, ${T.woodL}, ${T.woodM} 55%, ${T.woodD})`,
-                padding: "14px 18px 16px", boxShadow: "0 6px 18px rgba(0,0,0,0.4)", borderBottom: "2px solid rgba(0,0,0,0.3)",
-            } },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 } },
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, minWidth: 0 } },
-                    React.createElement("a", { href: "index.html", "aria-label": "Home", title: "Home", style: {
-                            flex: "0 0 auto", width: 34, height: 34, borderRadius: 8, background: T.baize, color: T.ivory, textDecoration: "none",
-                            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, lineHeight: 1,
-                            boxShadow: "inset 0 1px 2px rgba(255,255,255,0.12), 0 2px 5px rgba(0,0,0,0.35)",
-                        } }, "\u2660"),
-                    React.createElement("span", { style: { fontFamily: mono, fontSize: 12, color: "#cfd6e2", letterSpacing: "0.06em", fontWeight: 700, lineHeight: 1.3 } }, "Hold Trainer \u2014 9/6 Jacks or Better"),
-                    IS_DEV_VERSION && React.createElement("span", { style: { fontFamily: mono, fontSize: 10, color: "#5b6472", whiteSpace: "nowrap" } },
-                        "v",
-                        APP_VERSION)),
-                React.createElement("div", { style: { display: "flex", gap: 8, flex: "0 0 auto" } },
-                    React.createElement(AccountArea, null),
-                    React.createElement("button", { onClick: () => setAboutOpen(true), "aria-label": "About", style: {
-                            width: 40, height: 40, borderRadius: 10, cursor: "pointer",
-                            border: "1px solid #232833", background: "rgba(255,255,255,0.04)",
-                            color: "#96a0b0", fontSize: 19, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                        } }, "\u24D8"))),
-            React.createElement("div", { style: { marginTop: 12 } },
-                React.createElement(ChipTrack, { pct: acc })),
-            React.createElement("div", { style: { marginTop: 10, display: "flex", gap: 18, flexWrap: "wrap", fontFamily: mono, fontSize: 12, color: "#e8ebf2" } },
-                React.createElement("span", null,
-                    React.createElement("b", { style: { fontSize: 15 } }, stats.hands),
-                    " hands"),
-                React.createElement("span", null,
-                    React.createElement("b", { style: { fontSize: 15 } },
-                        stats.hands ? acc.toFixed(0) : "–",
-                        "%"),
-                    " optimal"),
-                React.createElement("span", null,
-                    React.createElement("b", { style: { fontSize: 15 } }, stats.hands ? avgLost.toFixed(4) : "–"),
-                    " avg EV lost"))),
-        React.createElement("main", { style: { maxWidth: 560, margin: "0 auto", padding: "18px 16px 0" } },
-            aboutOpen && React.createElement(AboutModal, { onClose: () => setAboutOpen(false) }),
-            React.createElement("p", { style: { fontFamily: mono, fontSize: 12, color: T.muted, margin: "2px 2px 10px" } }, phase === "choose"
-                ? `Tap the cards to HOLD (${held.length} held), then Draw.`
-                : "Every hold, ranked by exact expected value — tap a row for the full explanation."),
-            React.createElement("div", { className: phase === "choose" ? "dealwrap" : "", style: { display: "flex", gap: 8, justifyContent: "center", paddingTop: 22, paddingBottom: phase === "choose" ? 4 : 20 } }, hand.map((card, i) => (React.createElement(CardFace, { key: cardId(card), card: card, held: phase === "choose" ? held.includes(i) : chosen && chosen.idxs.includes(i), disabled: phase !== "choose", onClick: () => toggleHold(i), badge: phase === "revealed" && best && best.idxs.includes(i) ? "BEST" : null })))),
-            phase === "choose" && (React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", margin: "16px 0 18px" } },
-                React.createElement("button", { onClick: draw, style: {
-                        padding: "12px 34px", borderRadius: 10, cursor: "pointer", fontFamily: mono, fontSize: 15, fontWeight: 700,
-                        background: `linear-gradient(180deg, ${T.good}, ${T.goodDeep})`, color: "#0d2417", border: "1px solid rgba(0,0,0,0.3)",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-                    } }, "Draw"),
-                React.createElement("button", { onClick: deal, style: {
-                        padding: "12px 22px", borderRadius: 10, cursor: "pointer", fontFamily: mono, fontSize: 13,
-                        background: "rgba(0,0,0,0.22)", color: T.cream, border: `1px solid ${T.line}`,
-                    } }, "New hand"))),
-            phase === "choose" && React.createElement(InlineSetup, { autoBest: autoBest, onAutoBest: setAutoBest }),
-            phase === "revealed" && opts && chosen && (React.createElement(React.Fragment, null,
-                React.createElement("div", { style: {
-                        padding: "12px 14px", borderRadius: 10, marginBottom: 8,
-                        background: delta < 1e-6 ? "rgba(95,164,124,0.16)" : "rgba(200,65,43,0.14)",
-                        border: `1px solid ${delta < 1e-6 ? "rgba(95,164,124,0.5)" : "rgba(200,65,43,0.45)"}`,
-                    } },
-                    React.createElement("div", { style: { fontWeight: 700, fontSize: 15 } }, buildNote(best, chosen, delta)),
-                    drawn && (React.createElement("div", { style: { fontFamily: mono, fontSize: 11.5, color: T.muted, marginTop: 5 } },
-                        "Drew ",
-                        drawn.final.map(tag).join(" "),
-                        " \u2014 ",
-                        catName(drawn.cat),
-                        PAY[drawn.cat] > 0 ? ` (pays ${PAY[drawn.cat]}/coin)` : ""))),
-                React.createElement("div", { style: { display: "grid", gap: 5 } }, opts.map((o, rank) => {
-                    const isChosen = o.id === chosenId;
-                    const isOpen = expanded === o.id;
-                    return (React.createElement("div", { key: o.id },
-                        React.createElement("button", { onClick: () => setExpanded(isOpen ? null : o.id), "aria-expanded": isOpen, style: {
-                                width: "100%", textAlign: "left", display: "grid", gridTemplateColumns: "22px 128px 1fr 64px 34px", gap: 8, alignItems: "center",
-                                padding: "8px 10px", borderRadius: 8, cursor: "pointer",
-                                background: isChosen ? "rgba(236,220,180,0.14)" : "rgba(0,0,0,0.18)",
-                                border: `1px solid ${isChosen ? "rgba(236,220,180,0.5)" : T.line}`, color: T.cream,
-                            } },
-                            React.createElement("span", { style: { fontFamily: mono, fontSize: 11, color: rank === 0 ? T.pegIvory : T.muted } }, rank + 1),
-                            React.createElement("span", { style: { fontFamily: mono, fontSize: 12.5, fontWeight: rank === 0 || isChosen ? 700 : 400 } }, o.idxs.length === 0 ? "Draw 5" : o.cards.map(tag).join(" ")),
-                            React.createElement("span", { style: { height: 9, borderRadius: 5, background: "rgba(0,0,0,0.3)", overflow: "hidden" } },
-                                React.createElement("span", { style: { display: "block", height: "100%", width: `${maxEV > 0 ? (o.ev / maxEV) * 100 : 0}%`, background: rank === 0 ? T.pegIvory : T.good, borderRadius: 5 } })),
-                            React.createElement("span", { style: { fontFamily: mono, fontSize: 12, textAlign: "right" } }, o.ev.toFixed(4)),
-                            React.createElement("span", { style: { fontFamily: mono, fontSize: 10, color: T.gold, textAlign: "right" } }, isChosen ? "YOU" : "")),
-                        isOpen && React.createElement(Explain, { opt: o })));
-                })),
-                React.createElement("div", { style: { display: "flex", justifyContent: "center", margin: "18px 0 6px" } },
-                    React.createElement("button", { onClick: deal, style: {
-                            padding: "12px 34px", borderRadius: 10, cursor: "pointer", fontFamily: mono, fontSize: 15, fontWeight: 700,
-                            background: `linear-gradient(180deg, ${T.good}, ${T.goodDeep})`, color: "#0d2417", border: "1px solid rgba(0,0,0,0.3)",
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-                        } }, "Next hand")))))));
+            width: w, height: Math.round(w * 1.42), borderRadius: Math.max(7, w * 0.13), flex: "0 0 auto",
+            background: faceDown
+                ? "repeating-linear-gradient(45deg, #1c2733, #1c2733 5px, #141b24 5px, #141b24 10px)"
+                : "linear-gradient(160deg, #fdfcf7, #efece1 70%, #ddd8c8)",
+            border: lit ? "2.5px solid #f5c542" : "1px solid rgba(0,0,0,0.35)",
+            boxShadow: lit ? "0 0 14px rgba(245,197,66,0.5), 0 5px 12px rgba(0,0,0,0.5)" : "0 5px 12px rgba(0,0,0,0.5)",
+            opacity: dim ? 0.45 : 1, transition: "opacity 300ms ease",
+            color: red ? "#c62828" : "#161a22", position: "relative", fontFamily: casSans,
+            animation: `casChipDrop 280ms ease ${delay}ms both`,
+        } }, !faceDown && (React.createElement(React.Fragment, null,
+        React.createElement("span", { style: { position: "absolute", top: w * 0.07, left: w * 0.1, fontSize: w * 0.32, fontWeight: 900, lineHeight: 1 } }, rankLabel(card.r)),
+        React.createElement("span", { style: { position: "absolute", bottom: w * 0.05, right: w * 0.08, fontSize: w * 0.44, lineHeight: 1 } }, SUIT[card.s])))));
 }
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(PokerTrainer));
+function HighCardFlush() {
+    const [guideOpen, setGuideOpen] = useState(() => guideUnseen("flush"));
+    const [bank, setBank] = useState(walletLoad);
+    const [chip, setChip] = useState(25);
+    const [phase, setPhase] = useState("bet");
+    const [mine, setMine] = useState([]);
+    const [dealer, setDealer] = useState([]);
+    const [ante, setAnte] = useState(0);
+    const [outcome, setOutcome] = useState(null);
+    const [winKey, setWinKey] = useState(0);
+    const [edge, setEdge] = useState(null);
+    const [simming, setSimming] = useState(false);
+    useEffect(() => { walletSave(bank); }, [bank]);
+    const myFlush = mine.length ? flushEval(mine) : null;
+    const maxR = myFlush ? hcfMaxRaise(myFlush.ranks.length) : 1;
+    const deal = () => {
+        if (phase === "decide" || chip > bank)
+            return;
+        sfx.chip();
+        sfx.cards(7);
+        setBank((b) => b - chip);
+        setAnte(chip);
+        const d = fullDeck();
+        for (let i = d.length - 1; i > 0; i--) {
+            const j = ((Math.random() * (i + 1)) | 0);
+            [d[i], d[j]] = [d[j], d[i]];
+        }
+        const sortBySuitRank = (cs) => cs.slice().sort((a, b) => a.s - b.s || hiRank(b.r) - hiRank(a.r));
+        setMine(sortBySuitRank(d.slice(0, 7)));
+        setDealer(d.slice(7, 14));
+        setOutcome(null);
+        setPhase("decide");
+    };
+    const resolve = (raiseMult) => {
+        if (phase !== "decide")
+            return;
+        const folded = raiseMult === 0;
+        const raise = ante * raiseMult;
+        if (!folded && raise > bank)
+            return;
+        if (!folded) {
+            sfx.chips(raiseMult + 1);
+            setBank((b) => b - raise);
+        }
+        else
+            sfx.click();
+        const df = flushEval(dealer);
+        const q = hcfQualifies(df);
+        const cmp = flushCompare(myFlush, df);
+        const credit = hcfSettle(folded, q, cmp, ante, raise);
+        const net = credit - ante - raise;
+        if (credit > 0)
+            setBank((b) => b + credit);
+        const text = folded ? "folded — ante to the house"
+            : !q ? "dealer doesn't qualify — raise pushes, ante pays even"
+                : cmp > 0 ? `your ${myFlush.ranks.length}-card flush wins`
+                    : cmp < 0 ? `dealer's ${df.ranks.length}-card flush wins`
+                        : "dead even — everything pushes";
+        setOutcome({ text, net });
+        if (net > 0)
+            setWinKey((k) => k + 1);
+        setPhase("done");
+        reportStats({ inc: { flush_hands: 1 } });
+    };
+    const runSim = () => {
+        if (simming)
+            return;
+        setSimming(true);
+        setTimeout(() => {
+            setEdge(hcfSimulate(20000, mulberry32((Math.random() * 2 ** 31) | 0)));
+            setSimming(false);
+        }, 30);
+    };
+    const w = Math.min(52, Math.round(((typeof window !== "undefined" ? window.innerWidth : 400) - 110) / 7));
+    const litSuit = phase === "done" || phase === "decide" ? (myFlush ? myFlush.suit : null) : null;
+    const dealerFlush = phase === "done" ? flushEval(dealer) : null;
+    return (React.createElement("div", { style: { background: `radial-gradient(120% 60% at 50% -5%, ${CAS.room}, ${CAS.bg} 65%)`, minHeight: "var(--vh)", fontFamily: casSans, color: CAS.text, display: "flex", flexDirection: "column" } },
+        React.createElement("style", null, CAS_CSS),
+        React.createElement(CasinoHeader, { onHelp: () => setGuideOpen(true), title: "HIGH CARD FLUSH", sub: "LONGEST FLUSH WINS \u00B7 PRACTICE CHIPS", bank: bank }),
+        React.createElement(Guide, { game: "flush", title: "HIGH CARD FLUSH", steps: HCF_GUIDE, open: guideOpen, onClose: () => setGuideOpen(false) }),
+        React.createElement("div", { style: { flex: 1, maxWidth: 640, width: "100%", margin: "0 auto", padding: "16px 14px 26px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12 } },
+            React.createElement("div", { style: { ...feltPanel("18px 12px"), display: "flex", flexDirection: "column", alignItems: "center", gap: 12, overflow: "hidden" } },
+                React.createElement(MarqueeLights, null),
+                React.createElement(BigWin, { amount: outcome && outcome.net > 0 ? outcome.net : 0, fireKey: winKey }),
+                React.createElement("div", { style: { width: "100%", textAlign: "center" } },
+                    React.createElement("div", { style: { fontSize: 10, fontWeight: 900, letterSpacing: "0.2em", color: CAS.faint, marginBottom: 6 } },
+                        "DEALER",
+                        dealerFlush ? ` · ${dealerFlush.ranks.length}-CARD ${hcfQualifies(dealerFlush) ? "FLUSH" : "— NO QUALIFY"}` : " · QUALIFIES WITH 9-HIGH, 3 CARDS"),
+                    React.createElement("div", { style: { display: "flex", gap: 4, justifyContent: "center" } }, (phase === "done" ? dealer : mine.length ? new Array(7).fill(0) : []).length
+                        ? (phase === "done"
+                            ? dealer.map((c, i) => React.createElement(FCard, { key: i, card: c, w: Math.round(w * 0.86), lit: dealerFlush && c.s === dealerFlush.suit && dealerFlush.ranks.includes(hiRank(c.r)), dim: dealerFlush && c.s !== dealerFlush.suit, delay: i * 60 }))
+                            : new Array(7).fill(0).map((_, i) => React.createElement(FCard, { key: i, card: { r: 1, s: 0 }, faceDown: true, w: Math.round(w * 0.86) })))
+                        : React.createElement("div", { style: { fontFamily: casMono, fontSize: 11, color: CAS.faint, padding: "12px 0" } }, "seven cards each \u2014 longest suit takes it"))),
+                React.createElement("div", { style: { width: "70%", height: 1, background: "rgba(245,197,66,0.18)" } }),
+                React.createElement("div", { style: { width: "100%", textAlign: "center" } },
+                    mine.length > 0 && (React.createElement(React.Fragment, null,
+                        React.createElement("div", { style: { display: "flex", gap: 4, justifyContent: "center" } }, mine.map((c, i) => (React.createElement(FCard, { key: i, card: c, w: w, lit: litSuit !== null && c.s === litSuit && myFlush.ranks.includes(hiRank(c.r)), dim: litSuit !== null && c.s !== litSuit, delay: i * 55 })))),
+                        React.createElement("div", { style: { fontFamily: casMono, fontSize: 11.5, marginTop: 8, color: CAS.gold, fontWeight: 700 } },
+                            "your best: ",
+                            myFlush.ranks.length,
+                            "-card flush, ",
+                            rankLabel(myFlush.ranks[0] === 14 ? 1 : myFlush.ranks[0]),
+                            " high"))),
+                    outcome && (React.createElement("div", { style: { fontFamily: casMono, fontSize: 12, marginTop: 6, fontWeight: 700, color: outcome.net > 0 ? CAS.green : outcome.net < 0 ? CAS.dim : CAS.text } },
+                        outcome.text,
+                        outcome.net !== 0 ? ` · ${outcome.net > 0 ? "+" : "−"}$${Math.abs(outcome.net).toLocaleString()}` : "")))),
+            phase === "decide" ? (React.createElement("div", { style: { display: "flex", gap: 8 } },
+                React.createElement("button", { onClick: () => resolve(0), style: { ...casGhost(), flex: 1, color: "#ff8a80" } }, "FOLD"),
+                [1, 2, 3].filter((m) => m <= maxR).map((m) => (React.createElement("button", { key: m, onClick: () => resolve(m), disabled: ante * m > bank, style: { ...casCta(ante * m > bank, m === maxR), flex: 1, padding: "13px 6px" } },
+                    "RAISE ",
+                    m,
+                    "\u00D7 \u00B7 $",
+                    (ante * m).toLocaleString()))))) : (React.createElement(React.Fragment, null,
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" } },
+                    HCF_CHIPS.map((v) => React.createElement(CasinoChip, { key: v, value: v, selected: chip === v, onClick: () => setChip(v), size: 42 })),
+                    React.createElement("div", { style: { marginLeft: "auto", fontFamily: casMono, fontSize: 12, color: CAS.dim } }, chip > bank ? "not enough chips" : `$${chip.toLocaleString()} ante`)),
+                React.createElement("button", { onClick: deal, disabled: chip > bank, style: casCta(chip > bank, true) },
+                    "ANTE & DEAL \u00B7 $",
+                    chip.toLocaleString()),
+                bank < 5 && (React.createElement("button", { onClick: () => setBank(10000), style: { ...casGhost(), color: CAS.gold, border: `1px solid ${CAS.goldLine}` } }, "Felted \u2014 restake $10,000 practice chips")))),
+            React.createElement(MathNote, null,
+                "The comparator, the 9-high qualification, and every payout are exact and proven. The game's overall edge is NOT enumerable (the fold decision sits on 133 million deals), so it is simulated on your device with the printed strategy \u2014 raise max with 5+, raise with any 4-flush or a T-8-6 three-flush, fold worse \u2014 and labeled exactly that.",
+                " ",
+                React.createElement("button", { onClick: runSim, disabled: simming, style: { background: "none", border: "none", color: CAS.gold, textDecoration: "underline", cursor: "pointer", fontFamily: casMono, fontSize: 11, padding: 0 } }, simming ? "simulating 20,000 hands…" : edge != null ? `house edge ≈ ${(-edge * 100).toFixed(2)}% per ante — SIMULATED · run again` : "simulate it on this device")))));
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(HighCardFlush));
 
 </script>
 </body>

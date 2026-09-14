@@ -266,7 +266,7 @@ export default function Roulette() {
       <style>{CAS_CSS + `
         @keyframes rouBallOrbit { from { transform: rotate(0deg) } to { transform: rotate(-360deg) } }
       `}</style>
-      <CasinoHeader onHelp={() => setGuideOpen(true)} title="ROULETTE" sub="AMERICAN 00 · EVERY EDGE PRINTED · PRACTICE CHIPS" bank={bank} />
+      <CasinoHeader onHelp={() => setGuideOpen(true)} title="ROULETTE" sub="AMERICAN 00 · PRACTICE CHIPS" bank={bank} />
       <Guide game="roulette" title="ROULETTE" steps={ROULETTE_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <div style={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 20, justifyContent: "center", alignItems: "flex-start", padding: "16px 14px 26px", maxWidth: 1060, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
@@ -369,11 +369,11 @@ export default function Roulette() {
               Felted — restake $10,000 practice chips
             </button>
           )}
-          <div style={{ fontSize: 10.5, color: CAS.faint, lineHeight: 1.65, fontFamily: casMono }}>
-            Practice chips only. Every wager here gives the house exactly 2/38 ≈ 5.26% —
-            the five-number basket (7.89%) is not offered on principle. The math never
-            sleeps; the wheel doesn't care.
-          </div>
+          <MathNote>
+            Every wager here gives the house exactly 2/38 ≈ 5.26% — the five-number basket
+            (7.89%) is not offered on principle. Tap any bet to see its exact odds. Practice
+            chips only.
+          </MathNote>
         </div>
       </div>
     </div>
