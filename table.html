@@ -427,14 +427,25 @@ const inHand = (p) => !p.folded;
 const canStillAct = (p) => !p.folded && !p.allIn;
 function startHand(state, rng) {
     const s = JSON.parse(JSON.stringify(state));
+    const alive = s.players.map((p, i) => i).filter((i) => s.players[i].stack > 0);
+    if (alive.length < 2) {
+        s.message = "The tournament is over.";
+        return s;
+    }
+    const SB = s.sb || SMALL_BLIND, BB = s.bb || BIG_BLIND;
     s.handNo += 1;
-    s.btn = (s.btn + 1) % 4;
+    do {
+        s.btn = (s.btn + 1) % 4;
+    } while (s.players[s.btn].stack <= 0);
+    const nextAlive = (from) => { let i = from; do {
+        i = (i + 1) % 4;
+    } while (s.players[i].stack <= 0); return i; };
     s.deck = shuffledFrom(rng);
     s.board = [];
     s.street = 0;
     s.pot = 0;
     s.currentBet = 0;
-    s.minRaise = BIG_BLIND;
+    s.minRaise = BB;
     s.message = "";
     s.quip = null;
     s.winners = [];
@@ -442,22 +453,23 @@ function startHand(state, rng) {
     s.best5 = null;
     s.phase = "betting";
     for (const p of s.players) {
-        if (p.stack < BIG_BLIND) {
-            p.stack = START_STACK;
-            p.rebuyNote = true;
-        }
-        else
-            p.rebuyNote = false;
+        p.out = p.stack <= 0;
         p.hole = [];
-        p.folded = false;
+        p.folded = p.out;
         p.allIn = false;
         p.streetBet = 0;
         p.committed = 0;
         p.lastAct = "";
     }
-    for (let round = 0; round < 2; round++)
-        for (let k = 1; k <= 4; k++)
-            s.players[(s.btn + k) % 4].hole.push(s.deck.pop());
+    for (let round = 0; round < 2; round++) {
+        let seat = s.btn;
+        for (let k = 0; k < alive.length; k++) {
+            seat = nextAlive(seat);
+            s.players[seat].hole.push(s.deck.pop());
+        }
+    }
+    const sbSeat = alive.length === 2 ? s.btn : nextAlive(s.btn);
+    const bbSeat = nextAlive(sbSeat);
     const post = (seat, amt, label) => {
         const p = s.players[seat];
         const pay = Math.min(amt, p.stack);
@@ -471,13 +483,13 @@ function startHand(state, rng) {
     };
     if (!s.log)
         s.log = [];
-    pushLog(s, `\u2014 Hand #${s.handNo} \u2014 ${s.players[s.btn].name} has the button`);
-    post((s.btn + 1) % 4, SMALL_BLIND, `small blind $${SMALL_BLIND}`);
-    post((s.btn + 2) % 4, BIG_BLIND, `big blind $${BIG_BLIND}`);
-    pushLog(s, `${s.players[(s.btn + 1) % 4].name} posts small blind $${SMALL_BLIND}`);
-    pushLog(s, `${s.players[(s.btn + 2) % 4].name} posts big blind $${BIG_BLIND}`);
-    s.currentBet = BIG_BLIND;
-    s.needs = seatsFrom((s.btn + 3) % 4, canStillAct, s.players);
+    pushLog(s, `\u2014 Hand #${s.handNo} \u2014 ${s.players[s.btn].name} has the button` + (s.sb ? ` (blinds $${SB}/$${BB})` : ""));
+    post(sbSeat, SB, `small blind $${SB}`);
+    post(bbSeat, BB, `big blind $${BB}`);
+    pushLog(s, `${s.players[sbSeat].name} posts small blind $${SB}`);
+    pushLog(s, `${s.players[bbSeat].name} posts big blind $${BB}`);
+    s.currentBet = BB;
+    s.needs = seatsFrom(nextAlive(bbSeat), canStillAct, s.players);
     s.toAct = s.needs.length ? s.needs[0] : -1;
     return s;
 }
@@ -1108,7 +1120,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.16.0";
+const APP_VERSION = "0.17.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1720,7 +1732,7 @@ function OppSeat({ player, seat, spot, state, cardW, equity, lead }) {
     return (React.createElement("div", { style: {
             position: "absolute", left: `${spot.x}%`, top: `${spot.y}%`, transform: "translate(-50%, -50%)",
             display: "flex", flexDirection: "column", alignItems: "center",
-            opacity: player.folded && state.phase === "betting" ? 0.45 : 1, zIndex: 3, width: "min(30vw, 132px)",
+            opacity: player.out ? 0.32 : player.folded && state.phase === "betting" ? 0.45 : 1, zIndex: 3, width: "min(30vw, 132px)",
         } },
         state.quip && state.quip.seat === seat && (React.createElement("div", { style: {
                 position: "absolute", bottom: "100%", marginBottom: 6, width: "max-content", maxWidth: "62vw",
@@ -1742,7 +1754,7 @@ function OppSeat({ player, seat, spot, state, cardW, equity, lead }) {
             } },
             React.createElement("div", { style: { fontSize: 11.5, fontWeight: 700, color: N.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "min(27vw, 118px)" } }, player.name),
             player.tag && React.createElement("div", { style: { fontSize: 8, fontWeight: 800, letterSpacing: "0.12em", color: seat === 1 ? N.gold : N.dim } }, player.tag.toUpperCase()),
-            React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: N.green, whiteSpace: "nowrap" } }, money(player.stack))),
+            React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: player.out ? "#8a5560" : N.green, whiteSpace: "nowrap" } }, player.out ? `OUT${player.place ? ` · ${player.place}` : ""}` : money(player.stack))),
         React.createElement("div", { style: { marginTop: 4, display: "flex", gap: 3, minHeight: Math.round(cardW * 1.42) * 0.62 } }, state.handNo === 0 ? null : player.folded ? (React.createElement("span", { style: { fontSize: 9, fontWeight: 800, letterSpacing: "0.14em", color: N.dim, alignSelf: "center" } }, "FOLDED")) : showCards ? (player.hole.map((c) => { const l5 = litSetFor(state); return React.createElement(TableCard, { key: cardId(c), card: c, w: Math.round(cardW * 0.62), lit: l5 ? l5.has(cardId(c)) : false, dim: l5 ? !l5.has(cardId(c)) : false }); })) : (React.createElement(React.Fragment, null,
             React.createElement(CardBack, { w: Math.round(cardW * 0.55) }),
             React.createElement(CardBack, { w: Math.round(cardW * 0.55) })))),
@@ -1757,7 +1769,7 @@ function loadStack() {
         if (raw == null)
             return START_STACK;
         const v = Number(raw);
-        return Number.isFinite(v) && v >= 0 ? v : START_STACK;
+        return Number.isFinite(v) && v > 0 ? v : START_STACK;
     }
     catch {
         return START_STACK;
@@ -1866,7 +1878,41 @@ function SoloTable() {
             maxOf: won ? { biggest_pot: state.pot } : {},
         });
     }, [state]);
-    const deal = () => setState((s) => (s.phase === "betting" || s.phase === "runout" ? s : startHand(s, rngRef.current)));
+    const LEVELS = [[25, 50], [50, 100], [100, 200], [200, 400], [400, 800], [800, 1600], [1600, 3200]];
+    const level = Math.min(LEVELS.length - 1, Math.floor(state.handNo / 6));
+    const sb = LEVELS[level][0], bb = LEVELS[level][1];
+    const [outOrder, setOutOrder] = React.useState([]);
+    React.useEffect(() => {
+        if (state.phase !== "over" && state.handNo !== 0)
+            return;
+        const fresh = [];
+        for (let i = 0; i < 4; i++)
+            if (state.players[i].stack <= 0 && !outOrder.includes(i) && !fresh.includes(i))
+                fresh.push(i);
+        if (fresh.length)
+            setOutOrder((prev) => [...prev, ...fresh.filter((i) => !prev.includes(i))]);
+    }, [state]);
+    const placeOf = (i) => { const idx = outOrder.indexOf(i); return idx < 0 ? null : ["4TH", "3RD", "2ND"][idx] || null; };
+    const aliveSeats = state.players.map((p, i) => i).filter((i) => state.players[i].stack > 0);
+    const settledPhase = state.phase !== "betting" && state.phase !== "runout";
+    const champion = state.handNo > 0 && settledPhase && aliveSeats.length === 1 ? aliveSeats[0] : null;
+    const userOut = state.handNo > 0 && settledPhase && state.players[USER_SEAT].stack <= 0 && champion === null;
+    const userPlace = userOut ? ["", "", "2nd", "3rd", "4th"][aliveSeats.length + 1] || "2nd" : null;
+    React.useEffect(() => {
+        if (champion === USER_SEAT) {
+            sfx.win(true);
+            reportStats({ inc: { tourney_wins: 1 } });
+        }
+    }, [champion]);
+    const newTournament = () => { setOutOrder([]); sfx.chips(4); setState(makeTable()); };
+    const deal = () => setState((s) => {
+        if (s.phase === "betting" || s.phase === "runout")
+            return s;
+        if (s.players.filter((p) => p.stack > 0).length < 2)
+            return s;
+        const lv = LEVELS[Math.min(LEVELS.length - 1, Math.floor(s.handNo / 6))];
+        return startHand({ ...s, sb: lv[0], bb: lv[1] }, rngRef.current);
+    });
     const sndHand = useRef(0);
     const sndBoard = useRef(0);
     useEffect(() => {
@@ -1948,7 +1994,7 @@ function SoloTable() {
                         border: `7px solid ${N.rail}`,
                         boxShadow: "0 0 60px rgba(0,0,0,0.85), inset 0 0 46px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(0,230,118,0.07)",
                     } }),
-                [1, 2, 3].map((seat, i) => (React.createElement(OppSeat, { key: seat, player: state.players[seat], seat: seat, spot: OPP_SPOTS[i], state: state, cardW: boardW, equity: equities ? equities[seat] : null, lead: leadSeat === seat }))),
+                [1, 2, 3].map((seat, i) => (React.createElement(OppSeat, { key: seat, player: { ...state.players[seat], place: placeOf(seat) }, seat: seat, spot: OPP_SPOTS[i], state: state, cardW: boardW, equity: equities ? equities[seat] : null, lead: leadSeat === seat }))),
                 React.createElement("div", { style: {
                         position: "absolute", left: "50%", top: "47%", transform: "translate(-50%, -50%)",
                         display: "flex", flexDirection: "column", alignItems: "center", gap: 9, zIndex: 2, width: "100%",
@@ -1957,7 +2003,12 @@ function SoloTable() {
                         "HAND #",
                         state.handNo,
                         " \u00B7 ",
-                        state.phase === "over" ? "COMPLETE" : streetNames[state.street].toUpperCase())),
+                        state.phase === "over" ? "COMPLETE" : streetNames[state.street].toUpperCase(),
+                        " \u00B7 $",
+                        sb,
+                        "/$",
+                        bb,
+                        level > 0 ? ` · LVL ${level + 1}` : "")),
                     React.createElement("div", { style: {
                             background: "rgba(0,0,0,0.6)", border: "1px solid rgba(0,230,118,0.3)", borderRadius: 999,
                             padding: "4px 15px", fontSize: 13, fontWeight: 800, color: N.green, boxShadow: "0 0 18px rgba(0,230,118,0.12)",
@@ -2019,11 +2070,18 @@ function SoloTable() {
                     !userTurn && (React.createElement("div", { style: { textAlign: "center", fontSize: 11, fontWeight: 700, color: N.dim } }, state.toAct >= 0 ? `${state.players[state.toAct].name} is thinking…` : "…")))) : state.phase === "runout" ? (React.createElement("div", { style: { textAlign: "center", fontFamily: sans, fontSize: 13, fontWeight: 800, letterSpacing: "0.08em", color: N.gold, padding: "13px 0" } },
                     "ALL IN \u2014 running it out\u2026 ",
                     React.createElement("span", { style: { color: N.dim, fontWeight: 600, letterSpacing: 0 } }, "(tap the table to skip)"))) : (React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "center", alignItems: "center", flexWrap: "wrap" } },
-                    React.createElement("button", { onClick: deal, style: { ...actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }), width: "auto", padding: "13px 42px" } }, state.handNo === 0 ? "SIT DOWN & DEAL" : "NEXT HAND"),
-                    you.stack < BIG_BLIND && state.handNo > 0 && (React.createElement("span", { style: { fontSize: 11, color: N.dim, fontWeight: 700 } },
-                        "Felted \u2014 the next deal stakes you ",
-                        money(START_STACK),
-                        " in practice chips."))))))));
+                    React.createElement("button", { onClick: deal, style: { ...actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }), width: "auto", padding: "13px 42px" } }, state.handNo === 0 ? "SIT DOWN & DEAL" : "NEXT HAND"))))),
+        (champion !== null || userOut) && (React.createElement("div", { style: { position: "fixed", inset: 0, zIndex: 80, background: "rgba(5,7,10,0.82)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 } },
+            React.createElement("div", { style: { position: "relative", textAlign: "center", maxWidth: 380, width: "100%", background: "linear-gradient(180deg, #141922, #0e1218)", border: `1px solid ${champion === USER_SEAT ? "rgba(255,213,79,0.6)" : N.line}`, borderRadius: 20, padding: "30px 24px", boxShadow: champion === USER_SEAT ? "0 0 60px rgba(255,213,79,0.25)" : "0 20px 60px rgba(0,0,0,0.7)" } },
+                champion === USER_SEAT && React.createElement(Burst, { fireKey: 1, count: 22 }),
+                React.createElement("div", { style: { fontSize: 44 } }, champion === USER_SEAT ? "🏆" : champion !== null ? "🥈" : "💀"),
+                React.createElement("div", { style: { fontFamily: sans, fontSize: 21, fontWeight: 900, letterSpacing: "0.04em", marginTop: 8, color: champion === USER_SEAT ? N.gold : N.text } }, champion === USER_SEAT ? "TOURNAMENT CHAMPION" : champion !== null ? `${state.players[champion].name.toUpperCase()} TAKES IT` : `ELIMINATED · ${(userPlace || "").toUpperCase()} PLACE`),
+                React.createElement("div", { style: { fontFamily: mono, fontSize: 12, color: N.dim, marginTop: 8, lineHeight: 1.6 } }, champion === USER_SEAT
+                    ? `All $20,000 in practice chips are yours — ${state.handNo} hands, blinds reached $${sb}/$${bb}.`
+                    : champion !== null
+                        ? "You watched the end from the rail — the last two settled it without you."
+                        : "A busted stack is OUT for good here. That's what makes winning one mean something."),
+                React.createElement("button", { onClick: newTournament, style: { marginTop: 18, width: "100%", padding: "14px 10px", borderRadius: 12, cursor: "pointer", border: "none", fontFamily: sans, fontSize: 14, fontWeight: 900, letterSpacing: "0.08em", background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 6px 20px rgba(0,230,118,0.35)" } }, "NEW TOURNAMENT \u00B7 FOUR FRESH STACKS"))))));
 }
 const roomIdentKey = (code) => `poker-room:${code}`;
 const readIdent = (code) => {

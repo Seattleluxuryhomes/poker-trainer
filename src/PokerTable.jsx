@@ -180,7 +180,7 @@ function OppSeat({ player, seat, spot, state, cardW, equity, lead }) {
     <div style={{
       position: "absolute", left: `${spot.x}%`, top: `${spot.y}%`, transform: "translate(-50%, -50%)",
       display: "flex", flexDirection: "column", alignItems: "center",
-      opacity: player.folded && state.phase === "betting" ? 0.45 : 1, zIndex: 3, width: "min(30vw, 132px)",
+      opacity: player.out ? 0.32 : player.folded && state.phase === "betting" ? 0.45 : 1, zIndex: 3, width: "min(30vw, 132px)",
     }}>
       {state.quip && state.quip.seat === seat && (
         <div style={{
@@ -205,7 +205,9 @@ function OppSeat({ player, seat, spot, state, cardW, equity, lead }) {
       }}>
         <div style={{ fontSize: 11.5, fontWeight: 700, color: N.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "min(27vw, 118px)" }}>{player.name}</div>
         {player.tag && <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.12em", color: seat === 1 ? N.gold : N.dim }}>{player.tag.toUpperCase()}</div>}
-        <div style={{ fontSize: 11, fontWeight: 700, color: N.green, whiteSpace: "nowrap" }}>{money(player.stack)}</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: player.out ? "#8a5560" : N.green, whiteSpace: "nowrap" }}>
+          {player.out ? `OUT${player.place ? ` · ${player.place}` : ""}` : money(player.stack)}
+        </div>
       </div>
       <div style={{ marginTop: 4, display: "flex", gap: 3, minHeight: Math.round(cardW * 1.42) * 0.62 }}>
         {state.handNo === 0 ? null : player.folded ? (
@@ -232,7 +234,7 @@ function loadStack() {
     const raw = window.localStorage.getItem(STACK_KEY);
     if (raw == null) return START_STACK;
     const v = Number(raw);
-    return Number.isFinite(v) && v >= 0 ? v : START_STACK;
+    return Number.isFinite(v) && v > 0 ? v : START_STACK;
   } catch { return START_STACK; }
 }
 
@@ -323,8 +325,38 @@ function SoloTable() {
     });
   }, [state]);
 
+  /* THE TOURNAMENT (v0.17.0): blinds climb every six hands, a busted seat is
+   * OUT for good, placements are recorded, and it ends with one stack. */
+  const LEVELS = [[25, 50], [50, 100], [100, 200], [200, 400], [400, 800], [800, 1600], [1600, 3200]];
+  const level = Math.min(LEVELS.length - 1, Math.floor(state.handNo / 6));
+  const sb = LEVELS[level][0], bb = LEVELS[level][1];
+  const [outOrder, setOutOrder] = React.useState([]);
+  React.useEffect(() => {
+    if (state.phase !== "over" && state.handNo !== 0) return;
+    const fresh = [];
+    for (let i = 0; i < 4; i++)
+      if (state.players[i].stack <= 0 && !outOrder.includes(i) && !fresh.includes(i)) fresh.push(i);
+    if (fresh.length) setOutOrder((prev) => [...prev, ...fresh.filter((i) => !prev.includes(i))]);
+  }, [state]);
+  const placeOf = (i) => { const idx = outOrder.indexOf(i); return idx < 0 ? null : ["4TH", "3RD", "2ND"][idx] || null; };
+  const aliveSeats = state.players.map((p, i) => i).filter((i) => state.players[i].stack > 0);
+  const settledPhase = state.phase !== "betting" && state.phase !== "runout";
+  const champion = state.handNo > 0 && settledPhase && aliveSeats.length === 1 ? aliveSeats[0] : null;
+  const userOut = state.handNo > 0 && settledPhase && state.players[USER_SEAT].stack <= 0 && champion === null;
+  // derive the place from who is still breathing — right on the very first paint
+  const userPlace = userOut ? ["", "", "2nd", "3rd", "4th"][aliveSeats.length + 1] || "2nd" : null;
+  React.useEffect(() => {
+    if (champion === USER_SEAT) { sfx.win(true); reportStats({ inc: { tourney_wins: 1 } }); }
+  }, [champion]);
+  const newTournament = () => { setOutOrder([]); sfx.chips(4); setState(makeTable()); };
+
   // Only from idle/over: dealing mid-runout would vaporize a live pot.
-  const deal = () => setState((s) => (s.phase === "betting" || s.phase === "runout" ? s : startHand(s, rngRef.current)));
+  const deal = () => setState((s) => {
+    if (s.phase === "betting" || s.phase === "runout") return s;
+    if (s.players.filter((p) => p.stack > 0).length < 2) return s;
+    const lv = LEVELS[Math.min(LEVELS.length - 1, Math.floor(s.handNo / 6))];
+    return startHand({ ...s, sb: lv[0], bb: lv[1] }, rngRef.current);
+  });
 
   // Foley: cards on the deal and each street; the chord when you drag the pot.
   const sndHand = useRef(0);
@@ -409,7 +441,7 @@ function SoloTable() {
         }} />
 
         {[1, 2, 3].map((seat, i) => (
-          <OppSeat key={seat} player={state.players[seat]} seat={seat} spot={OPP_SPOTS[i]} state={state} cardW={boardW}
+          <OppSeat key={seat} player={{ ...state.players[seat], place: placeOf(seat) }} seat={seat} spot={OPP_SPOTS[i]} state={state} cardW={boardW}
             equity={equities ? equities[seat] : null} lead={leadSeat === seat} />
         ))}
 
@@ -420,7 +452,7 @@ function SoloTable() {
         }}>
           {state.handNo > 0 && (
             <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", color: N.faint }}>
-              HAND #{state.handNo} · {state.phase === "over" ? "COMPLETE" : streetNames[state.street].toUpperCase()}
+              HAND #{state.handNo} · {state.phase === "over" ? "COMPLETE" : streetNames[state.street].toUpperCase()} · ${sb}/${bb}{level > 0 ? ` · LVL ${level + 1}` : ""}
             </div>
           )}
           <div style={{
@@ -529,13 +561,31 @@ function SoloTable() {
               style={{ ...actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }), width: "auto", padding: "13px 42px" }}>
               {state.handNo === 0 ? "SIT DOWN & DEAL" : "NEXT HAND"}
             </button>
-            {you.stack < BIG_BLIND && state.handNo > 0 && (
-              <span style={{ fontSize: 11, color: N.dim, fontWeight: 700 }}>Felted — the next deal stakes you {money(START_STACK)} in practice chips.</span>
-            )}
           </div>
         )}
        </div>
       </div>
+      {(champion !== null || userOut) && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(5,7,10,0.82)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ position: "relative", textAlign: "center", maxWidth: 380, width: "100%", background: "linear-gradient(180deg, #141922, #0e1218)", border: `1px solid ${champion === USER_SEAT ? "rgba(255,213,79,0.6)" : N.line}`, borderRadius: 20, padding: "30px 24px", boxShadow: champion === USER_SEAT ? "0 0 60px rgba(255,213,79,0.25)" : "0 20px 60px rgba(0,0,0,0.7)" }}>
+            {champion === USER_SEAT && <Burst fireKey={1} count={22} />}
+            <div style={{ fontSize: 44 }}>{champion === USER_SEAT ? "🏆" : champion !== null ? "🥈" : "💀"}</div>
+            <div style={{ fontFamily: sans, fontSize: 21, fontWeight: 900, letterSpacing: "0.04em", marginTop: 8, color: champion === USER_SEAT ? N.gold : N.text }}>
+              {champion === USER_SEAT ? "TOURNAMENT CHAMPION" : champion !== null ? `${state.players[champion].name.toUpperCase()} TAKES IT` : `ELIMINATED · ${(userPlace || "").toUpperCase()} PLACE`}
+            </div>
+            <div style={{ fontFamily: mono, fontSize: 12, color: N.dim, marginTop: 8, lineHeight: 1.6 }}>
+              {champion === USER_SEAT
+                ? `All $20,000 in practice chips are yours — ${state.handNo} hands, blinds reached $${sb}/$${bb}.`
+                : champion !== null
+                  ? "You watched the end from the rail — the last two settled it without you."
+                  : "A busted stack is OUT for good here. That's what makes winning one mean something."}
+            </div>
+            <button onClick={newTournament} style={{ marginTop: 18, width: "100%", padding: "14px 10px", borderRadius: 12, cursor: "pointer", border: "none", fontFamily: sans, fontSize: 14, fontWeight: 900, letterSpacing: "0.08em", background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 6px 20px rgba(0,230,118,0.35)" }}>
+              NEW TOURNAMENT · FOUR FRESH STACKS
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

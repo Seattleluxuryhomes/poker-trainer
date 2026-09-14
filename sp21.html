@@ -427,14 +427,25 @@ const inHand = (p) => !p.folded;
 const canStillAct = (p) => !p.folded && !p.allIn;
 function startHand(state, rng) {
     const s = JSON.parse(JSON.stringify(state));
+    const alive = s.players.map((p, i) => i).filter((i) => s.players[i].stack > 0);
+    if (alive.length < 2) {
+        s.message = "The tournament is over.";
+        return s;
+    }
+    const SB = s.sb || SMALL_BLIND, BB = s.bb || BIG_BLIND;
     s.handNo += 1;
-    s.btn = (s.btn + 1) % 4;
+    do {
+        s.btn = (s.btn + 1) % 4;
+    } while (s.players[s.btn].stack <= 0);
+    const nextAlive = (from) => { let i = from; do {
+        i = (i + 1) % 4;
+    } while (s.players[i].stack <= 0); return i; };
     s.deck = shuffledFrom(rng);
     s.board = [];
     s.street = 0;
     s.pot = 0;
     s.currentBet = 0;
-    s.minRaise = BIG_BLIND;
+    s.minRaise = BB;
     s.message = "";
     s.quip = null;
     s.winners = [];
@@ -442,22 +453,23 @@ function startHand(state, rng) {
     s.best5 = null;
     s.phase = "betting";
     for (const p of s.players) {
-        if (p.stack < BIG_BLIND) {
-            p.stack = START_STACK;
-            p.rebuyNote = true;
-        }
-        else
-            p.rebuyNote = false;
+        p.out = p.stack <= 0;
         p.hole = [];
-        p.folded = false;
+        p.folded = p.out;
         p.allIn = false;
         p.streetBet = 0;
         p.committed = 0;
         p.lastAct = "";
     }
-    for (let round = 0; round < 2; round++)
-        for (let k = 1; k <= 4; k++)
-            s.players[(s.btn + k) % 4].hole.push(s.deck.pop());
+    for (let round = 0; round < 2; round++) {
+        let seat = s.btn;
+        for (let k = 0; k < alive.length; k++) {
+            seat = nextAlive(seat);
+            s.players[seat].hole.push(s.deck.pop());
+        }
+    }
+    const sbSeat = alive.length === 2 ? s.btn : nextAlive(s.btn);
+    const bbSeat = nextAlive(sbSeat);
     const post = (seat, amt, label) => {
         const p = s.players[seat];
         const pay = Math.min(amt, p.stack);
@@ -471,13 +483,13 @@ function startHand(state, rng) {
     };
     if (!s.log)
         s.log = [];
-    pushLog(s, `\u2014 Hand #${s.handNo} \u2014 ${s.players[s.btn].name} has the button`);
-    post((s.btn + 1) % 4, SMALL_BLIND, `small blind $${SMALL_BLIND}`);
-    post((s.btn + 2) % 4, BIG_BLIND, `big blind $${BIG_BLIND}`);
-    pushLog(s, `${s.players[(s.btn + 1) % 4].name} posts small blind $${SMALL_BLIND}`);
-    pushLog(s, `${s.players[(s.btn + 2) % 4].name} posts big blind $${BIG_BLIND}`);
-    s.currentBet = BIG_BLIND;
-    s.needs = seatsFrom((s.btn + 3) % 4, canStillAct, s.players);
+    pushLog(s, `\u2014 Hand #${s.handNo} \u2014 ${s.players[s.btn].name} has the button` + (s.sb ? ` (blinds $${SB}/$${BB})` : ""));
+    post(sbSeat, SB, `small blind $${SB}`);
+    post(bbSeat, BB, `big blind $${BB}`);
+    pushLog(s, `${s.players[sbSeat].name} posts small blind $${SB}`);
+    pushLog(s, `${s.players[bbSeat].name} posts big blind $${BB}`);
+    s.currentBet = BB;
+    s.needs = seatsFrom(nextAlive(bbSeat), canStillAct, s.players);
     s.toAct = s.needs.length ? s.needs[0] : -1;
     return s;
 }
@@ -1108,7 +1120,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.16.0";
+const APP_VERSION = "0.17.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,

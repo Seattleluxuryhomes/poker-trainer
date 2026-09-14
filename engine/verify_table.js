@@ -261,5 +261,59 @@ console.log("verify_table: the dealer's voice (describeScore + bestFive)");
   }
 }
 
+console.log("verify_table: tournament law (knockouts, no restakes)");
+{
+  const rng = mulberry32(11);
+  // rig a table with a busted seat: they must get no cards, post nothing, stay folded
+  let st = makeTable();
+  st.players[2].stack = 0;
+  st = startHand(st, rng);
+  check(st.players[2].hole.length === 0 && st.players[2].folded, "a busted seat gets no cards and sits folded");
+  check(st.players[2].committed === 0, "a busted seat posts nothing");
+  check(!st.needs.includes(2), "a busted seat is never asked to act");
+  const dealt = st.players.filter((p) => p.hole.length === 2).length;
+  check(dealt === 3, "exactly the living are dealt");
+
+  // heads-up: the button posts the small blind and acts first preflop
+  let hu = makeTable();
+  hu.players[1].stack = 0; hu.players[2].stack = 0;
+  hu = startHand(hu, rng);
+  const btnP = hu.players[hu.btn];
+  check(btnP.committed === (hu.sb || SMALL_BLIND), "heads-up: the button posts the small blind");
+  check(hu.toAct === hu.btn, "heads-up: the button acts first preflop");
+
+  // fewer than two alive: the hand refuses to start
+  let done = makeTable();
+  done.players[0].stack = 0; done.players[1].stack = 0; done.players[2].stack = 0;
+  const before = done.handNo;
+  done = startHand(done, rng);
+  check(done.handNo === before && /over/i.test(done.message), "one stack left: no deal, the tournament is over");
+
+  // a FULL seeded tournament: escalating blinds, chips conserved, one winner, nobody resurrects
+  const LEVELS = [[25, 50], [50, 100], [100, 200], [200, 400], [400, 800], [800, 1600], [1600, 3200]];
+  let t = makeTable();
+  const TOTAL = t.players.reduce((a, p) => a + p.stack, 0);
+  const everOut = new Set();
+  let hands = 0, resurrection = false, leak = false;
+  while (t.players.filter((p) => p.stack > 0).length > 1 && hands < 400) {
+    const lv = LEVELS[Math.min(LEVELS.length - 1, Math.floor(t.handNo / 6))];
+    t = startHand({ ...t, sb: lv[0], bb: lv[1] }, rng);
+    for (let i = 0; i < 300 && t.phase === "betting"; i++) t = applyAction(t, botDecide(t, rng));
+    for (let i = 0; i < 10 && t.phase === "runout"; i++) t = runoutStep(t, rng);
+    hands++;
+    const sum = t.players.reduce((a, p) => a + p.stack, 0);
+    if (sum !== TOTAL) leak = true;
+    t.players.forEach((p, i) => {
+      if (p.stack <= 0) everOut.add(i);
+      else if (everOut.has(i)) resurrection = true;
+    });
+  }
+  check(!leak, "chips conserved through the whole tournament");
+  check(!resurrection, "nobody ever comes back from the dead");
+  check(t.players.filter((p) => p.stack > 0).length === 1, `the tournament ends with ONE stack (after ${hands} hands)`);
+  check(t.players.find((p) => p.stack > 0).stack === TOTAL, "and that stack holds every chip");
+  check(hands < 400, "escalating blinds force an ending");
+}
+
 console.log(fail === 0 ? `✓ verify_table: all ${ok} checks passed` : `✗ verify_table: ${fail} of ${ok + fail} checks FAILED`);
 process.exit(fail === 0 ? 0 : 1);

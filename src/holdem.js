@@ -259,22 +259,33 @@ const canStillAct = (p) => !p.folded && !p.allIn;
 
 function startHand(state, rng) {
   const s = JSON.parse(JSON.stringify(state)); // state is plain JSON; oldest WebViews lack structuredClone
+  // TOURNAMENT LAW (founder ruling, v0.17.0: "he should be knocked out"):
+  // a seat at zero is OUT — no silent restakes, ever. The hand deals only to
+  // the living, the button and blinds rotate over the dead, and heads-up the
+  // button posts the small blind and acts first preflop (standard).
+  const alive = s.players.map((p, i) => i).filter((i) => s.players[i].stack > 0);
+  if (alive.length < 2) { s.message = "The tournament is over."; return s; }
+  const SB = s.sb || SMALL_BLIND, BB = s.bb || BIG_BLIND;
   s.handNo += 1;
-  s.btn = (s.btn + 1) % 4;
+  do { s.btn = (s.btn + 1) % 4; } while (s.players[s.btn].stack <= 0);
+  const nextAlive = (from) => { let i = from; do { i = (i + 1) % 4; } while (s.players[i].stack <= 0); return i; };
   s.deck = shuffledFrom(rng);
   s.board = []; s.street = 0; s.pot = 0;
-  s.currentBet = 0; s.minRaise = BIG_BLIND;
+  s.currentBet = 0; s.minRaise = BB;
   s.message = ""; s.quip = null; s.winners = []; s.revealed = false; s.best5 = null;
   s.phase = "betting";
   for (const p of s.players) {
-    if (p.stack < BIG_BLIND) { p.stack = START_STACK; p.rebuyNote = true; } else p.rebuyNote = false;
-    p.hole = []; p.folded = false; p.allIn = false;
+    p.out = p.stack <= 0;
+    p.hole = []; p.folded = p.out; p.allIn = false;
     p.streetBet = 0; p.committed = 0; p.lastAct = "";
   }
-  // two cards each, dealt from the top of the one shuffled deck
-  for (let round = 0; round < 2; round++)
-    for (let k = 1; k <= 4; k++) s.players[(s.btn + k) % 4].hole.push(s.deck.pop());
-  // blinds
+  // two cards to each LIVING seat, from the top of the one shuffled deck
+  for (let round = 0; round < 2; round++) {
+    let seat = s.btn;
+    for (let k = 0; k < alive.length; k++) { seat = nextAlive(seat); s.players[seat].hole.push(s.deck.pop()); }
+  }
+  const sbSeat = alive.length === 2 ? s.btn : nextAlive(s.btn);
+  const bbSeat = nextAlive(sbSeat);
   const post = (seat, amt, label) => {
     const p = s.players[seat];
     const pay = Math.min(amt, p.stack);
@@ -283,14 +294,14 @@ function startHand(state, rng) {
     p.lastAct = label;
   };
   if (!s.log) s.log = [];
-  pushLog(s, `\u2014 Hand #${s.handNo} \u2014 ${s.players[s.btn].name} has the button`);
-  post((s.btn + 1) % 4, SMALL_BLIND, `small blind $${SMALL_BLIND}`);
-  post((s.btn + 2) % 4, BIG_BLIND, `big blind $${BIG_BLIND}`);
-  pushLog(s, `${s.players[(s.btn + 1) % 4].name} posts small blind $${SMALL_BLIND}`);
-  pushLog(s, `${s.players[(s.btn + 2) % 4].name} posts big blind $${BIG_BLIND}`);
-  s.currentBet = BIG_BLIND;
-  // preflop action starts under the gun; the big blind acts last (option kept)
-  s.needs = seatsFrom((s.btn + 3) % 4, canStillAct, s.players);
+  pushLog(s, `\u2014 Hand #${s.handNo} \u2014 ${s.players[s.btn].name} has the button` + (s.sb ? ` (blinds $${SB}/$${BB})` : ""));
+  post(sbSeat, SB, `small blind $${SB}`);
+  post(bbSeat, BB, `big blind $${BB}`);
+  pushLog(s, `${s.players[sbSeat].name} posts small blind $${SB}`);
+  pushLog(s, `${s.players[bbSeat].name} posts big blind $${BB}`);
+  s.currentBet = BB;
+  // preflop action: after the big blind (heads-up that's the button/SB — standard)
+  s.needs = seatsFrom(nextAlive(bbSeat), canStillAct, s.players);
   s.toAct = s.needs.length ? s.needs[0] : -1;
   return s;
 }

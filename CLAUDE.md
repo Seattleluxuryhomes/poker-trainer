@@ -438,3 +438,23 @@ THE QUIET FELT: MathNote in casino.jsx — every page's fine print now lives
 behind one collapsed "Σ THE MATH" row; header subs cut to a few words. The
 honesty moved one tap away, not away. 13 suites, 652 checks (the landing
 counts up to it).
+
+## The tournament (v0.17.0)
+
+Founder: "he should be knocked out / tournament" — he'd watched a busted bot
+quietly restake (startHand's old `stack < BB → START_STACK` line). That line
+is dead. TOURNAMENT LAW in the shared engine (holdem.js startHand): a seat
+at zero is OUT — dealt nothing, posts nothing, never asked to act; the
+button and blinds rotate over the dead (heads-up the button is the small
+blind and acts first preflop, standard); blinds come from s.sb/s.bb when
+set (rooms unchanged on the constants); fewer than two alive refuses to
+deal. The solo table is now a real sit-n-go: blinds climb every 6 hands
+($25/50 → $1600/3200), the HUD shows level and blinds, dead seats show
+OUT · place, and it ends in one of two overlays — TOURNAMENT CHAMPION
+(trophy, burst, tourney_wins stat) or ELIMINATED · nth PLACE (derived from
+live alive-count so it's right on first paint) — with one button: NEW
+TOURNAMENT, four fresh stacks. verify_table (90) proves the law: busted
+seats uncarded/unposted/unasked, heads-up blind order, no-deal at <2 alive,
+and a full seeded tournament to ONE stack holding all 20,000 chips — chips
+conserved every hand, nobody resurrects, escalation forces an ending.
+Rooms inherit the knockout rule (busted room players sit out; no restakes).
