@@ -458,3 +458,22 @@ seats uncarded/unposted/unasked, heads-up blind order, no-deal at <2 alive,
 and a full seeded tournament to ONE stack holding all 20,000 chips — chips
 conserved every hand, nobody resurrects, escalation forces an ending.
 Rooms inherit the knockout rule (busted room players sit out; no restakes).
+
+## The overlay you couldn't see past (v0.17.1)
+
+Two players (the founder, and a friend playtesting — "Gabrial Reach": "It
+doesn't let me see the table when I win") independently hit the same real
+bug: the tournament-end overlay (v0.17.0) was a full-screen blocking modal
+with no way to dismiss it — bust out OR win the whole thing, and you could
+never see the final board, your cards, or how the last hand actually
+played out before being pushed into a new tournament. Fixed: the overlay
+is now dismissable (tap the ×, tap the backdrop, or "SEE THE FINAL HAND"),
+which reveals the real showdown state underneath untouched — board, hole
+cards, the dealer-voice winner line, all of it. A "↩ REVIEW RESULT" button
+takes its place in the action bar so the overlay can be reopened anytime;
+"NEW TOURNAMENT" stays available in both states. Also: the 💀 skull on the
+elimination overlay is gone per founder request (busted-out is now icon-
+free, letting the ELIMINATED · nth PLACE text and color carry it instead
+of a morbid glyph) — trophy and silver-medal icons for the winning
+branches are unchanged. All 664 checks still green; this was a pure UI
+change, the engine's tournament math (verify_table, 90 checks) untouched.

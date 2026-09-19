@@ -348,7 +348,14 @@ function SoloTable() {
   React.useEffect(() => {
     if (champion === USER_SEAT) { sfx.win(true); reportStats({ inc: { tourney_wins: 1 } }); }
   }, [champion]);
-  const newTournament = () => { setOutOrder([]); sfx.chips(4); setState(makeTable()); };
+  const newTournament = () => { setOutOrder([]); setEndDismissed(false); sfx.chips(4); setState(makeTable()); };
+  // The founder's phone found this: the end-of-tournament overlay used to block
+  // the felt instantly, with no way to see the hand that just eliminated you.
+  // Now it's dismissable — tap the X or the backdrop — and a quiet bar stays
+  // on screen so REVIEW HAND / NEW TOURNAMENT are always one tap away.
+  const [endDismissed, setEndDismissed] = React.useState(false);
+  const ended = champion !== null || userOut;
+  React.useEffect(() => { if (!ended) setEndDismissed(false); }, [ended]);
 
   // Only from idle/over: dealing mid-runout would vaporize a live pot.
   const deal = () => setState((s) => {
@@ -557,19 +564,36 @@ function SoloTable() {
           </div>
         ) : (
           <div style={{ display: "flex", gap: 10, justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
-            <button onClick={deal}
-              style={{ ...actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }), width: "auto", padding: "13px 42px" }}>
-              {state.handNo === 0 ? "SIT DOWN & DEAL" : "NEXT HAND"}
-            </button>
+            {ended ? (
+              <>
+                {endDismissed && (
+                  <button onClick={() => setEndDismissed(false)} style={{ ...actBtn({ background: "#232733", color: N.text, border: `1px solid ${N.line2}` }), width: "auto", padding: "13px 24px" }}>
+                    ↩ REVIEW RESULT
+                  </button>
+                )}
+                <button onClick={newTournament}
+                  style={{ ...actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }), width: "auto", padding: "13px 42px" }}>
+                  NEW TOURNAMENT
+                </button>
+              </>
+            ) : (
+              <button onClick={deal}
+                style={{ ...actBtn({ background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 4px 16px rgba(0,230,118,0.35)" }), width: "auto", padding: "13px 42px" }}>
+                {state.handNo === 0 ? "SIT DOWN & DEAL" : "NEXT HAND"}
+              </button>
+            )}
           </div>
         )}
        </div>
       </div>
-      {(champion !== null || userOut) && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(5,7,10,0.82)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ position: "relative", textAlign: "center", maxWidth: 380, width: "100%", background: "linear-gradient(180deg, #141922, #0e1218)", border: `1px solid ${champion === USER_SEAT ? "rgba(255,213,79,0.6)" : N.line}`, borderRadius: 20, padding: "30px 24px", boxShadow: champion === USER_SEAT ? "0 0 60px rgba(255,213,79,0.25)" : "0 20px 60px rgba(0,0,0,0.7)" }}>
+      {ended && !endDismissed && (
+        <div onClick={() => setEndDismissed(true)} style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(5,7,10,0.82)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, cursor: "pointer" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ position: "relative", textAlign: "center", maxWidth: 380, width: "100%", background: "linear-gradient(180deg, #141922, #0e1218)", border: `1px solid ${champion === USER_SEAT ? "rgba(255,213,79,0.6)" : N.line}`, borderRadius: 20, padding: "30px 24px", boxShadow: champion === USER_SEAT ? "0 0 60px rgba(255,213,79,0.25)" : "0 20px 60px rgba(0,0,0,0.7)", cursor: "default" }}>
+            <button onClick={() => setEndDismissed(true)} aria-label="Close — review the table" style={{ position: "absolute", top: 10, right: 10, width: 30, height: 30, borderRadius: 9, cursor: "pointer", border: `1px solid ${N.line2}`, background: "rgba(255,255,255,0.04)", color: N.dim, fontSize: 16, lineHeight: 1 }}>×</button>
             {champion === USER_SEAT && <Burst fireKey={1} count={22} />}
-            <div style={{ fontSize: 44 }}>{champion === USER_SEAT ? "🏆" : champion !== null ? "🥈" : "💀"}</div>
+            {(champion === USER_SEAT || champion !== null) && (
+              <div style={{ fontSize: 44 }}>{champion === USER_SEAT ? "🏆" : "🥈"}</div>
+            )}
             <div style={{ fontFamily: sans, fontSize: 21, fontWeight: 900, letterSpacing: "0.04em", marginTop: 8, color: champion === USER_SEAT ? N.gold : N.text }}>
               {champion === USER_SEAT ? "TOURNAMENT CHAMPION" : champion !== null ? `${state.players[champion].name.toUpperCase()} TAKES IT` : `ELIMINATED · ${(userPlace || "").toUpperCase()} PLACE`}
             </div>
@@ -580,9 +604,13 @@ function SoloTable() {
                   ? "You watched the end from the rail — the last two settled it without you."
                   : "A busted stack is OUT for good here. That's what makes winning one mean something."}
             </div>
-            <button onClick={newTournament} style={{ marginTop: 18, width: "100%", padding: "14px 10px", borderRadius: 12, cursor: "pointer", border: "none", fontFamily: sans, fontSize: 14, fontWeight: 900, letterSpacing: "0.08em", background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 6px 20px rgba(0,230,118,0.35)" }}>
+            <button onClick={() => setEndDismissed(true)} style={{ marginTop: 16, width: "100%", padding: "12px 10px", borderRadius: 12, cursor: "pointer", border: `1px solid ${N.line2}`, background: "rgba(255,255,255,0.04)", fontFamily: sans, fontSize: 12.5, fontWeight: 700, letterSpacing: "0.05em", color: N.text }}>
+              SEE THE FINAL HAND
+            </button>
+            <button onClick={newTournament} style={{ marginTop: 8, width: "100%", padding: "14px 10px", borderRadius: 12, cursor: "pointer", border: "none", fontFamily: sans, fontSize: 14, fontWeight: 900, letterSpacing: "0.08em", background: `linear-gradient(180deg, #2aff8f, ${N.green} 55%, #00b25a)`, color: "#00230f", boxShadow: "0 6px 20px rgba(0,230,118,0.35)" }}>
               NEW TOURNAMENT · FOUR FRESH STACKS
             </button>
+            <div style={{ fontFamily: mono, fontSize: 9.5, color: N.dim, marginTop: 10 }}>tap outside, the ×, or "see the final hand" to review the table first</div>
           </div>
         </div>
       )}
