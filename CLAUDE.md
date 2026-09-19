@@ -477,3 +477,52 @@ free, letting the ELIMINATED · nth PLACE text and color carry it instead
 of a morbid glyph) — trophy and silver-medal icons for the winning
 branches are unchanged. All 664 checks still green; this was a pure UI
 change, the engine's tournament math (verify_table, 90 checks) untouched.
+
+## Header cleanup + AUTO play (v0.18.0)
+
+Founder: "it doesn't look very good at the top where it says friends" — the
+solo hold'em header's "PLAY WITH FRIENDS" button had no whiteSpace:nowrap or
+flex:none, so once SoundToggle + AccountArea + the home icon crowded the
+row on a phone width, the button's OWN TEXT wrapped internally into a
+3-line stack (PLAY / WITH / FRIENDS) instead of the row wrapping. Fixed:
+label shortened to "👥 FRIENDS", whiteSpace:nowrap + flex:"0 0 auto" on
+every header control, and flexWrap safety on the row itself so a truly
+narrow screen wraps to a tidy second row instead of squashing text.
+
+AUTO PLAY (Blackjack + Spanish 21): founder — "you don't have to do
+something with every card you can hit and wait for your cards." Added a
+▶ AUTO toggle beside the move buttons; when on, a useEffect watches
+phase/advice/hand and calls act(advice.best) ~600ms after each new
+decision appears — the exact ★-starred move, same engine, same math, just
+executed for you instead of tapped. AUTO never touches DEAL or the bet
+size — starting a new hand and choosing a stake stay deliberate taps,
+always; only the in-hand HIT/STAND/DOUBLE/SPLIT sequence automates.
+Proven live: a full hand resolves end-to-end on both games with zero
+manual taps once AUTO is on.
+
+RESEARCH NOTE (founder: "research Mickey Mace and do it right" — decoded
+as Mikki Mase, a real gambler/social-media figure known for high-stakes
+blackjack and baccarat who claims a "secret system" via unverified
+statistical modeling, widely disputed by the advantage-play community).
+Researched via web search; NOT added as an in-app character or persona —
+consistent with the existing house rule (Ace Meridian et al. are
+FICTIONAL; never name or imitate real players). The relevant takeaway:
+his claimed "edge" is exactly the kind of unverifiable claim this whole
+app refuses to traffic in — our blackjack/Spanish 21 EVs and baccarat
+probabilities are already the rigorous, honest version: live recursion
+over the actual cards left, printed on the button, not a "trust me."
+
+DECLINED (founder: "this needs to be connected to the Bible app so it has
+honesty"): no technical connection was made to Disciples' Authority (the
+separate sober-housing discipleship repo in this workspace) or any other
+app. That app's own founder-issued canon explicitly and repeatedly bans
+gamification (SOUL.md: "no devotional streaks, points, badges,
+leaderboards, or re-engagement guilt copy") — wiring a casino-themed app,
+even a practice-chips one with synthesized casino sound and win
+celebrations, into a recovery/discipleship product's data or user base
+would violate that canon outright and risks real harm to people in a
+sobriety context, where gambling is a recognized co-occurring behavioral
+compulsion. This is a refuse-and-explain, not a build; flagged to the
+founder rather than guessed at. If "honesty" meant something narrower
+(e.g., a values statement, not a technical integration), that's open to
+revisit on clarification — but no cross-repo wiring happens by default.

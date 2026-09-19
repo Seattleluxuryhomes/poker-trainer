@@ -1120,7 +1120,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.17.1";
+const APP_VERSION = "0.18.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1849,6 +1849,7 @@ function Blackjack() {
     const [result, setResult] = useState(null);
     const [winKey, setWinKey] = useState(0);
     const [showMath, setShowMath] = useState(true);
+    const [autoPlay, setAutoPlay] = useState(false);
     useEffect(() => { walletSave(bank); }, [bank]);
     const counts = React.useMemo(() => {
         if (phase !== "play")
@@ -1871,6 +1872,12 @@ function Blackjack() {
             bjVal(hand.cards[0]) === bjVal(hand.cards[1]) && bank >= hand.bet;
         return { ...bjAdvise(counts, vals, bjVal(dealer[0]), canDouble, canSplit), canDouble, canSplit };
     }, [phase, counts, hands, active, dealer, bank]);
+    useEffect(() => {
+        if (!autoPlay || phase !== "play" || !advice || !hand || hand.done)
+            return;
+        const t = setTimeout(() => act(advice.best), 600);
+        return () => clearTimeout(t);
+    }, [autoPlay, phase, advice, hand]);
     const deal = () => {
         if (phase === "play" || phase === "reveal" || chip > bank)
             return;
@@ -2064,7 +2071,13 @@ function Blackjack() {
                             " ",
                             fmtEv(ev)))));
                 })),
-                React.createElement("button", { onClick: () => setShowMath((v) => !v), style: { ...casGhost(), padding: "7px 10px", fontSize: 10.5, alignSelf: "center" } }, showMath ? "hide the math" : "show the math"))),
+                React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "center" } },
+                    React.createElement("button", { onClick: () => setAutoPlay((v) => !v), style: {
+                            ...casGhost(), padding: "7px 12px", fontSize: 10.5,
+                            color: autoPlay ? CAS.gold : CAS.dim, border: `1px solid ${autoPlay ? CAS.goldLine : CAS.line}`,
+                            background: autoPlay ? "rgba(245,197,66,0.1)" : "rgba(255,255,255,0.03)",
+                        } }, autoPlay ? "⏸ AUTO ON — playing the ★ for you" : "▶ AUTO — play the ★ for me"),
+                    React.createElement("button", { onClick: () => setShowMath((v) => !v), style: { ...casGhost(), padding: "7px 10px", fontSize: 10.5 } }, showMath ? "hide the math" : "show the math")))),
             (phase === "bet" || phase === "done") && (React.createElement(React.Fragment, null,
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
                     BJ_CHIPS.map((v) => React.createElement(CasinoChip, { key: v, value: v, selected: chip === v, onClick: () => setChip(v) })),

@@ -422,15 +422,15 @@ function SoloTable() {
           <div style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: "0.12em", color: N.dim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>vs ACE MERIDIAN · WORLD #1</div>
           <div style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: "0.06em", color: N.faint }}>PRACTICE CHIPS ONLY</div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end", rowGap: 6 }}>
           <SoundToggle dark />
-          <button onClick={() => setFriendsOpen(true)} style={{
-            height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px",
+          <button onClick={() => setFriendsOpen(true)} title="Play with friends" style={{
+            height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px", flex: "0 0 auto", whiteSpace: "nowrap",
             border: "1px solid rgba(0,230,118,0.4)", background: "rgba(0,230,118,0.08)",
-            color: N.green, fontFamily: sans, fontSize: 11, fontWeight: 800,
-          }}>PLAY WITH FRIENDS</button>
+            color: N.green, fontFamily: sans, fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", gap: 5,
+          }}><span aria-hidden="true">👥</span> FRIENDS</button>
           <AccountArea dark />
-          <a href="index.html" aria-label="Home" style={{ color: N.dim, textDecoration: "none", fontSize: 16, lineHeight: 1, border: `1px solid ${N.line}`, borderRadius: 9, padding: "5px 9px", background: "rgba(255,255,255,0.02)" }}>⌂</a>
+          <a href="index.html" aria-label="Home" style={{ color: N.dim, textDecoration: "none", fontSize: 16, lineHeight: 1, border: `1px solid ${N.line}`, borderRadius: 9, padding: "5px 9px", background: "rgba(255,255,255,0.02)", flex: "0 0 auto" }}>⌂</a>
         </div>
       </div>
       {friendsOpen && <CreateRoomModal onClose={() => setFriendsOpen(false)} />}

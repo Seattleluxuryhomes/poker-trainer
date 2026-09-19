@@ -267,6 +267,7 @@ export default function Blackjack() {
   const [result, setResult] = useState(null); // {net, lines}
   const [winKey, setWinKey] = useState(0);
   const [showMath, setShowMath] = useState(true);
+  const [autoPlay, setAutoPlay] = useState(false);
 
   useEffect(() => { walletSave(bank); }, [bank]);
 
@@ -288,6 +289,17 @@ export default function Blackjack() {
       bjVal(hand.cards[0]) === bjVal(hand.cards[1]) && bank >= hand.bet;
     return { ...bjAdvise(counts, vals, bjVal(dealer[0]), canDouble, canSplit), canDouble, canSplit };
   }, [phase, counts, hands, active, dealer, bank]);
+
+  /* AUTO: "you don't have to do something with every card" — deal, then
+   * watch. When on, the ★-best move plays itself at the same pace a human
+   * reads it, so hitting is a decision you can opt OUT of, not one you're
+   * forced into on every single card. Never auto-deals a new hand or a new
+   * bet — that stays a deliberate tap, always. */
+  useEffect(() => {
+    if (!autoPlay || phase !== "play" || !advice || !hand || hand.done) return;
+    const t = setTimeout(() => act(advice.best), 600);
+    return () => clearTimeout(t);
+  }, [autoPlay, phase, advice, hand]);
 
   const deal = () => {
     if (phase === "play" || phase === "reveal" || chip > bank) return;
@@ -485,9 +497,18 @@ export default function Blackjack() {
                 );
               })}
             </div>
-            <button onClick={() => setShowMath((v) => !v)} style={{ ...casGhost(), padding: "7px 10px", fontSize: 10.5, alignSelf: "center" }}>
-              {showMath ? "hide the math" : "show the math"}
-            </button>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+              <button onClick={() => setAutoPlay((v) => !v)} style={{
+                ...casGhost(), padding: "7px 12px", fontSize: 10.5,
+                color: autoPlay ? CAS.gold : CAS.dim, border: `1px solid ${autoPlay ? CAS.goldLine : CAS.line}`,
+                background: autoPlay ? "rgba(245,197,66,0.1)" : "rgba(255,255,255,0.03)",
+              }}>
+                {autoPlay ? "⏸ AUTO ON — playing the ★ for you" : "▶ AUTO — play the ★ for me"}
+              </button>
+              <button onClick={() => setShowMath((v) => !v)} style={{ ...casGhost(), padding: "7px 10px", fontSize: 10.5 }}>
+                {showMath ? "hide the math" : "show the math"}
+              </button>
+            </div>
           </div>
         )}
 

@@ -1120,7 +1120,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.17.1";
+const APP_VERSION = "0.18.0";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -1874,6 +1874,7 @@ function Spanish21() {
     const [holeUp, setHoleUp] = useState(false);
     const [result, setResult] = useState(null);
     const [winKey, setWinKey] = useState(0);
+    const [autoPlay, setAutoPlay] = useState(false);
     useEffect(() => { walletSave(bank); }, [bank]);
     const counts = React.useMemo(() => {
         if (phase !== "play")
@@ -1895,6 +1896,12 @@ function Spanish21() {
         const canSplit = hands.length === 1 && hand.cards.length === 2 && sp21Val(hand.cards[0]) === sp21Val(hand.cards[1]) && bank >= hand.bet;
         return { ...sp21Advise(counts, vals, sp21Val(dealer[0]), canDouble, canSplit), canDouble, canSplit };
     }, [phase, counts, hands, active, dealer, bank]);
+    useEffect(() => {
+        if (!autoPlay || phase !== "play" || !advice || !hand || hand.done)
+            return;
+        const t = setTimeout(() => act(advice.best), 600);
+        return () => clearTimeout(t);
+    }, [autoPlay, phase, advice, hand]);
     const deal = () => {
         if (phase === "play" || phase === "reveal" || chip > bank)
             return;
@@ -2069,20 +2076,26 @@ function Spanish21() {
                     }),
                     !hands.length && (React.createElement("div", { style: { fontFamily: casMono, fontSize: 12, color: CAS.faint, padding: "20px 0" } }, "place a bet \u2014 your 21 always wins here, and the long ones pay extra"))),
                 result && (React.createElement("div", { style: { fontFamily: casMono, fontSize: 11.5, color: result.net > 0 ? CAS.green : result.net < 0 ? CAS.dim : CAS.text, textAlign: "center", lineHeight: 1.7 } }, result.lines.map((l, i) => React.createElement("div", { key: i }, l))))),
-            phase === "play" && advice && (React.createElement("div", { style: { display: "flex", gap: 8 } }, ["stand", "hit", "double", "split"].map((m) => {
-                const ev = advice.evs[m];
-                if (ev === undefined)
-                    return null;
-                const hot = advice.best === m;
-                return (React.createElement("button", { key: m, onClick: () => act(m), style: spMoveBtn(hot) },
-                    React.createElement("div", null,
-                        hot ? "★ " : "",
-                        MOVE_LABEL[m]),
-                    React.createElement("div", { style: { fontFamily: casMono, fontSize: 10, fontWeight: 400, marginTop: 3, color: hot ? CAS.gold : CAS.faint } },
-                        m === "split" ? "≈" : "EV",
-                        " ",
-                        fmtEv(ev))));
-            }))),
+            phase === "play" && advice && (React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
+                React.createElement("div", { style: { display: "flex", gap: 8 } }, ["stand", "hit", "double", "split"].map((m) => {
+                    const ev = advice.evs[m];
+                    if (ev === undefined)
+                        return null;
+                    const hot = advice.best === m;
+                    return (React.createElement("button", { key: m, onClick: () => act(m), style: spMoveBtn(hot) },
+                        React.createElement("div", null,
+                            hot ? "★ " : "",
+                            MOVE_LABEL[m]),
+                        React.createElement("div", { style: { fontFamily: casMono, fontSize: 10, fontWeight: 400, marginTop: 3, color: hot ? CAS.gold : CAS.faint } },
+                            m === "split" ? "≈" : "EV",
+                            " ",
+                            fmtEv(ev))));
+                })),
+                React.createElement("button", { onClick: () => setAutoPlay((v) => !v), style: {
+                        ...casGhost(), padding: "7px 12px", fontSize: 10.5, alignSelf: "center",
+                        color: autoPlay ? CAS.gold : CAS.dim, border: `1px solid ${autoPlay ? CAS.goldLine : CAS.line}`,
+                        background: autoPlay ? "rgba(245,197,66,0.1)" : "rgba(255,255,255,0.03)",
+                    } }, autoPlay ? "⏸ AUTO ON — playing the ★ for you" : "▶ AUTO — play the ★ for me"))),
             (phase === "bet" || phase === "done") && (React.createElement(React.Fragment, null,
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" } },
                     SP21_CHIPS.map((v) => React.createElement(CasinoChip, { key: v, value: v, selected: chip === v, onClick: () => setChip(v), size: 42 })),

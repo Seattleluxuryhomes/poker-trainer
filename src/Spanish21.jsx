@@ -277,6 +277,7 @@ export default function Spanish21() {
   const [holeUp, setHoleUp] = useState(false);
   const [result, setResult] = useState(null);
   const [winKey, setWinKey] = useState(0);
+  const [autoPlay, setAutoPlay] = useState(false);
 
   useEffect(() => { walletSave(bank); }, [bank]);
 
@@ -296,6 +297,14 @@ export default function Spanish21() {
     const canSplit = hands.length === 1 && hand.cards.length === 2 && sp21Val(hand.cards[0]) === sp21Val(hand.cards[1]) && bank >= hand.bet;
     return { ...sp21Advise(counts, vals, sp21Val(dealer[0]), canDouble, canSplit), canDouble, canSplit };
   }, [phase, counts, hands, active, dealer, bank]);
+
+  /* AUTO: deal, then watch — the ★-best move plays itself. Never auto-deals
+   * a new hand or bet; that stays a deliberate tap. */
+  useEffect(() => {
+    if (!autoPlay || phase !== "play" || !advice || !hand || hand.done) return;
+    const t = setTimeout(() => act(advice.best), 600);
+    return () => clearTimeout(t);
+  }, [autoPlay, phase, advice, hand]);
 
   const deal = () => {
     if (phase === "play" || phase === "reveal" || chip > bank) return;
@@ -458,20 +467,29 @@ export default function Spanish21() {
         </div>
 
         {phase === "play" && advice && (
-          <div style={{ display: "flex", gap: 8 }}>
-            {["stand", "hit", "double", "split"].map((m) => {
-              const ev = advice.evs[m];
-              if (ev === undefined) return null;
-              const hot = advice.best === m;
-              return (
-                <button key={m} onClick={() => act(m)} style={spMoveBtn(hot)}>
-                  <div>{hot ? "★ " : ""}{MOVE_LABEL[m]}</div>
-                  <div style={{ fontFamily: casMono, fontSize: 10, fontWeight: 400, marginTop: 3, color: hot ? CAS.gold : CAS.faint }}>
-                    {m === "split" ? "≈" : "EV"} {fmtEv(ev)}
-                  </div>
-                </button>
-              );
-            })}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              {["stand", "hit", "double", "split"].map((m) => {
+                const ev = advice.evs[m];
+                if (ev === undefined) return null;
+                const hot = advice.best === m;
+                return (
+                  <button key={m} onClick={() => act(m)} style={spMoveBtn(hot)}>
+                    <div>{hot ? "★ " : ""}{MOVE_LABEL[m]}</div>
+                    <div style={{ fontFamily: casMono, fontSize: 10, fontWeight: 400, marginTop: 3, color: hot ? CAS.gold : CAS.faint }}>
+                      {m === "split" ? "≈" : "EV"} {fmtEv(ev)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={() => setAutoPlay((v) => !v)} style={{
+              ...casGhost(), padding: "7px 12px", fontSize: 10.5, alignSelf: "center",
+              color: autoPlay ? CAS.gold : CAS.dim, border: `1px solid ${autoPlay ? CAS.goldLine : CAS.line}`,
+              background: autoPlay ? "rgba(245,197,66,0.1)" : "rgba(255,255,255,0.03)",
+            }}>
+              {autoPlay ? "⏸ AUTO ON — playing the ★ for you" : "▶ AUTO — play the ★ for me"}
+            </button>
           </div>
         )}
 
