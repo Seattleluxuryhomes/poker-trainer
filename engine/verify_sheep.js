@@ -3,8 +3,10 @@
  *   - the dice: SR_WAYS is the exact 2d6 distribution (sums to 36) and the
  *     pips on every token are those ways;
  *   - the board: 19 hexes / 54 corners / 72 sides, the tile and token
- *     multisets, no 6 next to an 8, the dust bowl has no token and starts
- *     with the rustler, 9 trading posts (4×3:1, one 2:1 per good);
+ *     multisets (Sheep Rodeo's own: two dust bowls, 17 tokens), no 6 next
+ *     to an 8, dust bowls carry no token and one starts with the rustler,
+ *     7 trading posts (3×3:1, one 2:1 each for lumber/clay/hay/iron);
+ *   - WOOL IS MONEY: two wool buy any good at the bank for everyone, always;
  *   - the building law: the distance rule, trails must touch, an opponent's
  *     corral breaks a trail line, the second setup corral pays out once;
  *   - production: pips → cards, ranches pay double, the rustler blocks,
@@ -37,15 +39,16 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext(body, sandbox);
-const E = vm.runInContext(`({ SR_RES, SR_WAYS, SR_COST, SR_DECK, SR_WIN, SR_MAX_TRAILS, SR_MAX_CORRALS, SR_MAX_RANCHES,
+const E = vm.runInContext(`({ SR_RES, SR_WAYS, SR_COST, SR_DECK, SR_DECK_MIX, SR_WIN, SR_MAX_TRAILS, SR_MAX_CORRALS, SR_MAX_RANCHES,
+  SR_HAND_LIMIT, SR_BANK_EACH, SR_LONGEST_MIN, SR_POSSE_MIN, SR_WOOL_RATE, SR_TILES, SR_TOKENS, SR_PORTS,
   srBoard, srNew, srClone, srCount, srPips, srCornerYield, srExpected, srLegalCorrals, srLegalTrails, srLongestTrail,
   srPlaceCorral, srPlaceTrail, srRoll, srProduce, srDiscard, srMoveRustler, srPickVictim, srBuildTrail, srBuildCorral,
   srBuildRanch, srBuyCard, srPlayCard, srRatio, srBankTrade, srOfferTrade, srEndTurn, srVP, srUpdateAwards,
   srBestCorral, srBestRustlerHex, srBotStep, srCoach, srOwnerAt, srTrailOwner, mulberry32 })`, sandbox);
 
-/* the total of goods in play never changes: bank + every hand = 5 × 19 */
+/* the total of goods in play never changes: bank + every hand = 5 × SR_BANK_EACH */
 const totalGoods = (s) => E.SR_RES.reduce((n, r) => n + s.bank[r] + s.players.reduce((k, p) => k + p.res[r], 0), 0);
-const conserved = (s) => totalGoods(s) === 5 * 19;
+const conserved = (s) => totalGoods(s) === 5 * E.SR_BANK_EACH;
 
 console.log("verify_sheep: the dice");
 {
@@ -64,28 +67,31 @@ console.log("verify_sheep: the board");
     const b = E.srBoard(E.mulberry32(seed));
     if (b.hexes.length !== 19 || b.verts.length !== 54 || b.edges.length !== 72) allGood = false;
     const tiles = b.hexes.map((h) => h.res).sort().join(",");
-    if (tiles !== "clay,clay,clay,desert,hay,hay,hay,hay,iron,iron,iron,lumber,lumber,lumber,lumber,wool,wool,wool,wool") allGood = false;
+    if (tiles !== "clay,clay,clay,desert,desert,hay,hay,hay,hay,iron,iron,iron,lumber,lumber,lumber,wool,wool,wool,wool") allGood = false;
+    if (tiles !== E.SR_TILES.slice().sort().join(",")) allGood = false;
     const nums = b.hexes.filter((h) => h.res !== "desert").map((h) => h.num).sort((x, y) => x - y).join(",");
-    if (nums !== "2,3,3,4,4,5,5,6,6,8,8,9,9,10,10,11,11,12") allGood = false;
-    const d = b.hexes.find((h) => h.res === "desert"); if (d.num !== 0) allGood = false; deserts++;
+    if (nums !== "2,3,3,4,4,5,5,6,6,8,8,9,9,10,10,11,12" || nums !== E.SR_TOKENS.slice().sort((x, y) => x - y).join(",")) allGood = false;
+    if (!b.hexes.filter((h) => h.res === "desert").every((h) => h.num === 0)) allGood = false; deserts += b.hexes.filter((h) => h.res === "desert").length;
     // reds: 6/8 never share a side
     for (const e of b.edges) if (e.hexes.length === 2) {
       const [x, y] = e.hexes.map((i) => b.hexes[i].num);
       if ((x === 6 || x === 8) && (y === 6 || y === 8)) redsOk = false;
     }
-    if (b.ports.length !== 9) allGood = false;
+    if (b.ports.length !== 7) allGood = false;
     const kinds = b.ports.map((p) => p.kind).sort().join(",");
-    if (kinds !== "any,any,any,any,clay,hay,iron,lumber,wool") allGood = false;
+    if (kinds !== "any,any,any,clay,hay,iron,lumber" || kinds !== E.SR_PORTS.slice().sort().join(",")) allGood = false;
     if (!b.ports.every((p) => b.edges[p.edge].hexes.length === 1)) allGood = false;
     if (!b.verts.every((v) => v.hexes.length >= 1 && v.hexes.length <= 3 && v.adj.length >= 2 && v.adj.length <= 3)) allGood = false;
     if (!b.edges.every((e) => e.hexes.length >= 1 && e.hexes.length <= 2)) allGood = false;
   }
-  check(allGood, "40 seeds: 19 hexes / 54 corners / 72 sides, exact tile+token multisets, 9 posts on the coast, sane degrees");
+  check(allGood && deserts === 80, "40 seeds: 19 hexes / 54 corners / 72 sides, Sheep Rodeo's own tile+token multisets (two dust bowls, 17 tokens), 7 posts on the coast, sane degrees");
   check(redsOk, "40 seeds: a 6 and an 8 never share a side");
   const s = E.srNew(E.mulberry32(3));
   check(s.board.hexes[s.rustler].res === "desert", "the rustler starts on the dust bowl");
-  check(s.deck.length === 25 && s.deck.filter((k) => k === "wrangler").length === 14 && s.deck.filter((k) => k === "ribbon").length === 5, "deck: 25 cards, 14 wranglers, 5 ribbons");
-  check(E.SR_RES.every((r) => s.bank[r] === 19) && conserved(s), "bank starts 19 of each");
+  check(s.deck.length === 20 && s.deck.filter((k) => k === "wrangler").length === 10 && s.deck.filter((k) => k === "ribbon").length === 4 && E.SR_DECK.length === 20, "deck: 20 cards, 10 wranglers, 4 ribbons");
+  check(E.SR_RES.every((r) => s.bank[r] === 20) && E.SR_BANK_EACH === 20 && conserved(s), "bank starts 20 of each");
+  check(E.SR_HAND_LIMIT === 8 && E.SR_LONGEST_MIN === 6 && E.SR_POSSE_MIN === 3 && E.SR_MAX_TRAILS === 14 && E.SR_MAX_CORRALS === 6 && E.SR_WOOL_RATE === 2, "Sheep Rodeo's own limits: hand 8, trail 6, posse 3, 14/6/4 pieces, wool 2:1");
+  check(JSON.stringify(E.SR_COST.ranch) === JSON.stringify({ hay: 2, iron: 2, wool: 1 }), "a ranch costs 2 hay + 2 iron + 1 wool");
   // corner yield: pips equal the sum of ways on adjacent numbered hexes
   let yieldOk = true;
   for (const v of s.board.verts) {
@@ -170,13 +176,15 @@ console.log("verify_sheep: production, the rustler, the 7");
   const u = setupAll(fresh(17), E.mulberry32(17));
   u.players[1].res = { wool: 3, lumber: 3, clay: 3, hay: 0, iron: 0 };     // 9 cards → drops 4
   u.players[0].res = { wool: 2, lumber: 2, clay: 2, hay: 2, iron: 1 };     // 9 cards → must pick 4
-  for (const r of E.SR_RES) u.bank[r] = 19 - u.players.reduce((k, p) => k + p.res[r], 0);
+  u.players[2].res = { wool: 2, lumber: 2, clay: 2, hay: 2, iron: 0 };     // 8 cards → exactly the limit, keeps all
+  for (const r of E.SR_RES) u.bank[r] = E.SR_BANK_EACH - u.players.reduce((k, p) => k + p.res[r], 0);
   const rng7 = (() => { const seq = [3 / 6, 3 / 6]; let i = 0; return () => (i < seq.length ? seq[i++] : 0.5); })();  // 4+4? no: floor(0.5*6)+1 = 4 → 4+4=8. use 3/6→4; need 7: 1/6*...
   // force a 7 with dice (3,4): rng values 2/6 and 3/6
   const rngSeven = (() => { const seq = [2 / 6, 3 / 6]; let i = 0; return () => (i < seq.length ? seq[i++] : 0.5); })();
   E.srRoll(u, rngSeven);
   check(u.dice[0] + u.dice[1] === 7, "scripted dice roll a 7");
   check(E.srCount(u.players[1].res) === 5, "a bot over the limit discards half (9 → 5)");
+  check(E.srCount(u.players[2].res) === 8, "exactly eight cards is safe — the limit is over eight");
   check(u.phase === "discard" && u.discardNeed === 4, "the human over the limit is asked to discard 4");
   const snap = JSON.stringify(u);
   E.srDiscard(u, 0, { wool: 1 });
@@ -208,7 +216,7 @@ console.log("verify_sheep: building, longest trail, awards, points");
   s.phase = "main"; s.turn = 0;
   const p = s.players[0];
   p.res = { wool: 0, lumber: 0, clay: 0, hay: 0, iron: 0 };
-  for (const r of E.SR_RES) s.bank[r] = 19 - s.players.reduce((k, q) => k + q.res[r], 0);
+  for (const r of E.SR_RES) s.bank[r] = E.SR_BANK_EACH - s.players.reduce((k, q) => k + q.res[r], 0);
   const legal = E.srLegalTrails(s, 0);
   const snap = JSON.stringify(s);
   E.srBuildTrail(s, legal[0]);
@@ -218,7 +226,7 @@ console.log("verify_sheep: building, longest trail, awards, points");
   check(p.trails.length === 3 && p.res.lumber === 0 && p.res.clay === 0 && conserved(s), "a trail costs exactly lumber + clay");
   // a corral needs a touching trail; the distance rule holds in play too
   p.res = { wool: 1, lumber: 1, clay: 1, hay: 1, iron: 0 };
-  for (const r of E.SR_RES) s.bank[r] = 19 - s.players.reduce((k, q) => k + q.res[r], 0);
+  for (const r of E.SR_RES) s.bank[r] = E.SR_BANK_EACH - s.players.reduce((k, q) => k + q.res[r], 0);
   const lc = E.srLegalCorrals(s, 0, false);
   check(lc.every((v) => s.board.verts[v].edges.some((e) => E.srTrailOwner(s, e) === 0)) && lc.every((v) => !s.board.verts[v].adj.some((a) => E.srOwnerAt(s, a))), "in play a corral needs your trail and two sides of space");
   const far = s.board.verts.find((v) => !E.srOwnerAt(s, v.id) && !v.adj.some((a) => E.srOwnerAt(s, a)) && !v.edges.some((e) => E.srTrailOwner(s, e) === 0));
@@ -228,11 +236,11 @@ console.log("verify_sheep: building, longest trail, awards, points");
   if (lc.length) { E.srBuildCorral(s, lc[0]); check(p.corrals.length === 3 && E.srCount(p.res) === 0 && conserved(s), "a corral costs wool+lumber+clay+hay"); }
   else check(true, "(no legal corral on this seed)");
   // a ranch upgrades a corral
-  p.res = { wool: 0, lumber: 0, clay: 0, hay: 2, iron: 3 };
-  for (const r of E.SR_RES) s.bank[r] = 19 - s.players.reduce((k, q) => k + q.res[r], 0);
+  p.res = { wool: 1, lumber: 0, clay: 0, hay: 2, iron: 2 };
+  for (const r of E.SR_RES) s.bank[r] = E.SR_BANK_EACH - s.players.reduce((k, q) => k + q.res[r], 0);
   const c0 = p.corrals[0];
   E.srBuildRanch(s, c0);
-  check(p.ranches.includes(c0) && !p.corrals.includes(c0) && E.srCount(p.res) === 0, "a ranch replaces the corral for 2 hay + 3 iron");
+  check(p.ranches.includes(c0) && !p.corrals.includes(c0) && E.srCount(p.res) === 0, "a ranch replaces the corral for 2 hay + 2 iron + 1 wool");
   check(E.srVP(s, 0) === p.corrals.length + 2 * p.ranches.length, "points: corrals 1, ranches 2");
   // longest trail: build a straight chain on a clean board
   const t = fresh(29);
@@ -244,20 +252,20 @@ console.log("verify_sheep: building, longest trail, awards, points");
     chain.push(e);
     const ed = t.board.edges[e]; v = ed.a === v ? ed.b : ed.a; seen.add(v);
   }
-  q.trails = chain.slice(0, 4);
-  check(E.srLongestTrail(t, 0) === 4, "four connected sides → longest 4");
+  q.trails = chain.slice(0, 5);
+  check(E.srLongestTrail(t, 0) === 5, "five connected sides → longest 5");
   t.turn = 0; E.srUpdateAwards(t);
-  check(t.longest.pid == null, "four is not enough for the Longest Trail");
+  check(t.longest.pid == null, "five is not enough for the Longest Trail (it takes six)");
   q.trails = chain.slice();
   check(E.srLongestTrail(t, 0) === 6, "six connected sides → longest 6");
   E.srUpdateAwards(t);
-  check(t.longest.pid === 0 && t.longest.len === 6 && E.srVP(t, 0) === 2, "Longest Trail awarded at 5+, worth 2 points");
+  check(t.longest.pid === 0 && t.longest.len === 6 && E.srVP(t, 0) === 2, "Longest Trail awarded at 6, worth 2 points");
   // an opponent's corral in the middle cuts it
   const mid = t.board.edges[chain[2]]; const cut = (mid.a === t.board.edges[chain[3]].a || mid.a === t.board.edges[chain[3]].b) ? mid.a : mid.b;
   t.players[1].corrals.push(cut);
   check(E.srLongestTrail(t, 0) === 3, "an opponent's building splits a 6-chain into 3+3");
   E.srUpdateAwards(t);
-  check(t.longest.pid == null, "…and the award is lost when it drops below 5");
+  check(t.longest.pid == null, "…and the award is lost when it drops below 6");
   // largest posse
   t.players[1].corrals = [];
   t.players[0].wranglers = 3; E.srUpdateAwards(t);
@@ -280,7 +288,7 @@ console.log("verify_sheep: cards and trading");
   s.phase = "main"; s.turn = 0;
   const p = s.players[0];
   p.res = { wool: 1, lumber: 0, clay: 0, hay: 1, iron: 1 };
-  for (const r of E.SR_RES) s.bank[r] = 19 - s.players.reduce((k, q) => k + q.res[r], 0);
+  for (const r of E.SR_RES) s.bank[r] = E.SR_BANK_EACH - s.players.reduce((k, q) => k + q.res[r], 0);
   s.deck = ["wrangler"];
   E.srBuyCard(s);
   check(p.devNew.includes("wrangler") && E.srCount(p.res) === 0 && s.deck.length === 0, "a card costs wool+hay+iron and arrives face-down for this turn");
@@ -314,15 +322,16 @@ console.log("verify_sheep: cards and trading");
   // ratios
   const t = fresh(37);
   const q = t.players[0];
-  check(E.srRatio(t, 0, "wool") === 4, "no post: 4:1");
-  const anyPort = t.board.ports.find((pt) => pt.kind === "any"), woolPort = t.board.ports.find((pt) => pt.kind === "wool");
+  check(E.srRatio(t, 0, "iron") === 4 && E.srRatio(t, 0, "lumber") === 4, "no post: 4:1");
+  check(E.srRatio(t, 0, "wool") === 2, "WOOL IS MONEY: 2:1 with no post at all");
+  const anyPort = t.board.ports.find((pt) => pt.kind === "any"), lumberPort = t.board.ports.find((pt) => pt.kind === "lumber");
   q.corrals = [t.board.edges[anyPort.edge].a];
-  check(E.srRatio(t, 0, "wool") === 3 && E.srRatio(t, 0, "iron") === 3, "a 3:1 post applies to every good");
-  q.corrals.push(t.board.edges[woolPort.edge].a);
-  check(E.srRatio(t, 0, "wool") === 2 && E.srRatio(t, 0, "iron") === 3, "the wool post makes wool 2:1 and leaves the rest 3:1");
-  t.phase = "main"; t.turn = 0; q.res = { wool: 2, lumber: 0, clay: 0, hay: 0, iron: 0 }; t.bank.wool -= 2;
+  check(E.srRatio(t, 0, "lumber") === 3 && E.srRatio(t, 0, "iron") === 3 && E.srRatio(t, 0, "wool") === 2, "a 3:1 post applies to every good; wool stays 2:1");
+  q.corrals.push(t.board.edges[lumberPort.edge].a);
+  check(E.srRatio(t, 0, "lumber") === 2 && E.srRatio(t, 0, "iron") === 3, "the lumber post makes lumber 2:1 and leaves the rest 3:1");
+  t.phase = "main"; t.turn = 0; q.corrals = []; q.res = { wool: 2, lumber: 0, clay: 0, hay: 0, iron: 0 }; t.bank.wool -= 2;
   E.srBankTrade(t, "wool", "iron");
-  check(q.res.wool === 0 && q.res.iron === 1 && conserved(t), "a 2:1 trade: two wool in, one iron out");
+  check(q.res.wool === 0 && q.res.iron === 1 && conserved(t), "two wool buy one iron with no post");
   const snapT = JSON.stringify(t);
   E.srBankTrade(t, "wool", "iron");
   check(JSON.stringify(t) === snapT, "no wool left → no trade");
@@ -362,9 +371,9 @@ console.log("verify_sheep: the Coach speaks the bots' mind");
   const h = t.board.hexes[c2.target.id];
   check(!h.verts.some((v) => { const o = E.srOwnerAt(t, v); return o && o.pid === 0; }) || t.board.hexes.every((x) => x.verts.some((v) => { const o = E.srOwnerAt(t, v); return o && o.pid === 0; })), "…and never on your own corner while another hex is available");
   t.phase = "main";
-  t.players[0].res = { wool: 0, lumber: 0, clay: 0, hay: 2, iron: 3 };
+  t.players[0].res = { wool: 1, lumber: 0, clay: 0, hay: 2, iron: 2 };
   const c3 = E.srCoach(t);
-  check(/ranch/i.test(c3.title) && c3.target && t.players[0].corrals.includes(c3.target.id), "with 2 hay + 3 iron the Coach says ranch, on one of your corrals");
+  check(/ranch/i.test(c3.title) && c3.target && t.players[0].corrals.includes(c3.target.id), "with 2 hay + 2 iron + 1 wool the Coach says ranch, on one of your corrals");
   const ex = E.srExpected(t, 0);
   const manual = {}; for (const r of E.SR_RES) manual[r] = 0;
   for (const v of t.players[0].corrals) for (const hid of t.board.verts[v].hexes) { const hx = t.board.hexes[hid]; if (hx.res !== "desert" && hid !== t.rustler) manual[hx.res] += E.srPips(hx.num) / 36; }

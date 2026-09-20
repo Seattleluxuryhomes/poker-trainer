@@ -9,8 +9,11 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
    the exact ways-out-of-36 that number rolls, and the Coach's
    advice is the very same evaluation the bots play by — shown to
    you with its reasoning, so a lesson never comes from a "trust
-   me." Original rules text and art; the mechanics are the
-   classic hex-and-dice settlement family.
+   me." An ORIGINAL game: its own name, art, text, characters,
+   board mix, costs, deck, limits, and one rule of its own — in
+   Sheep Rodeo, WOOL IS MONEY: two wool buy any one good at the
+   bank, for everyone, always. Not affiliated with or endorsed
+   by any other game or publisher; never describe it as one.
 
    No wager anywhere: the casino wallet is deliberately NOT wired
    here — this is the study table for strategy, not a bet.
@@ -34,19 +37,22 @@ const SR_META = {
 const SR_COST = {
   trail:  { lumber: 1, clay: 1 },
   corral: { lumber: 1, clay: 1, hay: 1, wool: 1 },
-  ranch:  { hay: 2, iron: 3 },
+  ranch:  { hay: 2, iron: 2, wool: 1 },                           // a ranch needs a flock
   card:   { wool: 1, hay: 1, iron: 1 },
 };
 const SR_BUILD_NAME = { trail: "Trail", corral: "Corral", ranch: "Ranch", card: "Rodeo card" };
 /* ways each total can roll on two dice — the whole distribution, 36 outcomes */
 const SR_WAYS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
-const SR_TOKENS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
-const SR_TILES = ["wool", "wool", "wool", "wool", "lumber", "lumber", "lumber", "lumber",
-  "hay", "hay", "hay", "hay", "clay", "clay", "clay", "iron", "iron", "iron", "desert"];
-/* the rodeo deck: 14 wranglers, 5 blue ribbons, 2 trail-blazing, 2 bumper crop, 2 roundup */
-const SR_DECK = [].concat(
-  Array(14).fill("wrangler"), Array(5).fill("ribbon"),
-  Array(2).fill("trails"), Array(2).fill("bumper"), Array(2).fill("roundup"));
+/* the range: 19 hexes — 4 wool, 3 lumber, 3 clay, 4 hay, 3 iron, TWO dust bowls */
+const SR_TOKENS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 12];
+const SR_TILES = ["wool", "wool", "wool", "wool", "lumber", "lumber", "lumber",
+  "hay", "hay", "hay", "hay", "clay", "clay", "clay", "iron", "iron", "iron", "desert", "desert"];
+/* trading posts on the coast: three 3:1 posts and one 2:1 post for each good but wool
+ * (wool needs no post — see SR_WOOL_RATE) */
+const SR_PORTS = ["any", "any", "any", "lumber", "clay", "hay", "iron"];
+/* the rodeo deck: 10 wranglers, 4 blue ribbons, 2 trail-blazing, 2 bumper crop, 2 roundup */
+const SR_DECK_MIX = { wrangler: 10, ribbon: 4, trails: 2, bumper: 2, roundup: 2 };
+const SR_DECK = Object.keys(SR_DECK_MIX).flatMap((k) => Array(SR_DECK_MIX[k]).fill(k));
 const SR_CARD = {
   wrangler: { name: "Wrangler", icon: "🤠", text: "Move the rustler and take one card from a rancher there. Three played earns the Largest Posse (2 points)." },
   ribbon:   { name: "Blue Ribbon", icon: "🎀", text: "One victory point. Counts the moment you hold it." },
@@ -55,9 +61,11 @@ const SR_CARD = {
   roundup:  { name: "Roundup", icon: "🪢", text: "Name one good; every other rancher hands you all of theirs." },
 };
 const SR_WIN = 10;
-const SR_MAX_TRAILS = 15, SR_MAX_CORRALS = 5, SR_MAX_RANCHES = 4;
-const SR_HAND_LIMIT = 7;
-const SR_BANK_EACH = 19;
+const SR_MAX_TRAILS = 14, SR_MAX_CORRALS = 6, SR_MAX_RANCHES = 4;
+const SR_HAND_LIMIT = 8;                                                 // over eight, a 7 costs half
+const SR_BANK_EACH = 20;
+const SR_LONGEST_MIN = 6, SR_POSSE_MIN = 3;
+const SR_WOOL_RATE = 2;                                                  // WOOL IS MONEY: 2 wool → any 1 good, always
 const SR_PLAYERS = [
   { name: "You",           color: "#f5c542", bot: false },
   { name: "Dusty Vale",    color: "#4fa3ff", bot: true },
@@ -134,10 +142,10 @@ function srBoard(rng) {
   const coast = edges.filter((e) => e.hexes.length === 1)
     .map((e) => ({ e, ang: Math.atan2((verts[e.a].y + verts[e.b].y) / 2, (verts[e.a].x + verts[e.b].x) / 2) }))
     .sort((p, q) => p.ang - q.ang).map((p) => p.e);
-  const kinds = srShuffle(["any", "any", "any", "any", "wool", "lumber", "clay", "hay", "iron"], rng);
+  const kinds = srShuffle(SR_PORTS.slice(), rng);
   const ports = [];
-  for (let i = 0; i < 9; i++) {
-    const e = coast[Math.round((i * coast.length) / 9) % coast.length];
+  for (let i = 0; i < kinds.length; i++) {
+    const e = coast[Math.round((i * coast.length) / kinds.length) % coast.length];
     const port = { edge: e.id, kind: kinds[i], ratio: kinds[i] === "any" ? 3 : 2 };
     ports.push(port);
     verts[e.a].port = port; verts[e.b].port = port;
@@ -277,17 +285,17 @@ function srLongestTrail(s, pid) {
 function srUpdateAwards(s) {
   const lens = s.players.map((p) => srLongestTrail(s, p.id));
   const cur = s.longest;
-  if (cur.pid != null && lens[cur.pid] >= 5) {
+  if (cur.pid != null && lens[cur.pid] >= SR_LONGEST_MIN) {
     cur.len = lens[cur.pid];
     lens.forEach((l, pid) => { if (pid !== cur.pid && l > cur.len) { s.longest = { pid, len: l }; srLog(s, `${srWho(s.players[pid], "takes")} the Longest Trail (${l}).`); } });
   } else {
-    let bestPid = null, bestLen = 4, tie = false;
+    let bestPid = null, bestLen = SR_LONGEST_MIN - 1, tie = false;
     lens.forEach((l, pid) => { if (l > bestLen) { bestLen = l; bestPid = pid; tie = false; } else if (l === bestLen && bestPid != null) tie = true; });
     if (bestPid != null && !tie) { s.longest = { pid: bestPid, len: bestLen }; if (cur.pid !== bestPid) srLog(s, `${srWho(s.players[bestPid], "holds")} the Longest Trail (${bestLen}).`); }
     else if (cur.pid != null) { s.longest = { pid: null, len: 0 }; }
   }
   const p = s.players[s.turn];
-  if (p.wranglers >= 3 && p.wranglers > s.posse.n) {
+  if (p.wranglers >= SR_POSSE_MIN && p.wranglers > s.posse.n) {
     if (s.posse.pid !== p.id) srLog(s, `${srWho(p, "rides")} with the Largest Posse (${p.wranglers}).`);
     s.posse = { pid: p.id, n: p.wranglers };
   }
@@ -522,7 +530,7 @@ function srPlayCard(s, kind, arg) {
 /* ---- trading ---- */
 function srRatio(s, pid, give) {
   const p = s.players[pid];
-  let ratio = 4;
+  let ratio = give === "wool" ? SR_WOOL_RATE : 4;
   for (const vid of p.corrals.concat(p.ranches)) {
     const port = s.board.verts[vid].port;
     if (!port) continue;
@@ -640,7 +648,7 @@ function srBestTrail(s, pid, fromVid) {
     if (fromVid == null) {                                           // a side that lengthens the trail counts
       const p = s.players[pid];
       p.trails.push(eid); const len = srLongestTrail(s, pid); p.trails.pop();
-      if (len >= 5 && (s.longest.pid !== pid) && len > s.longest.len) sc += 4;
+      if (len >= SR_LONGEST_MIN && (s.longest.pid !== pid) && len > s.longest.len) sc += 4;
       else sc += 0.2 * len;
     }
     if (sc > bestScore) { bestScore = sc; best = eid; }
@@ -753,7 +761,7 @@ function srCoach(s) {
   if (s.phase === "over") return { title: s.winner === 0 ? "You won the range." : `${s.players[s.winner].name} won.`, why: "Start a new game to run it back — the board and the numbers reshuffle every time.", target: null };
   if (s.turn !== pid && s.phase !== "discard") {
     const ex = srExpected(s, pid), tot = SR_RES.reduce((n, r) => n + ex[r], 0);
-    return { title: `${s.players[s.turn].name} is up.`, why: `While you wait: your corrals pay an average of ${tot.toFixed(2)} cards per roll (${SR_RES.filter((r) => ex[r] > 0).map((r) => `${SR_META[r].icon} ${ex[r].toFixed(2)}`).join(" · ")}). Cards in hand: ${srCount(p.res)} — over 7 and a rolled 7 costs you half.`, target: null };
+    return { title: `${s.players[s.turn].name} is up.`, why: `While you wait: your corrals pay an average of ${tot.toFixed(2)} cards per roll (${SR_RES.filter((r) => ex[r] > 0).map((r) => `${SR_META[r].icon} ${ex[r].toFixed(2)}`).join(" · ")}). Cards in hand: ${srCount(p.res)} — over ${SR_HAND_LIMIT} and a rolled 7 costs you half.`, target: null };
   }
   if (s.phase === "setupCorral") {
     const b = srBestCorral(s, pid, true);
@@ -762,7 +770,7 @@ function srCoach(s) {
     const first = s.setupIdx < 4;
     return {
       title: `Best open corner: ${y.pips} pips.`,
-      why: `${srFmtYield(y)} — it pays on ${y.ways} of the 36 rolls (${Math.round((100 * y.ways) / 36)}% each turn).${y.port ? ` It also touches a ${y.port.kind === "any" ? "3:1" : "2:1 " + SR_META[y.port.kind].icon} trading post.` : ""} ${first ? "Early on, lumber and clay build trails and corrals — the Coach weighs them up a little." : "Your second corral pays out at once, so it also fills the goods your first corner lacks."} Pips are the ways a number rolls: 6 and 8 roll 5 ways each, 2 and 12 roll once.`,
+      why: `${srFmtYield(y)} — it pays on ${y.ways} of the 36 rolls (${Math.round((100 * y.ways) / 36)}% each turn).${y.port ? ` It also touches a ${y.port.kind === "any" ? "3:1" : "2:1 " + SR_META[y.port.kind].icon} trading post.` : ""}${y.perRes.wool ? " Wool is money here: two wool buy any good at the bank." : ""} ${first ? "Early on, lumber and clay build trails and corrals — the Coach weighs them up a little." : "Your second corral pays out at once, so it also fills the goods your first corner lacks."} Pips are the ways a number rolls: 6 and 8 roll 5 ways each, 2 and 12 roll once.`,
       target: { kind: "vert", id: b.vid },
     };
   }
@@ -774,7 +782,7 @@ function srCoach(s) {
     const ex = srExpected(s, pid), tot = SR_RES.reduce((n, r) => n + ex[r], 0);
     return { title: "Roll.", why: `Your expected pickup this roll: ${tot.toFixed(2)} cards (${SR_RES.filter((r) => ex[r] > 0).map((r) => `${SR_META[r].icon} ${ex[r].toFixed(2)}`).join(" · ") || "nothing yet"}). A 7 comes up 6 ways in 36 — one roll in six.`, target: null };
   }
-  if (s.phase === "discard") return { title: `Discard ${s.discardNeed}.`, why: "Over seven cards when a 7 rolls costs half your hand (rounded down). Let go of the goods you hold most of and can rebuild fastest; keep what finishes your next build.", target: null };
+  if (s.phase === "discard") return { title: `Discard ${s.discardNeed}.`, why: `Over ${SR_HAND_LIMIT} cards when a 7 rolls costs half your hand (rounded down). Let go of the goods you hold most of and can rebuild fastest; keep what finishes your next build.`, target: null };
   if (s.phase === "rustler") {
     const h = srBestRustlerHex(s, pid);
     if (h == null) return { title: "Move the rustler.", why: "Any hex but the one it is on.", target: null };
@@ -787,7 +795,7 @@ function srCoach(s) {
     const legalC = srLegalCorrals(s, pid, false);
     if (srCanAfford(p, SR_COST.ranch) && p.corrals.length && p.ranches.length < SR_MAX_RANCHES) {
       const v = srBestRanch(s, pid), y = srCornerYield(s, v);
-      return { title: "Raise a ranch.", why: `Your ${y.pips}-pip corral (${srFmtYield(y)}) will pay double — two cards per hit — for 2 🌾 + 3 ⛏️, and a ranch is worth two points.`, target: { kind: "vert", id: v } };
+      return { title: "Raise a ranch.", why: `Your ${y.pips}-pip corral (${srFmtYield(y)}) will pay double — two cards per hit — for 2 🌾 + 2 ⛏️ + 1 🐑, and a ranch is worth two points.`, target: { kind: "vert", id: v } };
     }
     if (srCanAfford(p, SR_COST.corral) && legalC.length && p.corrals.length < SR_MAX_CORRALS) {
       const b = srBestCorral(s, pid, false), y = srCornerYield(s, b.vid);
@@ -795,11 +803,11 @@ function srCoach(s) {
     }
     const target = srBotTarget(s, pid);
     const plan = target && target.missing > 0 && target.missing <= 2 ? srTradePlan(s, pid, target) : null;
-    if (plan) return { title: `Trade ${plan.ratio} ${SR_META[plan.give].icon} for 1 ${SR_META[plan.get].icon}.`, why: `You're ${target.missing} short of a ${SR_BUILD_NAME[target.kind].toLowerCase()} and holding spare ${SR_META[plan.give].name.toLowerCase()}. ${plan.ratio < 4 ? "Your trading post makes it " + plan.ratio + ":1." : "The bank takes 4:1; a trading post would make it cheaper."} Ask the table first — a 1:1 swap beats the bank every time someone bites.`, target: null, trade: plan };
-    if (srCanAfford(p, SR_COST.card) && s.deck.length) return { title: "Buy a rodeo card.", why: `${s.deck.length} left in the deck. The deck started 14 wranglers, 5 blue ribbons, 2 trail blazing, 2 bumper crop, 2 roundup — so ${Math.round((100 * 14) / 25)}% wranglers at the start, and every ribbon is a point.`, target: null };
+    if (plan) return { title: `Trade ${plan.ratio} ${SR_META[plan.give].icon} for 1 ${SR_META[plan.get].icon}.`, why: `You're ${target.missing} short of a ${SR_BUILD_NAME[target.kind].toLowerCase()} and holding spare ${SR_META[plan.give].name.toLowerCase()}. ${plan.give === "wool" ? "Wool is money: two wool buy any good." : plan.ratio < 4 ? "Your trading post makes it " + plan.ratio + ":1." : "The bank takes 4:1; a trading post would make it cheaper."} Ask the table first — a 1:1 swap beats the bank every time someone bites.`, target: null, trade: plan };
+    if (srCanAfford(p, SR_COST.card) && s.deck.length) return { title: "Buy a rodeo card.", why: `${s.deck.length} left in the deck. The deck started ${SR_DECK_MIX.wrangler} wranglers, ${SR_DECK_MIX.ribbon} blue ribbons, 2 trail blazing, 2 bumper crop, 2 roundup — so ${Math.round((100 * SR_DECK_MIX.wrangler) / SR_DECK.length)}% wranglers at the start, and every ribbon is a point.`, target: null };
     if (srCanAfford(p, SR_COST.trail) && p.trails.length < SR_MAX_TRAILS) {
       const b = srBestTrail(s, pid);
-      if (b && (!legalC.length || b.score >= 8)) return { title: "Lay a trail.", why: legalC.length ? "This side opens a strong corner or stretches your trail toward the Longest Trail bonus (2 points at five sides)." : "You have no legal corner right now — trails open new ones. The lit side leads to the best open corner.", target: { kind: "edge", id: b.eid } };
+      if (b && (!legalC.length || b.score >= 8)) return { title: "Lay a trail.", why: legalC.length ? "This side opens a strong corner or stretches your trail toward the Longest Trail bonus (2 points at ${SR_LONGEST_MIN} sides)." : "You have no legal corner right now — trails open new ones. The lit side leads to the best open corner.", target: { kind: "edge", id: b.eid } };
     }
     const n = srCount(p.res);
     return { title: "End your turn.", why: n > SR_HAND_LIMIT ? `You hold ${n} cards — a 7 would cost you ${Math.floor(n / 2)}. Trade down at the bank first if you can.` : `Nothing worth buying yet. You hold ${n} cards; ${target ? `the nearest build is a ${SR_BUILD_NAME[target.kind].toLowerCase()}, ${target.missing} card${target.missing === 1 ? "" : "s"} away.` : "keep collecting."}`, target: null };
@@ -824,9 +832,10 @@ function srSave(s) { try { window.localStorage.setItem(SR_SAVE, JSON.stringify(s
 const SR_GUIDE = [
   { h: "Settle the range", p: "Nineteen hexes, each with a good and a number. Corrals on a hex's corners collect that good whenever its number rolls. First to 10 points wins: corrals 1, ranches 2, Longest Trail and Largest Posse 2 each, blue ribbons 1." },
   { h: "Read the pips", p: "The dots under each number are its ways out of 36: a 6 or 8 rolls 5 ways (14%), a 2 or 12 rolls once (3%). Pick corners by adding pips, not by liking the number. A 7 rolls 6 ways — one turn in six the rustler rides.", tag: "EXACT: 36 OUTCOMES" },
-  { h: "Build", p: "Trail = 🌲 + 🧱. Corral = 🌲 🧱 🌾 🐑, on a corner touching your trail and two sides from any building. Ranch = 2 🌾 + 3 ⛏️, upgrades a corral to pay double. Rodeo card = 🐑 🌾 ⛏️." },
-  { h: "The rustler", p: "On a 7, anyone over seven cards discards half, then you move the rustler onto a hex — it stops paying — and take one random card from a rancher on it. Wrangler cards move it too; three played earns the Largest Posse." },
-  { h: "Trade", p: "Bank trades are 4:1, or 3:1 and 2:1 at trading posts you've built on. Ask the table 1:1 first — the ranchers accept when it helps their own next build and never when you're two points from winning." },
+  { h: "Build", p: "Trail = 🌲 + 🧱. Corral = 🌲 🧱 🌾 🐑, on a corner touching your trail and two sides from any building. Ranch = 2 🌾 + 2 ⛏️ + 1 🐑, upgrades a corral to pay double. Rodeo card = 🐑 🌾 ⛏️." },
+  { h: "Wool is money", p: "The house rule that makes this Sheep Rodeo: two wool buy any one good at the bank, for everyone, always — no post needed. Sheep corners are never dead weight, and a wool-rich rancher is never stuck. Other goods trade 4:1, or 3:1 and 2:1 at trading posts you've built on.", tag: "🐑🐑 → ANY ONE GOOD" },
+  { h: "The rustler", p: "On a 7, anyone over eight cards discards half, then you move the rustler onto a hex — it stops paying — and take one random card from a rancher on it. Wrangler cards move it too; three played earns the Largest Posse. Six connected trails earn the Longest Trail." },
+  { h: "Trade", p: "Ask the table 1:1 before you go to the bank — the ranchers accept when it helps their own next build and never when you're two points from winning." },
   { h: "The Coach", p: "The gold ring is the Coach's pick, and the box says why in numbers. It's the exact same evaluation the three ranchers across the table play by — no secret book, no hidden edge. Beat the Coach's advice and you've learned the game.", tag: "SAME BRAIN AS THE BOTS", green: true },
 ];
 
@@ -1226,8 +1235,9 @@ export default function SheepRodeo() {
           <MathNote>
             <div><b style={{ color: CAS.cream }}>Two dice, 36 outcomes.</b> Ways to roll: 2→1, 3→2, 4→3, 5→4, 6→5, 7→6, 8→5, 9→4, 10→3, 11→2, 12→1. The dots under each number token are exactly these. P(7) = 6/36 = 16.7%; P(6 or 8) = 10/36 = 27.8%.</div>
             <div style={{ marginTop: 6 }}><b style={{ color: CAS.cream }}>A corner's value</b> = the sum of its hexes' pips; the Coach adds small bonuses for variety, for goods you lack, and for trading posts — and the three ranchers use the identical function. Expected cards per roll = Σ pips/36 (×2 for a ranch).</div>
-            <div style={{ marginTop: 6 }}><b style={{ color: CAS.cream }}>The board</b>: 19 hexes (4 wool, 4 lumber, 4 hay, 3 clay, 3 iron, 1 dust bowl), tokens 2–12 without 7, 6 and 8 never adjacent, 9 trading posts (4 at 3:1, one 2:1 per good), a bank of 19 of each good — if a roll asks for more than the bank holds and two ranchers want it, nobody gets it. Deck: 14 wranglers, 5 ribbons, 2 trail blazing, 2 bumper crop, 2 roundup. Longest Trail from 5 sides; Largest Posse from 3 wranglers; 10 points wins, on your own turn.</div>
+            <div style={{ marginTop: 6 }}><b style={{ color: CAS.cream }}>The range</b>: 19 hexes (4 wool, 3 lumber, 3 clay, 4 hay, 3 iron, 2 dust bowls), 17 tokens 2–12 without 7, 6 and 8 never adjacent, 7 trading posts (3 at 3:1, one 2:1 each for lumber, clay, hay, iron), a bank of {SR_BANK_EACH} of each good — if a roll asks for more than the bank holds and two ranchers want it, nobody gets it. Wool is money: {SR_WOOL_RATE} wool buy any one good, always. Deck of {SR_DECK.length}: {SR_DECK_MIX.wrangler} wranglers, {SR_DECK_MIX.ribbon} ribbons, 2 trail blazing, 2 bumper crop, 2 roundup. Hand limit {SR_HAND_LIMIT}. Longest Trail from {SR_LONGEST_MIN} sides; Largest Posse from {SR_POSSE_MIN} wranglers; {SR_WIN} points wins, on your own turn. Pieces: {SR_MAX_TRAILS} trails, {SR_MAX_CORRALS} corrals, {SR_MAX_RANCHES} ranches.</div>
             <div style={{ marginTop: 6 }}>No wager, no wallet: this is the study table. The ranchers are fictional.</div>
+            <div style={{ marginTop: 6, color: CAS.faint }}>Sheep Rodeo is an original game — its own rules, names, text, and art. It is not affiliated with, endorsed by, or connected to any other game or publisher.</div>
           </MathNote>
         </div>
       </div>

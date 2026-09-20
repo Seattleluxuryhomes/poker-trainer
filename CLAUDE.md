@@ -529,15 +529,39 @@ revisit on clarification — but no cross-repo wiring happens by default.
 
 ## Sheep Rodeo (v0.19.0)
 
-Founder: "Build the game of Catan. We're going to call it sheep rodeo," then:
-"I needed to train Anya how to be better at it." So it is a TRAINER first,
-in the house style. src/SheepRodeo.jsx (sheep.html) is an original
-implementation of the hex-and-dice settlement family — our own rules text,
-names, and art (goods: wool/lumber/clay/hay/iron; trail/corral/ranch;
-the rustler; rodeo cards: wrangler, blue ribbon, trail blazing, bumper
-crop, roundup; Longest Trail, Largest Posse; 10 points). No trademarked
-name, art, or card text is used or to be added. Three FICTIONAL ranchers
-(Dusty Vale, Marisol Quade, Buck Tanner) — same rule as Ace Meridian.
+Founder asked for a hex-and-dice settlement board game named Sheep Rodeo,
+then: "I needed to train Anya how to be better at it." So it is a TRAINER
+first, in the house style. src/SheepRodeo.jsx (sheep.html) is an ORIGINAL
+game — our own rules text, names, and art (goods: wool/lumber/clay/hay/
+iron; trail/corral/ranch; the rustler; rodeo cards: wrangler, blue
+ribbon, trail blazing, bumper crop, roundup; Longest Trail, Largest
+Posse; 10 points). Three FICTIONAL ranchers (Dusty Vale, Marisol Quade,
+Buck Tanner) — same rule as Ace Meridian.
+
+CLEAN-ROOM RULE (founder, 2026-09-20: "do it in such a way that I'm not
+going to get sued"). Game mechanics as such are not protectable; what is
+protectable — and what gets copied by accident — is EXPRESSION: a
+published game's name, artwork, board and card graphics, rules text,
+character names, and the wholesale copy of its every parameter so the
+"selection and arrangement" reads as a clone. Therefore, in this repo,
+in the app, in store listings and in marketing: (1) NEVER name, compare
+to, or describe Sheep Rodeo as any other published game — not in code,
+comments, docs, commit messages, the landing, or the guide; (2) never
+copy or trace another game's art, icons, board graphic, card text, or
+rulebook wording — every string here is written fresh; (3) Sheep Rodeo
+keeps ITS OWN parameter set, deliberately different where the trainer is
+not harmed: 19 hexes as 4 wool / 3 lumber / 3 clay / 4 hay / 3 iron / TWO
+dust bowls; 17 tokens (2,3,3,4,4,5,5,6,6,8,8,9,9,10,10,11,12); 7
+trading posts (3×3:1, one 2:1 each for lumber/clay/hay/iron); a 20-card
+deck (10 wranglers, 4 ribbons, 2/2/2); ranch = 2 hay + 2 iron + 1 wool;
+hand limit 8; Longest Trail from 6; pieces 14/6/4; bank 20 each; and one
+signature rule of its own — WOOL IS MONEY: two wool buy any one good at
+the bank, for everyone, always (SR_WOOL_RATE). Do not drift these back
+toward any published game's numbers; (4) the math note carries a plain
+non-affiliation notice. verify_sheep pins the parameter set so a
+"helpful" revert fails CI. Nothing here is legal advice — if the game is
+ever sold or marketed beyond this practice site, have a lawyer look at
+the name and the notice.
 
 THE COACH is the lesson: every number token wears its pips (ways in 36,
 enumerated), and the Coach panel names the best move and says WHY in
@@ -555,12 +579,12 @@ and the study table. Game state persists in localStorage
 
 Engine (pure, top-level, JSON-plain state; bots act one step per call so
 the page can pace them): srBoard (19 hexes / 54 corners / 72 sides via
-rounded-position de-dup, 6/8 never adjacent by retry, 9 coastal trading
-posts), srProduce (bank of 19 each, shortage rule: two claimants short →
-nobody), the 7 (discard half above 7, rustler must move, robbery is one
+rounded-position de-dup, 6/8 never adjacent by retry, 7 coastal trading
+posts), srProduce (bank of 20 each, shortage rule: two claimants short →
+nobody), the 7 (discard half above 8, rustler must move, robbery is one
 random card), distance rule, opponent buildings break trail lines,
 srLongestTrail (DFS, no side twice, blocked through opponents), awards
 with ties, srCheckWin on the mover's turn only. engine/verify_sheep.js
-(78 checks): 2d6 distribution vs brute force, 40 seeded boards, every law
+(82 checks): 2d6 distribution vs brute force, 40 seeded boards, every law
 above by construction, and 30 full four-bot seeded games to a winner with
-goods conserved against the bank at every step. 14 suites, 743 checks.
+goods conserved against the bank at every step. 14 suites, 747 checks.
