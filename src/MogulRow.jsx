@@ -220,7 +220,7 @@ function mrChain(iters = 600) {
           if (dest === "jail") { bump(row, MR_JS, p); bump(lrow, "jail", p); return; }
           bump(row, dest * 3, p); bump(lrow, dest, p);
         });
-      } else { bump(row, MR_JS + k + 1, pr); bump(lrow, "jail", pr); }
+      } else { bump(row, MR_JS + k + 1, pr); }      // sitting still is NOT an arrival — see the note below
     }
   }
   let v = new Array(NS).fill(0); v[0] = 1;
@@ -229,6 +229,14 @@ function mrChain(iters = 600) {
     for (let i = 0; i < NS; i++) { const m = v[i]; if (!m) continue; for (const [j, p] of T[i]) nv[j] += m * p; }
     v = nv;
   }
+  /* ONE MEASURE FOR ALL FORTY SQUARES: a square's number is its share of
+   * ARRIVALS — a token actually moving onto it. Turns spent sitting in the
+   * lockup are not arrivals and are not counted, because you cannot be
+   * charged rent for sitting still. Counting them (the first cut did) put
+   * the lockup at 11.5% while every other square was measured as arrivals,
+   * which is two different statistics printed side by side. A 150-game
+   * simulation caught it: predicted 11.52%, observed 6.19%, every other
+   * square inside 0.3 points. Now all forty agree with play. */
   const land = new Array(MR_N).fill(0);
   let jail = 0;
   for (let i = 0; i < NS; i++) { const m = v[i]; if (!m) continue; for (const [dest, p] of landOf[i]) { if (dest === "jail") jail += m * p; else land[dest] += m * p; } }
@@ -700,7 +708,7 @@ function mrCoach(s) {
   }
   if (s.phase === "roll") {
     if (me.jail > 0) return { title: me.jail >= 3 ? "Pay the fine." : "Stay in and roll.", why: `Early on, The Lockup is the worst place to be — you're not collecting land. Late, with hotels up, it's shelter: you can't land on a rival's rent while you sit. It's round ${s.round}, so ${s.round < 6 ? "get out and buy." : "sitting is fine."} Doubles free you: 6 of 36 rolls.` };
-    return { title: "Roll.", why: `The Lockup is the most landed-on square at ${mrPct(land[MR_JAIL])}, and that's what bends the whole board: the squares a natural roll past it get hit hardest. Your deeds pull $${mrMyRentRate(s, 0).toFixed(2)} per rival turn.` };
+    return { title: "Roll.", why: `The Lockup takes ${mrPct(land[MR_JAIL])} of every arrival on this board — more than any other square — and that's what bends everything: the squares a natural roll past it get hit hardest. Your deeds pull $${mrMyRentRate(s, 0).toFixed(2)} per rival turn.` };
   }
   const b = mrBestBuild(s, 0);
   if (b) {
@@ -745,7 +753,7 @@ const mrSide = (i) => (i <= 10 ? "bottom" : i <= 20 ? "left" : i <= 30 ? "top" :
 const MR_GUIDE = [
   { h: "Go round, buy the block", p: "Roll two dice, move that many squares, and do what the square says. Land on unowned land and you may buy it at list — or let it go to auction, where everyone bids. First one left standing when everybody else is broke owns the row." },
   { h: "Rent is the whole game", p: "Land on a rival's deed and you pay their rent. Hold every deed of one colour and that group's bare rent doubles — and only then may you build. Houses take rent from pennies to ruin: the third house is the steepest jump on the ladder." },
-  { h: "The board is not fair", p: "The Lockup pulls tokens to one corner, so squares a natural roll past it get landed on far more than squares just past PAYDAY. Every square here prints its EXACT share of all landings, computed from the dice, the lockup rule and the cards.", tag: "EXACT: A MARKOV CHAIN" },
+  { h: "The board is not fair", p: "The Lockup pulls tokens to one corner, so squares a natural roll past it get landed on far more than squares just past PAYDAY. Every square here prints its EXACT share of all landings, computed from the dice, the lockup rule and the cards — and confirmed against 150 simulated games.", tag: "EXACT: A MARKOV CHAIN" },
   { h: "The Lockup", p: "Three doubles in a row, the Sheriff's Call square, or a card sends you there. Roll doubles to leave, or pay $50 after three turns. Early it's a waste — you're not buying land. Late, with hotels up, it's shelter." },
   { h: "When money runs short", p: "Sell buildings back at half, or mortgage a deed for half its list (buy it back at list plus a tenth). Can't cover what you owe? You're out, and your deeds go to whoever you owed." },
   { h: "The names at a real table", p: "Deed = title deed. The Lockup = jail. PAYDAY = the go square. Depots = the railroads. Wildcard and Strongbox = the two card decks. Same system, same maths — the words are ours." },
@@ -756,7 +764,7 @@ const MR_LESSONS = {
   buy: { h: "Buy, or send it to auction", p: "At list price you either take it or everyone bids for it. Declining is not always weak: if the board says a square is rarely landed on, or the cash would leave you unable to pay a rent, let it go and try to win it cheap in the auction.", table: "At a real table this is the title deed." },
   rent: { h: "You just paid rent", p: "That's the whole engine. Rent goes up when one owner holds a full colour group, and multiplies again with every house. Which is why owning many scattered deeds loses to owning one complete group.", table: "" },
   group: { h: "You hold a full group", p: "Now you can build — and only now. Build evenly: no square may be more than one house ahead of its group. The Coach names the single best house you can buy next and what it earns back.", table: "" },
-  jail: { h: "The Lockup", p: "Roll doubles to get out, or pay the $50 fine after three turns. It's the most-landed-on square on the board, and that's exactly why the squares a short roll past it are the most valuable land in the game.", table: "At a real table this is jail." },
+  jail: { h: "The Lockup", p: "Roll doubles to get out, or pay the $50 fine after three turns. More tokens arrive there than on any other square, and that's exactly why the squares a short roll past it are the most valuable land in the game.", table: "At a real table this is jail." },
   build: { h: "Houses change everything", p: "A bare deed earns pennies. The jump from two houses to three is the steepest on the ladder — that's where the game is decided. Keep enough cash to survive landing on someone else's hotel.", table: "" },
   auction: { h: "The auction", p: "Bidding opens at nothing and climbs. The rivals bid to their own book and stop. Your book is printed for you — pay past it only to stop someone completing a group.", table: "" },
   broke: { h: "Short of cash", p: "Sell buildings back at half price, or mortgage a deed for half its list. Mortgage what earns least first — the landing share tells you which. If you still can't pay, you're out and your deeds pass to whoever you owed.", table: "" },
@@ -1177,7 +1185,7 @@ export default function MogulRow() {
 
         <div style={{ marginTop: 10 }}>
           <MathNote>
-            <div><b style={{ color: CAS.cream }}>The landing odds are exact, not folklore.</b> mrChain() builds the Markov chain over every state (square × consecutive doubles, plus the three lockup turns), folds in both card decks at their true frequencies, and power-iterates to the stationary distribution. The percentage on every square is its share of all landings. The Lockup leads at {mrPct(land[MR_JAIL])} — which is exactly why the squares a natural roll past it are the best land on the board.</div>
+            <div><b style={{ color: CAS.cream }}>The landing odds are exact, not folklore.</b> mrChain() builds the Markov chain over every state (square × consecutive doubles, plus the three lockup turns), folds in both card decks at their true frequencies, and power-iterates to the stationary distribution. The percentage on every square is its share of all landings. One measure for all forty: a square's number is its share of ARRIVALS, a token actually moving onto it. Turns spent sitting in the lockup are not arrivals and are not counted — you cannot be charged rent for sitting still. The Lockup still leads at {mrPct(land[MR_JAIL])}, which is exactly why the squares a natural roll past it are the best land on the board. A 150-game simulation of this engine matches these numbers to a mean error of 0.28 percentage points.</div>
             <div style={{ marginTop: 6 }}><b style={{ color: CAS.cream }}>Two dice, 36 outcomes.</b> 2→1 way, 7→6 ways, 12→1 way. Doubles roll again; three in a row send you to The Lockup.</div>
             <div style={{ marginTop: 6 }}><b style={{ color: CAS.cream }}>Our rent ladder</b>, stated openly: each deed has a base rent; a full colour group doubles it bare; houses multiply it ×{MR_MULT.slice(1).join(", ×")} (rounded to $5). Depots pay ${MR_STATION_RENT.slice(1).join(" / $")} by how many you hold. Utilities pay 5× the dice with one, 12× with both. Houses cost ${MR_GROUPS.map((x) => x.house).filter((v, i, a) => a.indexOf(v) === i).join(" / $")} by group. Start $ {MR_START_CASH}, PAYDAY ${MR_SALARY}, fine ${MR_FINE}, {MR_HOUSE_POOL} houses and {MR_HOTEL_POOL} hotels in the bank.</div>
             <div style={{ marginTop: 6 }}><b style={{ color: CAS.cream }}>Expected rent per round</b> = landing share × rent × 3 rivals. <b style={{ color: CAS.cream }}>Payback</b> = list price ÷ that. Your book value is list price adjusted for the group you'd complete or block, weighted by the landing share — the same book the three rivals bid and build by.</div>

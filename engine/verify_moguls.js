@@ -78,9 +78,13 @@ console.log("verify_moguls: THE CHAIN (the whole point)");
   check(Math.abs(total - 1) < 1e-9, `the distribution sums to 1 (got ${total.toFixed(12)})`);
   check(land.every((p, i) => (i === E.MR_GOTOJAIL ? p === 0 : p > 0)), "every square is reachable; the sheriff's call square never holds a token");
   const jail = land[E.MR_JAIL];
-  check(jail > 0.08, `the lockup leads at ${(100 * jail).toFixed(2)}%`);
   const others = land.filter((_, i) => i !== E.MR_JAIL);
-  check(jail > 2.5 * Math.max(...others), "…by more than 2.5× the next square");
+  check(jail > Math.max(...others), `the lockup takes more arrivals than any other square (${(100 * jail).toFixed(2)}%)`);
+  check(jail > 1.5 * Math.max(...others), "…by half again as much as the next square");
+  /* ONE MEASURE FOR ALL FORTY: arrivals only. Turns spent sitting in the
+   * lockup must not be counted, or the lockup is measured differently from
+   * every other square. A 150-game simulation caught exactly that. */
+  check(jail < 0.09, "…and it is counted as ARRIVALS, not as turns spent sitting there");
   // the one real strategic fact of this family, DERIVED: a natural roll past
   // the lockup (squares 16-21) beats the same count of squares past PAYDAY.
   const past = (start, n) => land.slice(start + 1, start + 1 + n).reduce((a, b) => a + b, 0);

@@ -259,7 +259,7 @@
     </p>
     <div class="badges">
       <span class="badge gold">EVERY EDGE PRINTED</span>
-      <span class="badge"><span id="proofs">818</span> AUTOMATED PROOFS</span>
+      <span class="badge"><span id="proofs">819</span> AUTOMATED PROOFS</span>
       <span class="badge">PRACTICE CHIPS ONLY</span>
       <span class="badge">OPEN SOURCE</span>
     </div>
@@ -502,7 +502,7 @@
     Built on the training-loop DNA of <a href="https://github.com/ghug/cribbage-trainer">cribbage-trainer</a>
     (public domain): objective enumeration, never heuristics. Practice stats and bankrolls stay
     with you — nothing is wagered, bought, or sold, anywhere, ever.
-    <span class="ver" id="ver">0.20.0</span>
+    <span class="ver" id="ver">0.20.1</span>
   </footer>
 
   <script>
@@ -541,7 +541,7 @@
       track.innerHTML = facts.concat(facts).map(function (f) { return "<span>" + f + "</span>"; }).join("");
 
       // proofs count up on arrival
-      var target = 818, el2 = document.getElementById("proofs"), t0 = null;
+      var target = 819, el2 = document.getElementById("proofs"), t0 = null;
       function stepUp(ts) {
         if (!t0) t0 = ts;
         var k = Math.min(1, (ts - t0) / 1100);
@@ -550,7 +550,7 @@
       }
       requestAnimationFrame(stepUp);
 
-      var v = "0.20.0";
+      var v = "0.20.1";
       if (v.indexOf("-dev") !== -1) { var el = document.getElementById("ver"); el.style.display = "inline"; }
     })();
   </script>

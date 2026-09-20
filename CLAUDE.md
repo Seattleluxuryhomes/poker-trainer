@@ -652,3 +652,27 @@ guarded on the PHASE NAME, so a buy prompt or auction that had just
 resolved — and cleared its own pending record — sat in that phase
 forever. It now guards on the blocking state itself. Twelve full games
 went from 0 finishing to all of them.
+
+### The simulation that corrected the headline number (v0.20.1)
+
+Founder: "play a simulation." 150 seeded four-bot games, 62,055 real
+landings, compared square by square against mrChain()'s prediction. Every
+square agreed within 0.3 points except ONE: the lockup, predicted 11.52%
+but observed 6.19%.
+
+The chain was right about the mechanics and wrong about the QUESTION. It
+counted turns spent sitting in the lockup as landings, while all 39 other
+squares were counted as ARRIVALS — two different statistics printed side
+by side on the same board, which is the exact failure this app exists to
+prevent. Fixed: a square's number is its share of arrivals everywhere,
+because you cannot be charged rent for sitting still. The lockup still
+leads the board, now at 6.18% against 6.21% observed, and the mean
+absolute error across all 39 live squares fell from 0.277 to 0.082
+percentage points. verify_moguls pins the new measure (68 checks) so the
+two statistics can never be mixed again.
+
+Also learned from the batch: games run 21 to 107 rounds (48 average),
+121 of 150 finish inside 300 rounds, wins split 35/29/30/27 across four
+symmetric seats, and the winner holds a complete colour group in 84–93%
+of wins — the strategic lesson the game is meant to teach, measured
+rather than asserted.
