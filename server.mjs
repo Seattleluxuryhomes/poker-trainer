@@ -39,6 +39,7 @@ const FILES = new Map([
   ["/sp21.html", "sp21.html"],
   ["/flush.html", "flush.html"],
   ["/sheep.html", "sheep.html"],
+  ["/moguls.html", "moguls.html"],
   ["/sw.js", "sw.js"],
   ["/favicon.svg", "favicon.svg"],
   ["/manifest.webmanifest", "manifest.webmanifest"],

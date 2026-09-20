@@ -116,6 +116,7 @@
   .pip.sp21{ background:linear-gradient(180deg,#c62f2f,#7d1d1d); font-weight:900; font-size:18px }
   .pip.flush{ background:linear-gradient(180deg,#6d3bb8,#3d1f6e) }
   .pip.sheep{ background:linear-gradient(180deg,#86c06a,#2f6b3a) }
+  .pip.moguls{ background:linear-gradient(180deg,#f0b429,#b07d0a) }
   .pip.profile{ background:linear-gradient(180deg,#8a5e37,#4a3018) }
   .opt-title{ font-size:18px; font-weight:800; letter-spacing:-0.01em; color:var(--cream) }
   .opt-sub{ font-family:var(--mono); font-size:10.5px; color:var(--faint); margin-top:3px; letter-spacing:0.03em }
@@ -252,13 +253,13 @@
     </div>
     <h1>The casino that<br/><span class="gold">shows you the math.</span></h1>
     <p class="creed">
-      Eleven games, one rule: <b>every probability is enumerated and every house edge is
+      Twelve games, one rule: <b>every probability is enumerated and every house edge is
       printed on the felt</b> — and when a number can only be estimated, it says so.
       Practice chips only. No accounts required. No tracking, ever.
     </p>
     <div class="badges">
       <span class="badge gold">EVERY EDGE PRINTED</span>
-      <span class="badge"><span id="proofs">750</span> AUTOMATED PROOFS</span>
+      <span class="badge"><span id="proofs">818</span> AUTOMATED PROOFS</span>
       <span class="badge">PRACTICE CHIPS ONLY</span>
       <span class="badge">OPEN SOURCE</span>
     </div>
@@ -440,7 +441,23 @@
         </div>
         <span class="edge">36 OUTCOMES, ALL PRINTED &middot; COACH = THE BOTS' OWN MATH</span>
       </a>
-      <a class="option" href="profile.html" style="--i:11">
+      <a class="option" href="moguls.html" style="--i:11">
+        <div class="opt-row">
+          <span class="pip moguls">&#127974;</span>
+          <div>
+            <div class="opt-title">Mogul Row</div>
+            <div class="opt-sub">BUY THE BLOCK &middot; OWN THE ODDS</div>
+          </div>
+          <span class="arrow">&#8250;</span>
+        </div>
+        <div class="opt-desc">
+          Deeds, rent, houses and the Lockup against three rivals &mdash; and every square
+          wears its <b>exact</b> share of all landings, solved from a Markov chain over the
+          dice, the lockup rule and the card decks. The board is not fair, and now you can see it.
+        </div>
+        <span class="edge">EVERY SQUARE'S TRUE ODDS, SOLVED</span>
+      </a>
+      <a class="option" href="profile.html" style="--i:12">
         <div class="opt-row">
           <span class="pip profile">&#127183;</span>
           <div>
@@ -485,7 +502,7 @@
     Built on the training-loop DNA of <a href="https://github.com/ghug/cribbage-trainer">cribbage-trainer</a>
     (public domain): objective enumeration, never heuristics. Practice stats and bankrolls stay
     with you — nothing is wagered, bought, or sold, anywhere, ever.
-    <span class="ver" id="ver">0.19.2</span>
+    <span class="ver" id="ver">0.20.0</span>
   </footer>
 
   <script>
@@ -524,7 +541,7 @@
       track.innerHTML = facts.concat(facts).map(function (f) { return "<span>" + f + "</span>"; }).join("");
 
       // proofs count up on arrival
-      var target = 750, el2 = document.getElementById("proofs"), t0 = null;
+      var target = 818, el2 = document.getElementById("proofs"), t0 = null;
       function stepUp(ts) {
         if (!t0) t0 = ts;
         var k = Math.min(1, (ts - t0) / 1100);
@@ -533,7 +550,7 @@
       }
       requestAnimationFrame(stepUp);
 
-      var v = "0.19.2";
+      var v = "0.20.0";
       if (v.indexOf("-dev") !== -1) { var el = document.getElementById("ver"); el.style.display = "inline"; }
     })();
   </script>

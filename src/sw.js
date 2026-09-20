@@ -6,7 +6,7 @@
  * name carries the app version, and activation deletes every older cache. */
 const CACHE = "poker-trainer-__APP_VERSION__";
 const PAGES = ["./", "./index.html", "./trainer.html", "./play.html", "./table.html",
-  "./profile.html", "./roulette.html", "./craps.html", "./paigow.html", "./bj.html", "./bac.html", "./sp21.html", "./flush.html", "./sheep.html"];
+  "./profile.html", "./roulette.html", "./craps.html", "./paigow.html", "./bj.html", "./bac.html", "./sp21.html", "./flush.html", "./sheep.html", "./moguls.html"];
 const ASSETS = ["./favicon.svg", "./manifest.webmanifest",
   "./vendor/react.production.min.js", "./vendor/react-dom.production.min.js"];
 
