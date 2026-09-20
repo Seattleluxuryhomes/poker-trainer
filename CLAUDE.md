@@ -527,64 +527,73 @@ founder rather than guessed at. If "honesty" meant something narrower
 (e.g., a values statement, not a technical integration), that's open to
 revisit on clarification — but no cross-repo wiring happens by default.
 
-## Sheep Rodeo (v0.19.0)
+## Sheep Rodeo (v0.19.2) — the teaching table
 
 Founder asked for a hex-and-dice settlement board game named Sheep Rodeo,
-then: "I needed to train Anya how to be better at it." So it is a TRAINER
-first, in the house style. src/SheepRodeo.jsx (sheep.html) is an ORIGINAL
-game — our own rules text, names, and art (goods: wool/lumber/clay/hay/
-iron; trail/corral/ranch; the rustler; rodeo cards: wrangler, blue
-ribbon, trail blazing, bumper crop, roundup; Longest Trail, Largest
-Posse; 10 points). Three FICTIONAL ranchers (Dusty Vale, Marisol Quade,
-Buck Tanner) — same rule as Ace Meridian.
+then: "I needed to train Anya how to be better at it," then: "you need to
+be able to teach somebody how to play... we need UI Steve Jobs fix it."
+src/SheepRodeo.jsx (sheep.html).
 
-CLEAN-ROOM RULE (founder, 2026-09-20: "do it in such a way that I'm not
-going to get sued"). Game mechanics as such are not protectable; what is
-protectable — and what gets copied by accident — is EXPRESSION: a
-published game's name, artwork, board and card graphics, rules text,
-character names, and the wholesale copy of its every parameter so the
-"selection and arrangement" reads as a clone. Therefore, in this repo,
-in the app, in store listings and in marketing: (1) NEVER name, compare
-to, or describe Sheep Rodeo as any other published game — not in code,
-comments, docs, commit messages, the landing, or the guide; (2) never
-copy or trace another game's art, icons, board graphic, card text, or
-rulebook wording — every string here is written fresh; (3) Sheep Rodeo
-keeps ITS OWN parameter set, deliberately different where the trainer is
-not harmed: 19 hexes as 4 wool / 3 lumber / 3 clay / 4 hay / 3 iron / TWO
-dust bowls; 17 tokens (2,3,3,4,4,5,5,6,6,8,8,9,9,10,10,11,12); 7
-trading posts (3×3:1, one 2:1 each for lumber/clay/hay/iron); a 20-card
-deck (10 wranglers, 4 ribbons, 2/2/2); ranch = 2 hay + 2 iron + 1 wool;
-hand limit 8; Longest Trail from 6; pieces 14/6/4; bank 20 each; and one
-signature rule of its own — WOOL IS MONEY: two wool buy any one good at
-the bank, for everyone, always (SR_WOOL_RATE). Do not drift these back
-toward any published game's numbers; (4) the math note carries a plain
-non-affiliation notice. verify_sheep pins the parameter set so a
-"helpful" revert fails CI. Nothing here is legal advice — if the game is
-ever sold or marketed beyond this practice site, have a lawyer look at
-the name and the notice.
+RULES: the STANDARD rules of the hex-and-dice settlement family, played
+exactly as at a real table — 19 hexes (4 wool, 4 lumber, 4 hay, 3 clay,
+3 iron, 1 dust bowl), 18 tokens, 9 trading posts, 25-card deck (14
+wranglers, 5 ribbons, 2/2/2), trail = lumber+clay, corral = all four,
+ranch = 2 hay + 3 iron, card = wool+hay+iron, hand limit 7, Longest
+Trail from 5, Largest Posse from 3, 15/5/4 pieces, bank 19 each, 10
+points. Founder ruling: the point is to TEACH THE REAL GAME, so the
+numbers must match what she'll play at a table. verify_sheep pins every
+one of them.
 
-THE COACH is the lesson: every number token wears its pips (ways in 36,
-enumerated), and the Coach panel names the best move and says WHY in
-numbers — pips per good, chance of production per roll (ways/36), expected
-cards per turn (Σ pips/36, ×2 for a ranch), the trade that unlocks the
-next build, where the rustler hurts the leader most. HONESTY RULE: the
-Coach IS the bots' evaluation (srScoreCorner / srBestTrail /
-srBestRustlerHex / srTradePlan) shown to the human — verify_sheep proves
-the Coach's target equals the bots' pick. No hidden edge, no "trust me".
-The Guide teaches the table; the Coach advises; neither plays for you.
+EXPRESSION IS OURS, and that is the legal line (founder: "do it in such
+a way that I'm not going to get sued"). Mechanics are not protectable;
+expression is. So: our own name, art, palette, characters (Dusty Vale,
+Marisol Quade, Buck Tanner — fictional, same rule as Ace Meridian), and
+every word of rules text written fresh. NEVER name, compare to, or
+describe Sheep Rodeo as any other published game — not in code,
+comments, docs, commit messages, the landing, or the guide. Never copy
+or trace another game's art, icons, board graphic, card text, or
+rulebook wording. The math note carries a plain non-affiliation notice,
+and one guide step maps our words to the generic ones a real table uses
+(corral = settlement, rustler = robber, and so on) so the learning
+transfers without borrowing anyone's brand. Not legal advice; if it is
+ever sold or marketed, have a lawyer look at the name and the notice.
 
-NO WAGER: the casino wallet is deliberately not wired — it's a board game
-and the study table. Game state persists in localStorage
-(`poker-trainer:sheep`) so a refresh resumes mid-game.
+THE UI IS DIRECT MANIPULATION (v0.19.2). The board IS the control: tap
+a corner to build there, a side to lay a trail, a hex to send the
+rustler. First tap PREVIEWS (a panel prices the corner in pips, ways of
+36, and how it compares to the Coach's pick), second tap or the big
+confirm button commits. NOTHING IS A DEAD TAP — that was the founder's
+report ("I can't click on it"). A tap on empty felt explains what you
+could do; a greyed build button says exactly what you're short; build
+buttons badge each missing good in amber rather than greying out
+silently; tapping a good in your hand says what it builds; tapping a
+card says what it does and when it can be played. An on-board banner
+always states whose turn it is and what to do next.
 
-Engine (pure, top-level, JSON-plain state; bots act one step per call so
-the page can pace them): srBoard (19 hexes / 54 corners / 72 sides via
-rounded-position de-dup, 6/8 never adjacent by retry, 7 coastal trading
-posts), srProduce (bank of 20 each, shortage rule: two claimants short →
-nobody), the 7 (discard half above 8, rustler must move, robbery is one
-random card), distance rule, opponent buildings break trail lines,
-srLongestTrail (DFS, no side twice, blocked through opponents), awards
-with ties, srCheckWin on the mover's turn only. engine/verify_sheep.js
-(82 checks): 2d6 distribution vs brute force, 40 seeded boards, every law
-above by construction, and 30 full four-bot seeded games to a winner with
-goods conserved against the bank at every step. 14 suites, 747 checks.
+THE LESSONS: SR_LESSONS fires one card the first time each moment
+happens to you (first corral, second corral pays out, the trail points,
+the roll loop, a seven, trading, your first rodeo card, the finish).
+Each is dismissed forever (localStorage `poker-trainer:sheep:lessons`,
+resettable from the math note). The Guide covers the whole rulebook,
+including the real-table vocabulary map.
+
+THE COACH is the bots' own evaluation shown to the human (srScoreCorner
+/ srBestTrail / srBestRustlerHex / srTradePlan) — verify_sheep proves
+the Coach's target equals the bots' pick. ★ COACH'S PICK executes it in
+one tap in every phase. No hidden edge, no "trust me".
+
+LOOK: saturated per-good gradients lit from above (SR_META hi/fill/lo),
+a radial sea, drop-shadowed hexes with an inner highlight, crisp number
+tokens with the pips printed, solid gold targets (no dashed noise), and
+trails with a highlight stroke so four colors read on dark felt. The
+founder's word for the first cut was "dusty" — that palette is gone.
+
+NO WAGER: the casino wallet is deliberately not wired. Game state
+persists (`poker-trainer:sheep`) so a refresh resumes mid-game.
+
+Engine: pure top-level functions over JSON-plain state; bots act one
+step per call so the page paces them. engine/verify_sheep.js (85
+checks): 2d6 vs brute force, 40 seeded boards, the standard parameter
+set pinned, every building/production/robber/award law by construction,
+the teaching layer, and 30 full four-bot seeded games to a winner with
+goods conserved against the bank at every step. 14 suites, 750 checks.

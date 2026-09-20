@@ -9,11 +9,12 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
    the exact ways-out-of-36 that number rolls, and the Coach's
    advice is the very same evaluation the bots play by — shown to
    you with its reasoning, so a lesson never comes from a "trust
-   me." An ORIGINAL game: its own name, art, text, characters,
-   board mix, costs, deck, limits, and one rule of its own — in
-   Sheep Rodeo, WOOL IS MONEY: two wool buy any one good at the
-   bank, for everyone, always. Not affiliated with or endorsed
-   by any other game or publisher; never describe it as one.
+   me." The RULES are the standard ones of the hex-and-dice
+   settlement family, played exactly as at a real table (founder
+   ruling: the point is to teach the real game). The EXPRESSION
+   is ours: name, art, text, characters. Not affiliated with or
+   endorsed by any other game or publisher; never describe it as
+   one, anywhere.
 
    No wager anywhere: the casino wallet is deliberately NOT wired
    here — this is the study table for strategy, not a bet.
@@ -26,32 +27,33 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 
 /* ---- goods, costs, the dice, the deck ---- */
 const SR_RES = ["wool", "lumber", "clay", "hay", "iron"];
+/* The palette: saturated, lit from above, each good unmistakable at a glance
+ * on a phone. hi = the sunlit top edge, fill = the body, lo = the shaded base. */
 const SR_META = {
-  wool:   { name: "Wool",   icon: "🐑", fill: "#86c06a", ink: "#153015" },
-  lumber: { name: "Lumber", icon: "🌲", fill: "#2f6b3a", ink: "#eaf5e6" },
-  clay:   { name: "Clay",   icon: "🧱", fill: "#b45a3c", ink: "#fff1e8" },
-  hay:    { name: "Hay",    icon: "🌾", fill: "#d9b44a", ink: "#3a2d08" },
-  iron:   { name: "Iron",   icon: "⛏️", fill: "#6f7886", ink: "#f2f4f8" },
-  desert: { name: "Dust Bowl", icon: "🌵", fill: "#c4ae83", ink: "#4a3d22" },
+  wool:   { name: "Wool",   icon: "🐑", hi: "#a8e063", fill: "#6fbf3f", lo: "#3f8a22", ink: "#10280c" },
+  lumber: { name: "Lumber", icon: "🌲", hi: "#3cb371", fill: "#1f7a45", lo: "#0d4a28", ink: "#eafaf0" },
+  clay:   { name: "Clay",   icon: "🧱", hi: "#f2793d", fill: "#d5502a", lo: "#8f2f16", ink: "#fff2ea" },
+  hay:    { name: "Hay",    icon: "🌾", hi: "#ffd86b", fill: "#f0b429", lo: "#b07d0a", ink: "#3a2a02" },
+  iron:   { name: "Iron",   icon: "⛏️", hi: "#9aa7ba", fill: "#71809a", lo: "#44506a", ink: "#f4f7fc" },
+  desert: { name: "Dust Bowl", icon: "🌵", hi: "#e8d5a8", fill: "#cdb682", lo: "#9c8656", ink: "#443716" },
 };
 const SR_COST = {
   trail:  { lumber: 1, clay: 1 },
   corral: { lumber: 1, clay: 1, hay: 1, wool: 1 },
-  ranch:  { hay: 2, iron: 2, wool: 1 },                           // a ranch needs a flock
+  ranch:  { hay: 2, iron: 3 },
   card:   { wool: 1, hay: 1, iron: 1 },
 };
 const SR_BUILD_NAME = { trail: "Trail", corral: "Corral", ranch: "Ranch", card: "Rodeo card" };
 /* ways each total can roll on two dice — the whole distribution, 36 outcomes */
 const SR_WAYS = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1 };
-/* the range: 19 hexes — 4 wool, 3 lumber, 3 clay, 4 hay, 3 iron, TWO dust bowls */
-const SR_TOKENS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 12];
-const SR_TILES = ["wool", "wool", "wool", "wool", "lumber", "lumber", "lumber",
-  "hay", "hay", "hay", "hay", "clay", "clay", "clay", "iron", "iron", "iron", "desert", "desert"];
-/* trading posts on the coast: three 3:1 posts and one 2:1 post for each good but wool
- * (wool needs no post — see SR_WOOL_RATE) */
-const SR_PORTS = ["any", "any", "any", "lumber", "clay", "hay", "iron"];
-/* the rodeo deck: 10 wranglers, 4 blue ribbons, 2 trail-blazing, 2 bumper crop, 2 roundup */
-const SR_DECK_MIX = { wrangler: 10, ribbon: 4, trails: 2, bumper: 2, roundup: 2 };
+/* the range: 19 hexes — 4 wool, 4 lumber, 4 hay, 3 clay, 3 iron, one dust bowl; 18 tokens */
+const SR_TOKENS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
+const SR_TILES = ["wool", "wool", "wool", "wool", "lumber", "lumber", "lumber", "lumber",
+  "hay", "hay", "hay", "hay", "clay", "clay", "clay", "iron", "iron", "iron", "desert"];
+/* trading posts on the coast: four 3:1 posts and one 2:1 post per good */
+const SR_PORTS = ["any", "any", "any", "any", "wool", "lumber", "clay", "hay", "iron"];
+/* the rodeo deck: 14 wranglers, 5 blue ribbons, 2 trail-blazing, 2 bumper crop, 2 roundup */
+const SR_DECK_MIX = { wrangler: 14, ribbon: 5, trails: 2, bumper: 2, roundup: 2 };
 const SR_DECK = Object.keys(SR_DECK_MIX).flatMap((k) => Array(SR_DECK_MIX[k]).fill(k));
 const SR_CARD = {
   wrangler: { name: "Wrangler", icon: "🤠", text: "Move the rustler and take one card from a rancher there. Three played earns the Largest Posse (2 points)." },
@@ -61,11 +63,10 @@ const SR_CARD = {
   roundup:  { name: "Roundup", icon: "🪢", text: "Name one good; every other rancher hands you all of theirs." },
 };
 const SR_WIN = 10;
-const SR_MAX_TRAILS = 14, SR_MAX_CORRALS = 6, SR_MAX_RANCHES = 4;
-const SR_HAND_LIMIT = 8;                                                 // over eight, a 7 costs half
-const SR_BANK_EACH = 20;
-const SR_LONGEST_MIN = 6, SR_POSSE_MIN = 3;
-const SR_WOOL_RATE = 2;                                                  // WOOL IS MONEY: 2 wool → any 1 good, always
+const SR_MAX_TRAILS = 15, SR_MAX_CORRALS = 5, SR_MAX_RANCHES = 4;
+const SR_HAND_LIMIT = 7;                                                 // over seven, a 7 costs half
+const SR_BANK_EACH = 19;
+const SR_LONGEST_MIN = 5, SR_POSSE_MIN = 3;
 const SR_PLAYERS = [
   { name: "You",           color: "#f5c542", bot: false },
   { name: "Dusty Vale",    color: "#4fa3ff", bot: true },
@@ -530,7 +531,7 @@ function srPlayCard(s, kind, arg) {
 /* ---- trading ---- */
 function srRatio(s, pid, give) {
   const p = s.players[pid];
-  let ratio = give === "wool" ? SR_WOOL_RATE : 4;
+  let ratio = 4;
   for (const vid of p.corrals.concat(p.ranches)) {
     const port = s.board.verts[vid].port;
     if (!port) continue;
@@ -770,7 +771,7 @@ function srCoach(s) {
     const first = s.setupIdx < 4;
     return {
       title: `Best open corner: ${y.pips} pips.`,
-      why: `${srFmtYield(y)} — it pays on ${y.ways} of the 36 rolls (${Math.round((100 * y.ways) / 36)}% each turn).${y.port ? ` It also touches a ${y.port.kind === "any" ? "3:1" : "2:1 " + SR_META[y.port.kind].icon} trading post.` : ""}${y.perRes.wool ? " Wool is money here: two wool buy any good at the bank." : ""} ${first ? "Early on, lumber and clay build trails and corrals — the Coach weighs them up a little." : "Your second corral pays out at once, so it also fills the goods your first corner lacks."} Pips are the ways a number rolls: 6 and 8 roll 5 ways each, 2 and 12 roll once.`,
+      why: `${srFmtYield(y)} — it pays on ${y.ways} of the 36 rolls (${Math.round((100 * y.ways) / 36)}% each turn).${y.port ? ` It also touches a ${y.port.kind === "any" ? "3:1" : "2:1 " + SR_META[y.port.kind].icon} trading post.` : ""} ${first ? "Early on, lumber and clay build trails and corrals — the Coach weighs them up a little." : "Your second corral pays out at once, so it also fills the goods your first corner lacks."} Pips are the ways a number rolls: 6 and 8 roll 5 ways each, 2 and 12 roll once.`,
       target: { kind: "vert", id: b.vid },
     };
   }
@@ -795,7 +796,7 @@ function srCoach(s) {
     const legalC = srLegalCorrals(s, pid, false);
     if (srCanAfford(p, SR_COST.ranch) && p.corrals.length && p.ranches.length < SR_MAX_RANCHES) {
       const v = srBestRanch(s, pid), y = srCornerYield(s, v);
-      return { title: "Raise a ranch.", why: `Your ${y.pips}-pip corral (${srFmtYield(y)}) will pay double — two cards per hit — for 2 🌾 + 2 ⛏️ + 1 🐑, and a ranch is worth two points.`, target: { kind: "vert", id: v } };
+      return { title: "Raise a ranch.", why: `Your ${y.pips}-pip corral (${srFmtYield(y)}) will pay double — two cards per hit — for 2 🌾 + 3 ⛏️, and a ranch is worth two points.`, target: { kind: "vert", id: v } };
     }
     if (srCanAfford(p, SR_COST.corral) && legalC.length && p.corrals.length < SR_MAX_CORRALS) {
       const b = srBestCorral(s, pid, false), y = srCornerYield(s, b.vid);
@@ -803,7 +804,7 @@ function srCoach(s) {
     }
     const target = srBotTarget(s, pid);
     const plan = target && target.missing > 0 && target.missing <= 2 ? srTradePlan(s, pid, target) : null;
-    if (plan) return { title: `Trade ${plan.ratio} ${SR_META[plan.give].icon} for 1 ${SR_META[plan.get].icon}.`, why: `You're ${target.missing} short of a ${SR_BUILD_NAME[target.kind].toLowerCase()} and holding spare ${SR_META[plan.give].name.toLowerCase()}. ${plan.give === "wool" ? "Wool is money: two wool buy any good." : plan.ratio < 4 ? "Your trading post makes it " + plan.ratio + ":1." : "The bank takes 4:1; a trading post would make it cheaper."} Ask the table first — a 1:1 swap beats the bank every time someone bites.`, target: null, trade: plan };
+    if (plan) return { title: `Trade ${plan.ratio} ${SR_META[plan.give].icon} for 1 ${SR_META[plan.get].icon}.`, why: `You're ${target.missing} short of a ${SR_BUILD_NAME[target.kind].toLowerCase()} and holding spare ${SR_META[plan.give].name.toLowerCase()}. ${plan.ratio < 4 ? "Your trading post makes it " + plan.ratio + ":1." : "The bank takes 4:1; a trading post would make it cheaper."} Ask the table first — a 1:1 swap beats the bank every time someone bites.`, target: null, trade: plan };
     if (srCanAfford(p, SR_COST.card) && s.deck.length) return { title: "Buy a rodeo card.", why: `${s.deck.length} left in the deck. The deck started ${SR_DECK_MIX.wrangler} wranglers, ${SR_DECK_MIX.ribbon} blue ribbons, 2 trail blazing, 2 bumper crop, 2 roundup — so ${Math.round((100 * SR_DECK_MIX.wrangler) / SR_DECK.length)}% wranglers at the start, and every ribbon is a point.`, target: null };
     if (srCanAfford(p, SR_COST.trail) && p.trails.length < SR_MAX_TRAILS) {
       const b = srBestTrail(s, pid);
@@ -816,35 +817,65 @@ function srCoach(s) {
 }
 
 /* ============================================================
-   THE PAGE
+   THE PAGE — direct manipulation. The board is the control:
+   tap a corner to build there, tap a side to lay a trail, tap
+   a hex to send the rustler. Nothing is ever a dead tap: a
+   greyed button says what it needs, a corner you can't afford
+   says what you're short. The Coach's pick is always one tap
+   away (★), so a learner can follow along and see WHY.
    ============================================================ */
 const SR_SAVE = "poker-trainer:sheep";
+const SR_LESSONS_KEY = "poker-trainer:sheep:lessons";
 function srLoadSaved() {
   try {
     const raw = window.localStorage.getItem(SR_SAVE);
     if (!raw) return null;
     const s = JSON.parse(raw);
-    return s && s.board && s.players && s.players.length === 4 ? s : null;
+    return s && s.board && s.players && s.players.length === 4 && s.bank && s.bank.wool != null ? s : null;
   } catch { return null; }
 }
 function srSave(s) { try { window.localStorage.setItem(SR_SAVE, JSON.stringify(s)); } catch { /* private mode */ } }
+function srLessonsLoad() { try { return JSON.parse(window.localStorage.getItem(SR_LESSONS_KEY) || "[]"); } catch { return []; } }
+function srLessonsSave(a) { try { window.localStorage.setItem(SR_LESSONS_KEY, JSON.stringify(a)); } catch { /* private mode */ } }
 
+/* what a build is short by, as "2 🧱 1 🌾" */
+function srShort(p, cost) {
+  const out = [];
+  for (const r in cost) if (p.res[r] < cost[r]) out.push(`${cost[r] - p.res[r]} ${SR_META[r].icon}`);
+  return out.join(" ");
+}
+const srCostStr = (k) => Object.keys(SR_COST[k]).map((r) => (SR_COST[k][r] > 1 ? SR_COST[k][r] : "") + SR_META[r].icon).join(" ");
+
+/* The table guide: the rules in plain words, with the names you'll hear at a real table. */
 const SR_GUIDE = [
   { h: "Settle the range", p: "Nineteen hexes, each with a good and a number. Corrals on a hex's corners collect that good whenever its number rolls. First to 10 points wins: corrals 1, ranches 2, Longest Trail and Largest Posse 2 each, blue ribbons 1." },
   { h: "Read the pips", p: "The dots under each number are its ways out of 36: a 6 or 8 rolls 5 ways (14%), a 2 or 12 rolls once (3%). Pick corners by adding pips, not by liking the number. A 7 rolls 6 ways — one turn in six the rustler rides.", tag: "EXACT: 36 OUTCOMES" },
-  { h: "Build", p: "Trail = 🌲 + 🧱. Corral = 🌲 🧱 🌾 🐑, on a corner touching your trail and two sides from any building. Ranch = 2 🌾 + 2 ⛏️ + 1 🐑, upgrades a corral to pay double. Rodeo card = 🐑 🌾 ⛏️." },
-  { h: "Wool is money", p: "The house rule that makes this Sheep Rodeo: two wool buy any one good at the bank, for everyone, always — no post needed. Sheep corners are never dead weight, and a wool-rich rancher is never stuck. Other goods trade 4:1, or 3:1 and 2:1 at trading posts you've built on.", tag: "🐑🐑 → ANY ONE GOOD" },
-  { h: "The rustler", p: "On a 7, anyone over eight cards discards half, then you move the rustler onto a hex — it stops paying — and take one random card from a rancher on it. Wrangler cards move it too; three played earns the Largest Posse. Six connected trails earn the Longest Trail." },
-  { h: "Trade", p: "Ask the table 1:1 before you go to the bank — the ranchers accept when it helps their own next build and never when you're two points from winning." },
-  { h: "The Coach", p: "The gold ring is the Coach's pick, and the box says why in numbers. It's the exact same evaluation the three ranchers across the table play by — no secret book, no hidden edge. Beat the Coach's advice and you've learned the game.", tag: "SAME BRAIN AS THE BOTS", green: true },
+  { h: "Build", p: "Trail = 🌲 + 🧱. Corral = 🌲 🧱 🌾 🐑, on a corner touching your trail and two sides from any building. Ranch = 2 🌾 + 3 ⛏️, upgrades a corral to pay double. Rodeo card = 🐑 🌾 ⛏️. Tap right on the board to build — no menus." },
+  { h: "The rustler", p: "On a 7, anyone over seven cards discards half, then you move the rustler onto a hex — it stops paying — and take one random card from a rancher on it. Wrangler cards move it too; three played earns the Largest Posse. Five connected trails earn the Longest Trail." },
+  { h: "Trade", p: "Bank trades are 4:1, or 3:1 and 2:1 at trading posts you've built on. Ask the table 1:1 first — the ranchers accept when it helps their own next build and never when you're two points from winning." },
+  { h: "The names at a real table", p: "Corral = settlement. Ranch = city. Trail = road. Rustler = robber. Rodeo card = development card. Wrangler = knight. Blue Ribbon = victory point. Trading post = harbor. Longest Trail = longest road. Largest Posse = largest army. Same rules, same math — only the words are ours." },
+  { h: "The Coach", p: "The gold ring is the Coach's pick, and the box says why in numbers. Tap ★ to do exactly what the Coach would; tap any corner to see how it compares. It's the same evaluation the three ranchers play by — no secret book, no hidden edge.", tag: "SAME BRAIN AS THE BOTS", green: true },
 ];
+
+/* First-time lessons: one card, once, the first time each moment happens to you. */
+const SR_LESSONS = {
+  setup1: { h: "Your first corral", p: "Everyone places two corrals before the dice roll. Tap any glowing corner to see what it's worth; tap it again to build there. Add the pips: three hexes of 6, 8 and 5 make 14 pips — a corner that pays on 40% of rolls.", table: "At the table this is a settlement." },
+  setup2: { h: "Your second corral pays out", p: "Your second corral hands you one card from each hex it touches — right now. Good players use it to fill the goods their first corner lacks, because a corral needs all four: 🌲 🧱 🌾 🐑.", table: "Placement goes around the table and back: last to place goes first." },
+  setupTrail: { h: "Point the trail", p: "The trail decides where your next corral can go: corrals must sit two sides apart, so a trail toward open, rich corners is worth more than one toward the coast.", table: "At the table this is a road." },
+  roll: { h: "Roll, collect, build", p: "Every turn: roll two dice, every hex with that number pays its corner-owners, then build or trade, then end your turn. The dice show how many ways out of 36 that number rolls." },
+  main: { h: "Build straight on the board", p: "Tap a glowing corner to build a corral, a glowing side to lay a trail, or one of your corrals to raise it to a ranch. Greyed buttons tell you what you're short. ★ does the Coach's pick for you." },
+  seven: { h: "A seven", p: "Nobody collects on a 7. Anyone holding more than seven cards discards half. Then the roller moves the rustler onto a hex — it stops paying — and steals one card from a rancher there. Keep your hand small when a 7 is due: it's the most common roll.", table: "At the table the rustler is the robber." },
+  trade: { h: "Trade before you go broke", p: "The bank takes four of one good for one of another — or fewer at a trading post. Ask the table 1:1 first; a rancher takes the deal when it completes their own build." },
+  card: { h: "Your rodeo card", p: "Cards bought this turn wait until next turn. A wrangler moves the rustler (and three played win the Largest Posse); a blue ribbon is a point you already own; the rest are one-shot boosts. One card per turn.", table: "At the table these are development cards; a wrangler is a knight." },
+  over: { h: "Run it back", p: "Every game reshuffles the hexes, the numbers, and the deck. The Coach's numbers were never a script — beat its advice by finding what it under-weighs: blocking, timing the rustler, and reading what the table needs." },
+};
 
 function SrHeader({ vp, onHelp }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "12px 16px", flexWrap: "wrap", background: "linear-gradient(180deg, rgba(255,255,255,0.03), transparent)", borderBottom: `1px solid ${CAS.line}` }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: casSans, fontSize: 17, fontWeight: 900, letterSpacing: "0.22em", color: CAS.cream }}>SHEEP RODEO</div>
-        <div style={{ fontFamily: casMono, fontSize: 9.5, letterSpacing: "0.08em", color: CAS.faint, marginTop: 2 }}>SETTLE THE RANGE · FIRST TO 10</div>
+        <div style={{ fontFamily: casMono, fontSize: 9.5, letterSpacing: "0.08em", color: CAS.faint, marginTop: 2 }}>SETTLE THE RANGE · FIRST TO {SR_WIN}</div>
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 13px", borderRadius: 999, background: CAS.goldFaint, border: `1px solid ${CAS.goldLine}` }}>
@@ -860,113 +891,115 @@ function SrHeader({ vp, onHelp }) {
   );
 }
 
-/* the range, drawn */
-function SrBoard({ g, mode, coach, onVert, onEdge, onHex }) {
+/* the range, drawn. `targets` = { verts:Set, ranchVerts:Set, edges:Set, hexes:bool }, `sel` = the tapped one. */
+function SrBoard({ g, targets, sel, coach, onVert, onEdge, onHex, onMiss }) {
   const { hexes, verts, edges } = g.board;
-  const legalV = useMemo(() => {
-    if (mode === "setupCorral") return new Set(srLegalCorrals(g, 0, true));
-    if (mode === "corral") return new Set(srLegalCorrals(g, 0, false));
-    if (mode === "ranch") return new Set(g.players[0].corrals);
-    return new Set();
-  }, [g, mode]);
-  const legalE = useMemo(() => {
-    if (mode === "setupTrail") return new Set(srLegalTrails(g, 0, g.setupFrom));
-    if (mode === "trail") return new Set(srLegalTrails(g, 0));
-    return new Set();
-  }, [g, mode]);
-  const hexMode = mode === "rustler";
   const tgt = coach && coach.target;
-  const owner = (vid) => srOwnerAt(g, vid);
-  const house = (x, y, k, color, ranch) => {
+  const house = (x, y, k, color, ranch, lit) => {
     const s = ranch ? 0.3 : 0.22;
     const pts = [[-s, s * 0.9], [-s, -s * 0.2], [0, -s], [s, -s * 0.2], [s, s * 0.9]].map(([px, py]) => `${x + px},${y + py}`).join(" ");
     return (
       <g key={k} pointerEvents="none">
+        {lit && <circle cx={x} cy={y} r={0.5} fill="none" stroke={CAS.gold} strokeWidth={0.06} strokeDasharray="0.12 0.1" className="srPulse" />}
         <polygon points={pts} fill={color} stroke="#0a0c10" strokeWidth={0.06} />
         {ranch && <rect x={x - s * 0.55} y={y - s * 0.95} width={s * 0.4} height={s * 0.7} fill={color} stroke="#0a0c10" strokeWidth={0.05} />}
         {ranch && <rect x={x - s * 0.9} y={y + s * 0.95} width={s * 1.8} height={0.09} fill="#0a0c10" opacity={0.6} />}
       </g>
     );
   };
+  const isSel = (kind, id) => sel && sel.kind === kind && sel.id === id;
+  const isTgt = (kind, id) => tgt && tgt.kind === kind && tgt.id === id;
   return (
-    <svg viewBox="-5 -4.75 10 9.5" style={{ width: "100%", maxWidth: 560, display: "block", margin: "0 auto", touchAction: "manipulation" }} role="img" aria-label="The range">
+    <svg viewBox="-5.15 -4.9 10.3 9.8" onClick={onMiss} style={{ width: "100%", maxWidth: 600, display: "block", margin: "0 auto", touchAction: "manipulation" }} role="img" aria-label="The range">
       <defs>
-        <radialGradient id="srGlow" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="rgba(245,197,66,0.55)" /><stop offset="100%" stopColor="rgba(245,197,66,0)" /></radialGradient>
-        <style>{`@keyframes srPulse{0%,100%{opacity:.45}50%{opacity:1}} .srPulse{animation:srPulse 1.1s ease-in-out infinite} @media (prefers-reduced-motion: reduce){.srPulse{animation:none;opacity:.85}}`}</style>
+        <radialGradient id="srGlow" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="rgba(245,197,66,0.7)" /><stop offset="100%" stopColor="rgba(245,197,66,0)" /></radialGradient>
+        <radialGradient id="srSea" cx="50%" cy="34%" r="72%">
+          <stop offset="0%" stopColor="#0d4b30" /><stop offset="62%" stopColor="#07301e" /><stop offset="100%" stopColor="#041a10" />
+        </radialGradient>
+        {Object.keys(SR_META).map((k) => (
+          <linearGradient key={k} id={"srT" + k} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={SR_META[k].hi} /><stop offset="52%" stopColor={SR_META[k].fill} /><stop offset="100%" stopColor={SR_META[k].lo} />
+          </linearGradient>
+        ))}
+        <filter id="srDrop" x="-30%" y="-30%" width="160%" height="170%">
+          <feDropShadow dx="0" dy="0.05" stdDeviation="0.05" floodColor="#000" floodOpacity="0.55" />
+        </filter>
+        <style>{`@keyframes srPulse{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}} .srPulse{animation:srPulse 1.2s ease-in-out infinite;transform-origin:center;transform-box:fill-box} @keyframes srBreathe{0%,100%{opacity:.4}50%{opacity:.85}} .srBreathe{animation:srBreathe 2.2s ease-in-out infinite} @media (prefers-reduced-motion: reduce){.srPulse,.srBreathe{animation:none;opacity:.9}}`}</style>
       </defs>
-      <circle cx={0} cy={0} r={4.7} fill="rgba(6,33,20,0.9)" stroke="rgba(245,197,66,0.14)" strokeWidth={0.05} />
-      {/* hexes */}
+      <circle cx={0} cy={0} r={4.55} fill="url(#srSea)" stroke="rgba(245,197,66,0.2)" strokeWidth={0.06} />
       {hexes.map((h) => {
         const pts = h.verts.map((v) => `${verts[v].x},${verts[v].y}`).join(" ");
         const m = SR_META[h.res];
         const isRust = g.rustler === h.id;
-        const isTgt = tgt && tgt.kind === "hex" && tgt.id === h.id;
+        const hot = targets.hexes && !isRust;
         return (
-          <g key={h.id} onClick={hexMode && !isRust ? () => onHex(h.id) : undefined} style={{ cursor: hexMode && !isRust ? "pointer" : "default" }}>
-            <polygon points={pts} fill={m.fill} stroke="#0a0c10" strokeWidth={0.07} strokeLinejoin="round" />
-            <text x={h.x} y={h.y - 0.55} textAnchor="middle" fontSize={0.42} style={{ pointerEvents: "none" }}>{m.icon}</text>
+          <g key={h.id} onClick={hot ? (e) => { e.stopPropagation(); onHex(h.id); } : undefined} style={{ cursor: hot ? "pointer" : "default" }}>
+            <polygon points={pts} fill={`url(#srT${h.res})`} stroke="rgba(6,10,14,0.92)" strokeWidth={0.075} strokeLinejoin="round" opacity={targets.hexes && isRust ? 0.55 : 1} filter="url(#srDrop)" />
+            <polygon points={pts} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth={0.03} strokeLinejoin="round" transform={`translate(${h.x} ${h.y}) scale(0.9) translate(${-h.x} ${-h.y})`} pointerEvents="none" />
+            <text x={h.x} y={h.y - 0.42} textAnchor="middle" fontSize={0.4} pointerEvents="none">{m.icon}</text>
             {h.num > 0 && (
               <g pointerEvents="none">
-                <circle cx={h.x} cy={h.y + 0.12} r={0.37} fill={CAS.cream} stroke="rgba(0,0,0,0.35)" strokeWidth={0.03} opacity={isRust ? 0.45 : 1} />
+                <circle cx={h.x} cy={h.y + 0.13} r={0.385} fill="#fbf7ec" stroke="rgba(0,0,0,0.42)" strokeWidth={0.035} opacity={isRust ? 0.4 : 1} style={{ filter: "drop-shadow(0 0.03px 0.05px rgba(0,0,0,0.5))" }} />
                 <text x={h.x} y={h.y + 0.2} textAnchor="middle" fontSize={h.num === 6 || h.num === 8 ? 0.4 : 0.34} fontWeight={900} fontFamily={casSans} fill={h.num === 6 || h.num === 8 ? "#c62828" : "#161a22"}>{h.num}</text>
                 {Array.from({ length: srPips(h.num) }, (_, i) => (
                   <circle key={i} cx={h.x + (i - (srPips(h.num) - 1) / 2) * 0.09} cy={h.y + 0.34} r={0.028} fill={h.num === 6 || h.num === 8 ? "#c62828" : "#161a22"} />
                 ))}
               </g>
             )}
-            {isRust && <text x={h.x} y={h.y + (h.num ? 0.72 : 0.3)} textAnchor="middle" fontSize={0.55} style={{ pointerEvents: "none" }}>🐺</text>}
-            {hexMode && !isRust && <polygon className={isTgt ? "srPulse" : undefined} points={pts} fill={isTgt ? "rgba(245,197,66,0.35)" : "rgba(245,197,66,0.08)"} stroke={isTgt ? CAS.gold : "rgba(245,197,66,0.5)"} strokeWidth={isTgt ? 0.1 : 0.04} strokeDasharray={isTgt ? undefined : "0.12 0.1"} />}
+            {isRust && <text x={h.x} y={h.y + (h.num ? 0.72 : 0.3)} textAnchor="middle" fontSize={0.55} pointerEvents="none">🐺</text>}
+            {hot && <polygon className={isTgt("hex", h.id) ? "srPulse" : "srBreathe"} points={pts} fill={isTgt("hex", h.id) ? "rgba(245,197,66,0.34)" : "rgba(255,255,255,0.1)"} stroke={isTgt("hex", h.id) ? CAS.gold : "rgba(255,255,255,0.45)"} strokeWidth={isTgt("hex", h.id) ? 0.1 : 0.04} />}
           </g>
         );
       })}
-      {/* trading posts */}
       {g.board.ports.map((pt) => {
         const e = edges[pt.edge], a = verts[e.a], b = verts[e.b];
-        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, len = Math.hypot(mx, my), ox = (mx / len) * 0.55, oy = (my / len) * 0.55;
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, len = Math.hypot(mx, my), ox = (mx / len) * 0.5, oy = (my / len) * 0.5;
         return (
           <g key={pt.edge} pointerEvents="none">
             <line x1={a.x} y1={a.y} x2={mx + ox} y2={my + oy} stroke="rgba(244,239,228,0.35)" strokeWidth={0.04} />
             <line x1={b.x} y1={b.y} x2={mx + ox} y2={my + oy} stroke="rgba(244,239,228,0.35)" strokeWidth={0.04} />
-            <circle cx={mx + ox} cy={my + oy} r={0.3} fill="#1a2230" stroke="rgba(244,239,228,0.4)" strokeWidth={0.03} />
+            <circle cx={mx + ox} cy={my + oy} r={0.29} fill="#1a2230" stroke="rgba(244,239,228,0.4)" strokeWidth={0.03} />
             <text x={mx + ox} y={my + oy + 0.02} textAnchor="middle" fontSize={0.2} fontWeight={900} fontFamily={casMono} fill={CAS.cream}>{pt.kind === "any" ? "3:1" : "2:1"}</text>
             <text x={mx + ox} y={my + oy + 0.24} textAnchor="middle" fontSize={0.2}>{pt.kind === "any" ? "?" : SR_META[pt.kind].icon}</text>
           </g>
         );
       })}
-      {/* trails */}
       {edges.map((e) => {
         const o = srTrailOwner(g, e.id);
         if (o == null) return null;
         const a = verts[e.a], b = verts[e.b];
         return (
           <g key={e.id} pointerEvents="none">
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#0a0c10" strokeWidth={0.22} strokeLinecap="round" />
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={g.players[o].color} strokeWidth={0.13} strokeLinecap="round" />
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#05070a" strokeWidth={0.24} strokeLinecap="round" />
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={g.players[o].color} strokeWidth={0.15} strokeLinecap="round" />
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="rgba(255,255,255,0.4)" strokeWidth={0.04} strokeLinecap="round" />
           </g>
         );
       })}
-      {/* legal sides */}
-      {[...legalE].map((eid) => {
-        const e = edges[eid], a = verts[e.a], b = verts[e.b];
-        const isTgt = tgt && tgt.kind === "edge" && tgt.id === eid;
+      {[...targets.edges].map((eid) => {
+        const e = edges[eid], a = verts[e.a], b = verts[e.b], hot = isTgt("edge", eid);
         return (
-          <g key={"le" + eid} onClick={() => onEdge(eid)} style={{ cursor: "pointer" }}>
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={0.5} strokeLinecap="round" />
-            <line className={isTgt ? "srPulse" : undefined} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={isTgt ? CAS.gold : "rgba(245,197,66,0.55)"} strokeWidth={isTgt ? 0.2 : 0.13} strokeDasharray={isTgt ? undefined : "0.14 0.12"} strokeLinecap="round" />
+          <g key={"le" + eid} onClick={(ev) => { ev.stopPropagation(); onEdge(eid); }} style={{ cursor: "pointer" }}>
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={0.7} strokeLinecap="round" />
+            <line className={hot ? "srPulse" : "srBreathe"} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={hot ? CAS.gold : "rgba(255,255,255,0.8)"} strokeWidth={hot ? 0.18 : 0.09} strokeLinecap="round" />
           </g>
         );
       })}
-      {/* buildings */}
-      {verts.map((v) => { const o = owner(v.id); return o ? house(v.x, v.y, "b" + v.id, g.players[o.pid].color, o.kind === "ranch") : null; })}
-      {/* legal corners */}
-      {[...legalV].map((vid) => {
+      {verts.map((v) => { const o = srOwnerAt(g, v.id); return o ? house(v.x, v.y, "b" + v.id, g.players[o.pid].color, o.kind === "ranch", targets.ranchVerts.has(v.id)) : null; })}
+      {[...targets.ranchVerts].map((vid) => {
         const v = verts[vid];
-        const isTgt = tgt && tgt.kind === "vert" && tgt.id === vid;
+        return <circle key={"rv" + vid} cx={v.x} cy={v.y} r={0.55} fill={isSel("vert", vid) ? "rgba(245,197,66,0.25)" : "transparent"} onClick={(ev) => { ev.stopPropagation(); onVert(vid); }} style={{ cursor: "pointer" }} />;
+      })}
+      {[...targets.verts].map((vid) => {
+        const v = verts[vid], hot = isTgt("vert", vid), on = isSel("vert", vid);
         return (
-          <g key={"lv" + vid} onClick={() => onVert(vid)} style={{ cursor: "pointer" }}>
-            {isTgt && <circle cx={v.x} cy={v.y} r={0.7} fill="url(#srGlow)" pointerEvents="none" />}
-            <circle cx={v.x} cy={v.y} r={0.42} fill="transparent" />
-            <circle className={isTgt ? "srPulse" : undefined} cx={v.x} cy={v.y} r={isTgt ? 0.3 : 0.24} fill={isTgt ? "rgba(245,197,66,0.4)" : "rgba(245,197,66,0.16)"} stroke={isTgt ? CAS.gold : "rgba(245,197,66,0.7)"} strokeWidth={isTgt ? 0.08 : 0.04} strokeDasharray={isTgt ? undefined : "0.1 0.08"} />
+          <g key={"lv" + vid} onClick={(ev) => { ev.stopPropagation(); onVert(vid); }} style={{ cursor: "pointer" }}>
+            {(hot || on) && <circle cx={v.x} cy={v.y} r={0.75} fill="url(#srGlow)" pointerEvents="none" />}
+            <circle cx={v.x} cy={v.y} r={0.55} fill="transparent" />
+            <circle className={hot && !on ? "srPulse" : on ? undefined : "srBreathe"} cx={v.x} cy={v.y} r={on ? 0.34 : hot ? 0.28 : 0.13}
+              fill={on ? CAS.gold : hot ? CAS.gold : "rgba(255,255,255,0.8)"}
+              stroke={on || hot ? "rgba(10,12,16,0.65)" : "rgba(10,12,16,0.5)"} strokeWidth={0.05} />
+            {on && <text x={v.x} y={v.y + 0.09} textAnchor="middle" fontSize={0.26} fontWeight={900} fontFamily={casSans} fill="#14171d" pointerEvents="none">✓</text>}
           </g>
         );
       })}
@@ -987,9 +1020,14 @@ export default function SheepRodeo() {
   const rngRef = useRef(Math.random);
   const [g, setG] = useState(() => srLoadSaved() || srNew(Math.random));
   const [guideOpen, setGuideOpen] = useState(() => guideUnseen("sheep"));
-  const [mode, setMode] = useState(null);           // trail | corral | ranch | trade | bumper | roundup | null
-  const [pick, setPick] = useState({});             // discard / bumper picks
+  const [filter, setFilter] = useState(null);       // trail | corral | ranch — lights only that kind
+  const [sel, setSel] = useState(null);             // { kind: "vert", id } awaiting confirmation
+  const [pickMode, setPickMode] = useState(null);   // trade | bumper | roundup
+  const [pick, setPick] = useState({});
   const [trade, setTrade] = useState({ give: null, get: null });
+  const [nudge, setNudge] = useState(null);         // { text, key }
+  const [lessonsSeen, setLessonsSeen] = useState(srLessonsLoad);
+  const [lesson, setLesson] = useState(null);
   const [coachOpen, setCoachOpen] = useState(true);
   const [logOpen, setLogOpen] = useState(false);
   const [endDismissed, setEndDismissed] = useState(false);
@@ -999,10 +1037,43 @@ export default function SheepRodeo() {
   const me = g.players[0];
   const myTurn = g.turn === 0;
   const coach = useMemo(() => srCoach(g), [g]);
-  const uiMode = g.phase === "setupCorral" && myTurn ? "setupCorral"
-    : g.phase === "setupTrail" && myTurn ? "setupTrail"
-    : g.phase === "rustler" && myTurn ? "rustler"
-    : g.phase === "main" && myTurn ? (g.trailsFree > 0 ? "trail" : mode) : null;
+  const ended = g.phase === "over";
+  const inMain = myTurn && g.phase === "main";
+
+  /* what can I do right now? */
+  const can = useMemo(() => ({
+    trail: inMain && (g.trailsFree > 0 || srCanAfford(me, SR_COST.trail)) && me.trails.length < SR_MAX_TRAILS && srLegalTrails(g, 0).length > 0,
+    corral: inMain && srCanAfford(me, SR_COST.corral) && me.corrals.length < SR_MAX_CORRALS && srLegalCorrals(g, 0, false).length > 0,
+    ranch: inMain && srCanAfford(me, SR_COST.ranch) && me.corrals.length > 0 && me.ranches.length < SR_MAX_RANCHES,
+    card: inMain && srCanAfford(me, SR_COST.card) && g.deck.length > 0,
+  }), [g, me, inMain]);
+  const why = (k) => {                              // the reason a build is off, in one line
+    if (!inMain) return g.phase === "roll" && myTurn ? "Roll first." : "Wait for your turn.";
+    if (k === "trail") return me.trails.length >= SR_MAX_TRAILS ? "All 15 trails are on the board." : !srLegalTrails(g, 0).length ? "No open side touches your trails." : `A trail needs ${srCostStr("trail")} — you're short ${srShort(me, SR_COST.trail)}.`;
+    if (k === "corral") return me.corrals.length >= SR_MAX_CORRALS ? "All 5 corrals are on the board — raise one to a ranch." : !srLegalCorrals(g, 0, false).length ? "No open corner on your trails — lay a trail toward one first." : `A corral needs ${srCostStr("corral")} — you're short ${srShort(me, SR_COST.corral)}.`;
+    if (k === "ranch") return !me.corrals.length ? "A ranch upgrades a corral — build a corral first." : me.ranches.length >= SR_MAX_RANCHES ? "All 4 ranches are built." : `A ranch needs ${srCostStr("ranch")} — you're short ${srShort(me, SR_COST.ranch)}.`;
+    if (k === "card") return !g.deck.length ? "The deck is empty." : `A rodeo card needs ${srCostStr("card")} — you're short ${srShort(me, SR_COST.card)}.`;
+    return "";
+  };
+
+  /* the live targets on the board */
+  const targets = useMemo(() => {
+    const t = { verts: new Set(), ranchVerts: new Set(), edges: new Set(), hexes: false };
+    if (!myTurn || ended) return t;
+    if (g.phase === "setupCorral") srLegalCorrals(g, 0, true).forEach((v) => t.verts.add(v));
+    else if (g.phase === "setupTrail") srLegalTrails(g, 0, g.setupFrom).forEach((e) => t.edges.add(e));
+    else if (g.phase === "rustler") t.hexes = true;
+    else if (g.phase === "main" && !pickMode) {
+      const f = g.trailsFree > 0 ? "trail" : filter;
+      if (can.trail && (!f || f === "trail")) srLegalTrails(g, 0).forEach((e) => t.edges.add(e));
+      if (can.corral && (!f || f === "corral")) srLegalCorrals(g, 0, false).forEach((v) => t.verts.add(v));
+      if (can.ranch && (!f || f === "ranch")) me.corrals.forEach((v) => t.ranchVerts.add(v));
+    }
+    return t;
+  }, [g, myTurn, ended, filter, pickMode, can, me]);
+
+  const say = useCallback((text) => setNudge({ text, key: Date.now() }), []);
+  useEffect(() => { if (!nudge) return; const t = setTimeout(() => setNudge(null), 4200); return () => clearTimeout(t); }, [nudge]);
 
   useEffect(() => { srSave(g); }, [g]);
   useEffect(() => {
@@ -1015,138 +1086,240 @@ export default function SheepRodeo() {
     else if (g.fx === "trade") sfx.chips(3);
     else if (g.fx === "win") { setWinKey((k) => k + 1); setTimeout(() => sfx.win(true), 200); }
   }, [g.fxSeq, g.fx]);
-  useEffect(() => { if (g.phase === "main" && g.trailsFree === 0 && mode === "trail" && me.trails.length && !srCanAfford(me, SR_COST.trail)) setMode(null); }, [g, mode, me]);
-  useEffect(() => { if (g.phase !== "main") { setMode(null); setPick({}); } }, [g.phase]);
-  useEffect(() => { if (g.phase === "over") setEndDismissed(false); }, [g.phase]);
+  useEffect(() => { setSel(null); if (g.phase !== "main") { setFilter(null); setPickMode(null); setPick({}); } }, [g.phase, g.turn]);
+  useEffect(() => { if (ended) setEndDismissed(false); }, [ended]);
+
+  /* first-time lessons, keyed to the moment they matter */
+  const teach = useCallback((key) => {
+    if (lessonsSeen.includes(key) || (lesson && lesson.key === key)) return;
+    setLesson({ key, ...SR_LESSONS[key] });
+  }, [lessonsSeen, lesson]);
+  useEffect(() => {
+    if (!myTurn && g.phase !== "discard" && g.phase !== "over") return;
+    if (g.phase === "setupCorral") teach(g.setupIdx < 4 ? "setup1" : "setup2");
+    else if (g.phase === "setupTrail") teach("setupTrail");
+    else if (g.phase === "roll") teach("roll");
+    else if (g.phase === "main") { if (me.dev.length) teach("card"); else if (coach.trade) teach("trade"); else teach("main"); }
+    else if (g.phase === "discard" || g.phase === "rustler") teach("seven");
+    else if (g.phase === "over") teach("over");
+  }, [g.phase, g.setupIdx, myTurn, me.dev.length, coach.trade, teach]);
+  const closeLesson = () => { if (!lesson) return; const seen = lessonsSeen.concat(lesson.key); setLessonsSeen(seen); srLessonsSave(seen); setLesson(null); };
 
   /* the ranchers across the table act one step at a time so you can watch */
   useEffect(() => {
-    if (g.phase === "over" || g.phase === "discard") return;
-    if (!g.players[g.turn].bot) return;
+    if (ended || g.phase === "discard" || !g.players[g.turn].bot) return;
     const t = setTimeout(() => setG((prev) => {
       if (prev.phase === "over" || prev.phase === "discard" || !prev.players[prev.turn].bot) return prev;
       return srBotStep(srClone(prev), rngRef.current);
     }), g.phase === "roll" ? 750 : g.phase.startsWith("setup") ? 450 : 520);
     return () => clearTimeout(t);
-  }, [g]);
+  }, [g, ended]);
 
   const act = useCallback((fn) => { setG((prev) => fn(srClone(prev))); }, []);
+
+  /* ---- taps on the board ---- */
   const onVert = (vid) => {
     sfx.click();
-    if (uiMode === "setupCorral") act((s) => srPlaceCorral(s, vid));
-    else if (uiMode === "corral") { act((s) => srBuildCorral(s, vid)); setMode(null); }
-    else if (uiMode === "ranch") { act((s) => srBuildRanch(s, vid)); setMode(null); }
+    if (g.phase === "setupCorral") { if (sel && sel.kind === "vert" && sel.id === vid) { act((s) => srPlaceCorral(s, vid)); setSel(null); } else setSel({ kind: "vert", id: vid }); return; }
+    if (!inMain) return;
+    if (targets.ranchVerts.has(vid)) { if (sel && sel.kind === "ranch" && sel.id === vid) { act((s) => srBuildRanch(s, vid)); setSel(null); setFilter(null); } else setSel({ kind: "ranch", id: vid }); return; }
+    if (targets.verts.has(vid)) { if (sel && sel.kind === "vert" && sel.id === vid) { act((s) => srBuildCorral(s, vid)); setSel(null); setFilter(null); } else setSel({ kind: "vert", id: vid }); }
   };
   const onEdge = (eid) => {
     sfx.click();
-    if (uiMode === "setupTrail") act((s) => srPlaceTrail(s, eid));
-    else if (uiMode === "trail") { act((s) => srBuildTrail(s, eid)); if (g.trailsFree <= 1) setMode(null); }
+    if (g.phase === "setupTrail") { act((s) => srPlaceTrail(s, eid)); return; }
+    if (inMain && targets.edges.has(eid)) { act((s) => srBuildTrail(s, eid)); if (g.trailsFree <= 1) setFilter(null); setSel(null); }
   };
   const onHex = (hid) => { sfx.click(); act((s) => srMoveRustler(s, hid, null, rngRef.current)); };
-  const newGame = () => { sfx.click(); setMode(null); setPick({}); setG(srNew(Math.random)); };
-
-  const can = {
-    trail: myTurn && g.phase === "main" && (g.trailsFree > 0 || srCanAfford(me, SR_COST.trail)) && me.trails.length < SR_MAX_TRAILS && srLegalTrails(g, 0).length > 0,
-    corral: myTurn && g.phase === "main" && srCanAfford(me, SR_COST.corral) && me.corrals.length < SR_MAX_CORRALS && srLegalCorrals(g, 0, false).length > 0,
-    ranch: myTurn && g.phase === "main" && srCanAfford(me, SR_COST.ranch) && me.corrals.length > 0 && me.ranches.length < SR_MAX_RANCHES,
-    card: myTurn && g.phase === "main" && srCanAfford(me, SR_COST.card) && g.deck.length > 0,
+  const onMiss = () => {                            // a tap on the board that hit nothing live
+    if (sel) { setSel(null); return; }
+    if (!myTurn) { say(`${g.players[g.turn].name} is on the move — your turn comes around in a moment.`); return; }
+    if (g.phase === "roll") { say("Roll the dice first."); return; }
+    if (inMain && !targets.verts.size && !targets.edges.size && !targets.ranchVerts.size) {
+      const t = srBotTarget(g, 0);
+      say(t ? `${why(t.kind)} Tap a good in your hand to see what it builds.` : "Nothing to build right now — end your turn.");
+    }
   };
+  const confirmSel = () => {
+    if (!sel) return;
+    sfx.click();
+    if (g.phase === "setupCorral") act((s) => srPlaceCorral(s, sel.id));
+    else if (sel.kind === "ranch") act((s) => srBuildRanch(s, sel.id));
+    else act((s) => srBuildCorral(s, sel.id));
+    setSel(null); setFilter(null);
+  };
+  /* ★ do exactly what the Coach would */
+  const coachDo = () => {
+    const t = coach.target;
+    sfx.click();
+    if (coach.trade && !t) { act((s) => srOfferTrade(s, coach.trade.give, coach.trade.get)); return; }
+    if (!t) return;
+    if (g.phase === "setupCorral") act((s) => srPlaceCorral(s, t.id));
+    else if (g.phase === "setupTrail") act((s) => srPlaceTrail(s, t.id));
+    else if (g.phase === "rustler") act((s) => srMoveRustler(s, t.id, null, rngRef.current));
+    else if (inMain) {
+      if (t.kind === "edge") act((s) => srBuildTrail(s, t.id));
+      else if (me.corrals.includes(t.id) && can.ranch && /ranch/i.test(coach.title)) act((s) => srBuildRanch(s, t.id));
+      else act((s) => srBuildCorral(s, t.id));
+    }
+    setSel(null); setFilter(null);
+  };
+  const coachCanDo = !ended && (
+    (g.phase === "setupCorral" || g.phase === "setupTrail" || g.phase === "rustler") && myTurn && coach.target
+    || (inMain && !pickMode && (coach.target || coach.trade)));
+
+  const newGame = () => { sfx.click(); setSel(null); setFilter(null); setPickMode(null); setPick({}); setG(srNew(Math.random)); };
   const pickCount = SR_RES.reduce((n, r) => n + (pick[r] || 0), 0);
   const tapRes = (r) => {
-    if (g.phase === "discard") { setPick((p) => ({ ...p, [r]: ((p[r] || 0) + 1) % (me.res[r] + 1) })); sfx.click(); return; }
-    if (mode === "bumper") { setPick((p) => ({ ...p, [r]: Math.min(2, (p[r] || 0) + 1) })); sfx.click(); return; }
-    if (mode === "roundup") { sfx.click(); act((s) => srPlayCard(s, "roundup", r)); setMode(null); return; }
-    if (mode === "trade") { setTrade((t) => ({ ...t, give: r })); sfx.click(); }
+    sfx.click();
+    if (g.phase === "discard") { setPick((p) => ({ ...p, [r]: ((p[r] || 0) + 1) % (me.res[r] + 1) })); return; }
+    if (pickMode === "bumper") { setPick((p) => ({ ...p, [r]: Math.min(2, (p[r] || 0) + 1) })); return; }
+    if (pickMode === "roundup") { act((s) => srPlayCard(s, "roundup", r)); setPickMode(null); return; }
+    if (pickMode === "trade") { if (me.res[r]) setTrade((t) => ({ ...t, give: r })); else say(`You have no ${SR_META[r].name.toLowerCase()} to give.`); return; }
+    const uses = { wool: "corrals and rodeo cards", lumber: "trails and corrals", clay: "trails and corrals", hay: "corrals, ranches (×2) and rodeo cards", iron: "ranches (×3) and rodeo cards" }[r];
+    say(`${SR_META[r].icon} ${SR_META[r].name} builds ${uses}. You hold ${me.res[r]}.`);
   };
   const playCard = (kind) => {
-    if (!myTurn || g.phase !== "main" || g.devPlayed) return;
+    if (!inMain) { say("Cards play on your turn, after the roll."); return; }
+    if (g.devPlayed) { say("One card per turn — you've played yours."); return; }
     sfx.click();
-    if (kind === "bumper") { setMode("bumper"); setPick({}); return; }
-    if (kind === "roundup") { setMode("roundup"); return; }
+    if (kind === "bumper") { setPickMode("bumper"); setPick({}); return; }
+    if (kind === "roundup") { setPickMode("roundup"); return; }
     act((s) => srPlayCard(s, kind));
   };
   const bumperPicks = SR_RES.flatMap((r) => Array(pick[r] || 0).fill(r));
+  const buildTap = (k) => {
+    sfx.click();
+    if (!can[k]) { say(why(k)); return; }
+    if (k === "card") { act((s) => srBuyCard(s)); return; }
+    setFilter(filter === k ? null : k); setSel(null);
+    say(k === "trail" ? "Tap a glowing side." : k === "corral" ? "Tap a glowing corner." : "Tap one of your corrals.");
+  };
 
-  const btn = (label, on, onClick, opts = {}) => (
-    <button key={label} onClick={onClick} disabled={!on} style={{ ...casGhost(), padding: "10px 6px", fontSize: 11, flex: 1, minWidth: 0, ...(opts.active ? { border: `1px solid ${CAS.gold}`, color: CAS.gold, background: CAS.goldFaint } : {}) }}>{label}</button>
+  /* ---- pieces of UI ---- */
+  const ghost = (label, onClick, opts = {}) => (
+    <button key={label} onClick={onClick} disabled={opts.off} style={{ ...casGhost(), padding: "12px 6px", fontSize: 11.5, flex: opts.flex || 1, minWidth: 0, whiteSpace: "nowrap", ...(opts.gold ? { border: `1px solid ${CAS.goldLine}`, color: CAS.gold, background: CAS.goldFaint } : {}) }}>{label}</button>
   );
-  const cost = (k) => Object.keys(SR_COST[k]).map((r) => (SR_COST[k][r] > 1 ? SR_COST[k][r] : "") + SR_META[r].icon).join(" ");
-  /* a build button: the name on top, its price underneath, never wrapping */
-  const buildBtn = (k, label, on, onClick) => (
-    <button key={k} onClick={onClick} disabled={!on} style={{ ...casGhost(), padding: "8px 4px 7px", flex: 1, minWidth: 0, display: "grid", gap: 3, justifyItems: "center", border: on ? `1px solid ${CAS.goldLine}` : `1px solid ${CAS.line}` }}>
-      <span style={{ fontSize: 11, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>{label}</span>
-      <span style={{ fontSize: 11.5, whiteSpace: "nowrap", opacity: 0.9 }}>{cost(k)}</span>
-    </button>
+  const star = (label = "★ COACH'S PICK") => (
+    <button key="star" onClick={coachDo} style={{ ...casGhost(), padding: "12px 8px", fontSize: 11.5, flex: 1, minWidth: 0, whiteSpace: "nowrap", border: `1px solid ${CAS.goldLine}`, color: CAS.gold, background: CAS.goldFaint }}>{label}</button>
   );
+  /* A build button teaches: the name, then the price with the goods you're
+   * still missing marked in amber. Never a dead grey box. */
+  const buildBtn = (k, label) => {
+    const on = can[k], active = filter === k, cost = SR_COST[k];
+    return (
+      <button key={k} onClick={() => buildTap(k)} aria-disabled={!on} style={{
+        ...casGhost(), padding: "7px 3px 6px", flex: 1, minWidth: 0, display: "grid", gap: 2, justifyItems: "center",
+        opacity: on ? 1 : 0.82, background: active ? CAS.goldFaint : on ? "rgba(245,197,66,0.06)" : "rgba(255,255,255,0.03)",
+        border: active ? `1px solid ${CAS.gold}` : on ? `1px solid ${CAS.goldLine}` : `1px solid ${CAS.line}`,
+      }}>
+        <span style={{ fontSize: 10.5, letterSpacing: "0.08em", whiteSpace: "nowrap", fontWeight: 800, color: active ? CAS.gold : on ? CAS.cream : CAS.dim }}>{label}</span>
+        <span style={{ fontSize: 12, whiteSpace: "nowrap", display: "flex", gap: 3, alignItems: "center" }}>
+          {Object.keys(cost).map((r) => {
+            const missing = Math.max(0, cost[r] - me.res[r]);
+            return (
+              <span key={r} style={{ position: "relative", opacity: missing ? 0.5 : 1 }}>
+                {cost[r] > 1 ? <span style={{ fontSize: 10, fontWeight: 800, color: on ? CAS.cream : CAS.dim }}>{cost[r]}</span> : null}{SR_META[r].icon}
+                {missing > 0 && <span style={{ position: "absolute", top: -6, right: -5, fontSize: 8.5, fontWeight: 900, color: "#14171d", background: CAS.gold, borderRadius: 999, padding: "0 3px", lineHeight: 1.5 }}>{missing}</span>}
+              </span>
+            );
+          })}
+        </span>
+      </button>
+    );
+  };
+  const hint = (text) => <div style={{ flex: 2, textAlign: "center", fontFamily: casMono, fontSize: 11, color: CAS.gold, padding: "12px 4px", letterSpacing: "0.04em" }}>{text}</div>;
 
+  /* the selection preview — the lesson in a box */
+  let preview = null;
+  if (sel && myTurn && !ended) {
+    if (sel.kind === "ranch") {
+      const y = srCornerYield(g, sel.id);
+      preview = { title: `Raise this corral to a ranch`, body: `${srFmtYield(y) || "no production here"} — ${y.pips} pips become ${y.pips * 2}: two cards every time one of its numbers rolls. Worth two points.`, cta: "RAISE A RANCH HERE" };
+    } else {
+      const y = srCornerYield(g, sel.id);
+      const best = coach.target && coach.target.kind === "vert" ? srCornerYield(g, coach.target.id) : null;
+      const mine = coach.target && coach.target.kind === "vert" && coach.target.id === sel.id;
+      preview = {
+        title: `This corner: ${y.pips} pips`,
+        body: `${srFmtYield(y) || "no production — a point, nothing more"}${y.pips ? ` · pays on ${y.ways} of 36 rolls (${Math.round((100 * y.ways) / 36)}%)` : ""}${y.port ? ` · ${y.port.kind === "any" ? "3:1" : "2:1 " + SR_META[y.port.kind].icon} trading post` : ""}. ${mine ? "This is the Coach's pick." : best ? `The Coach's pick has ${best.pips} pips${best.pips > y.pips ? " — " + (best.pips - y.pips) + " more" : best.pips < y.pips ? ", fewer, but it weighs variety and the goods you lack" : ""}.` : ""}`,
+        cta: g.phase === "setupCorral" ? "PLACE CORRAL HERE" : "BUILD CORRAL HERE",
+      };
+    }
+  }
+
+  /* the on-board banner: one line that says what to do */
+  const banner = ended ? (g.winner === 0 ? "YOU WON THE RANGE" : `${g.players[g.winner].name.toUpperCase()} WINS`)
+    : !myTurn && g.phase !== "discard" ? `${g.players[g.turn].name.split(" ")[0].toUpperCase()} IS ${g.phase.startsWith("setup") ? "SETTLING IN" : "ON THE MOVE"}…`
+    : g.phase === "setupCorral" ? (sel ? "TAP AGAIN OR CONFIRM BELOW" : `TAP A CORNER FOR YOUR ${g.setupIdx < 4 ? "FIRST" : "SECOND"} CORRAL`)
+    : g.phase === "setupTrail" ? "TAP A SIDE FOR ITS TRAIL"
+    : g.phase === "roll" ? "YOUR TURN · ROLL"
+    : g.phase === "discard" ? `A SEVEN · DISCARD ${g.discardNeed}`
+    : g.phase === "rustler" ? "TAP A HEX FOR THE RUSTLER 🐺"
+    : g.phase === "steal" ? "PICK WHO TO ROB"
+    : sel ? "TAP AGAIN OR CONFIRM BELOW"
+    : g.trailsFree > 0 ? `${g.trailsFree} FREE TRAIL${g.trailsFree > 1 ? "S" : ""} · TAP A SIDE`
+    : targets.verts.size || targets.edges.size || targets.ranchVerts.size ? "YOUR TURN · TAP THE BOARD TO BUILD" : "YOUR TURN · TRADE OR END";
+
+  /* the rail */
   let rail;
-  if (g.phase === "over") rail = <button onClick={newGame} style={{ ...casCta(false, true), width: "100%" }}>NEW GAME</button>;
-  else if (!myTurn && g.phase !== "discard") rail = <div style={{ textAlign: "center", fontFamily: casMono, fontSize: 11, color: CAS.dim, padding: 12 }}>{g.players[g.turn].name} is {g.phase.startsWith("setup") ? "settling in" : "on the move"}…</div>;
-  else if (g.phase === "setupCorral") rail = <div style={{ textAlign: "center", fontFamily: casMono, fontSize: 11, color: CAS.gold, padding: 12 }}>TAP A LIT CORNER FOR YOUR {g.setupIdx < 4 ? "FIRST" : "SECOND"} CORRAL</div>;
-  else if (g.phase === "setupTrail") rail = <div style={{ textAlign: "center", fontFamily: casMono, fontSize: 11, color: CAS.gold, padding: 12 }}>TAP A LIT SIDE FOR ITS TRAIL</div>;
+  if (ended) rail = <button onClick={newGame} style={{ ...casCta(false, true), width: "100%" }}>NEW GAME</button>;
+  else if (!myTurn && g.phase !== "discard") rail = <div style={{ textAlign: "center", fontFamily: casMono, fontSize: 11, color: CAS.dim, padding: 13 }}>{g.players[g.turn].name} is {g.phase.startsWith("setup") ? "settling in" : "on the move"}…</div>;
+  else if (preview) rail = <div style={{ display: "flex", gap: 8 }}>{ghost("CANCEL", () => { sfx.click(); setSel(null); })}<button onClick={confirmSel} style={{ ...casCta(false, true), flex: 2, padding: "13px 8px", fontSize: 13 }}>{preview.cta}</button></div>;
+  else if (g.phase === "setupCorral" || g.phase === "setupTrail" || g.phase === "rustler") rail = <div style={{ display: "flex", gap: 8 }}>{hint(g.phase === "setupCorral" ? "TAP ANY GLOWING CORNER" : g.phase === "setupTrail" ? "TAP A GLOWING SIDE" : "TAP A HEX")}{star()}</div>;
   else if (g.phase === "roll") rail = <button onClick={() => { act((s) => srRoll(s, rngRef.current)); }} style={{ ...casCta(false, true), width: "100%" }}>🎲 ROLL</button>;
   else if (g.phase === "discard") rail = <button onClick={() => { sfx.click(); act((s) => srDiscard(s, 0, pick)); setPick({}); }} disabled={pickCount !== g.discardNeed} style={{ ...casCta(pickCount !== g.discardNeed), width: "100%" }}>DISCARD {pickCount} / {g.discardNeed} — TAP CARDS ABOVE</button>;
-  else if (g.phase === "rustler") rail = <div style={{ textAlign: "center", fontFamily: casMono, fontSize: 11, color: CAS.gold, padding: 12 }}>TAP A HEX TO MOVE THE RUSTLER 🐺</div>;
   else if (g.phase === "steal") rail = (
     <div style={{ display: "flex", gap: 8 }}>
       {g.stealFrom.map((pid) => <button key={pid} onClick={() => { sfx.click(); act((s) => srPickVictim(s, pid, rngRef.current)); }} style={{ ...casCta(false), flex: 1, padding: "12px 6px", fontSize: 12 }}>ROB {g.players[pid].name.split(" ")[0].toUpperCase()} · {srCount(g.players[pid].res)} cards</button>)}
     </div>
   );
-  else if (mode === "trade") rail = (
+  else if (pickMode === "trade") rail = (
     <div style={{ display: "grid", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: casMono, fontSize: 11, color: CAS.dim, flexWrap: "wrap" }}>
         <span>GIVE {trade.give ? SR_META[trade.give].icon : "—"} (tap a card above) → GET</span>
-        {SR_RES.map((r) => <button key={r} onClick={() => { sfx.click(); setTrade((t) => ({ ...t, get: r })); }} disabled={r === trade.give} style={{ width: 36, height: 32, borderRadius: 8, border: `1px solid ${trade.get === r ? CAS.gold : CAS.line}`, background: trade.get === r ? CAS.goldFaint : "rgba(255,255,255,0.04)", fontSize: 16, cursor: "pointer" }}>{SR_META[r].icon}</button>)}
+        {SR_RES.map((r) => <button key={r} onClick={() => { sfx.click(); setTrade((t) => ({ ...t, get: r })); }} disabled={r === trade.give} style={{ width: 38, height: 34, borderRadius: 8, border: `1px solid ${trade.get === r ? CAS.gold : CAS.line}`, background: trade.get === r ? CAS.goldFaint : "rgba(255,255,255,0.04)", fontSize: 16, cursor: "pointer" }}>{SR_META[r].icon}</button>)}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        {btn("CANCEL", true, () => { sfx.click(); setMode(null); })}
-        {btn("ASK THE TABLE 1:1", !!trade.give && !!trade.get && trade.give !== trade.get && me.res[trade.give] >= 1, () => { act((s) => srOfferTrade(s, trade.give, trade.get)); })}
-        {btn(`BANK ${trade.give ? srRatio(g, 0, trade.give) : 4}:1`, !!trade.give && !!trade.get && trade.give !== trade.get && me.res[trade.give] >= srRatio(g, 0, trade.give) && g.bank[trade.get] > 0, () => { act((s) => srBankTrade(s, trade.give, trade.get)); })}
+        {ghost("CANCEL", () => { sfx.click(); setPickMode(null); })}
+        {ghost("ASK THE TABLE 1:1", () => { act((s) => srOfferTrade(s, trade.give, trade.get)); }, { off: !trade.give || !trade.get || trade.give === trade.get })}
+        {ghost(`BANK ${trade.give ? srRatio(g, 0, trade.give) : 4}:1`, () => { act((s) => srBankTrade(s, trade.give, trade.get)); }, { off: !trade.give || !trade.get || trade.give === trade.get || me.res[trade.give] < srRatio(g, 0, trade.give) || g.bank[trade.get] < 1 })}
       </div>
     </div>
   );
-  else if (mode === "bumper") rail = (
+  else if (pickMode === "bumper") rail = (
     <div style={{ display: "flex", gap: 8 }}>
-      {btn("CANCEL", true, () => { sfx.click(); setMode(null); setPick({}); })}
-      <button onClick={() => { sfx.click(); act((s) => srPlayCard(s, "bumper", bumperPicks)); setMode(null); setPick({}); }} disabled={bumperPicks.length !== 2} style={{ ...casCta(bumperPicks.length !== 2), flex: 2, padding: "12px 6px", fontSize: 12 }}>TAKE {bumperPicks.map((r) => SR_META[r].icon).join(" ") || "TWO GOODS — TAP CARDS ABOVE"}</button>
+      {ghost("CANCEL", () => { sfx.click(); setPickMode(null); setPick({}); })}
+      <button onClick={() => { sfx.click(); act((s) => srPlayCard(s, "bumper", bumperPicks)); setPickMode(null); setPick({}); }} disabled={bumperPicks.length !== 2} style={{ ...casCta(bumperPicks.length !== 2), flex: 2, padding: "12px 6px", fontSize: 12 }}>TAKE {bumperPicks.map((r) => SR_META[r].icon).join(" ") || "TWO GOODS — TAP CARDS ABOVE"}</button>
     </div>
   );
-  else if (mode === "roundup") rail = <div style={{ display: "flex", gap: 8 }}>{btn("CANCEL", true, () => { sfx.click(); setMode(null); })}<div style={{ flex: 2, textAlign: "center", fontFamily: casMono, fontSize: 11, color: CAS.gold, padding: 10 }}>TAP THE GOOD TO ROUND UP</div></div>;
-  else if (mode === "trail" || mode === "corral" || mode === "ranch") rail = (
-    <div style={{ display: "flex", gap: 8 }}>
-      {btn("CANCEL", g.trailsFree === 0, () => { sfx.click(); setMode(null); })}
-      <div style={{ flex: 2, textAlign: "center", fontFamily: casMono, fontSize: 11, color: CAS.gold, padding: 10 }}>{mode === "trail" ? `TAP A LIT SIDE${g.trailsFree ? ` · ${g.trailsFree} FREE` : ""}` : mode === "corral" ? "TAP A LIT CORNER" : "TAP ONE OF YOUR CORRALS"}</div>
-    </div>
-  );
+  else if (pickMode === "roundup") rail = <div style={{ display: "flex", gap: 8 }}>{ghost("CANCEL", () => { sfx.click(); setPickMode(null); })}{hint("TAP THE GOOD TO ROUND UP")}</div>;
   else rail = (
     <div style={{ display: "grid", gap: 8 }}>
       <div style={{ display: "flex", gap: 6 }}>
-        {buildBtn("trail", "TRAIL", can.trail, () => { sfx.click(); setMode("trail"); })}
-        {buildBtn("corral", "CORRAL", can.corral, () => { sfx.click(); setMode("corral"); })}
-        {buildBtn("ranch", "RANCH", can.ranch, () => { sfx.click(); setMode("ranch"); })}
-        {buildBtn("card", "CARD", can.card, () => { sfx.click(); act((s) => srBuyCard(s)); })}
+        {buildBtn("trail", "TRAIL")}{buildBtn("corral", "CORRAL")}{buildBtn("ranch", "RANCH")}{buildBtn("card", "CARD")}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        {btn("TRADE", srCount(me.res) > 0, () => { sfx.click(); setTrade({ give: null, get: null }); setMode("trade"); })}
-        <button onClick={() => { sfx.click(); act((s) => srEndTurn(s)); }} style={{ ...casCta(false, !can.trail && !can.corral && !can.ranch && !can.card), flex: 2, padding: "12px 8px", fontSize: 13 }}>END TURN</button>
+        {ghost("TRADE", () => { sfx.click(); if (!srCount(me.res)) { say("Nothing in hand to trade yet."); return; } setTrade({ give: null, get: null }); setPickMode("trade"); setSel(null); })}
+        {coachCanDo && star(coach.trade && !coach.target ? "★ TRADE AS COACHED" : "★ COACH'S PICK")}
+        <button onClick={() => { sfx.click(); act((s) => srEndTurn(s)); }} style={{ ...casCta(false, !can.trail && !can.corral && !can.ranch && !can.card), flex: coachCanDo ? 1.3 : 2, padding: "12px 8px", fontSize: 13, whiteSpace: "nowrap" }}>END TURN</button>
       </div>
     </div>
   );
 
-  const ended = g.phase === "over";
   return (
     <div style={{ minHeight: "var(--vh)", background: CAS.bg, color: CAS.text, fontFamily: casSans, position: "relative" }}>
       <style>{CAS_CSS}</style>
       <SrHeader vp={srVP(g, 0)} onHelp={() => { sfx.click(); setGuideOpen(true); }} />
       <Guide game="sheep" title="SHEEP RODEO" steps={SR_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
-      <div style={{ maxWidth: 600, margin: "0 auto", padding: "10px 10px 240px" }}>
+      <div style={{ maxWidth: 620, margin: "0 auto", padding: "10px 10px 270px" }}>
         {/* the table */}
         <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
           {g.players.map((p) => {
-            const cur = g.turn === p.id;
+            const cur = g.turn === p.id && !ended;
             return (
-              <div key={p.id} style={{ flex: 1, minWidth: 0, borderRadius: 10, padding: "6px 7px", background: cur ? "rgba(245,197,66,0.08)" : CAS.panel, border: `1px solid ${cur ? CAS.goldLine : CAS.line}` }}>
+              <div key={p.id} style={{ flex: 1, minWidth: 0, borderRadius: 10, padding: "6px 7px", background: cur ? "rgba(245,197,66,0.1)" : CAS.panel, border: `1px solid ${cur ? CAS.gold : CAS.line}`, boxShadow: cur ? `0 0 14px ${CAS.goldFaint}` : "none", transition: "all 200ms ease" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
                   <span style={{ width: 9, height: 9, borderRadius: 3, background: p.color, flex: "0 0 auto" }} />
                   <span style={{ fontSize: 10.5, fontWeight: 800, color: cur ? CAS.cream : CAS.dim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name.split(" ")[0]}</span>
@@ -1162,30 +1335,59 @@ export default function SheepRodeo() {
           })}
         </div>
 
-        <div style={{ ...feltPanel("8px 4px"), position: "relative" }}>
+        <div style={{ ...feltPanel("30px 2px 6px"), position: "relative", background: "radial-gradient(90% 80% at 50% 8%, #105434, #07351f 60%, #03150d 100%) padding-box, linear-gradient(180deg, #6b4f2c, #3a2a18) border-box" }}>
           <Burst fireKey={winKey} count={22} />
           <Sparkles fireKey={winKey} count={16} />
-          <SrBoard g={g} mode={uiMode} coach={coach} onVert={onVert} onEdge={onEdge} onHex={onHex} />
+          <div style={{ position: "absolute", top: 8, left: 10, right: g.dice ? 96 : 10, zIndex: 2, pointerEvents: "none" }}>
+            <span key={banner} style={{ display: "inline-block", maxWidth: "100%", fontFamily: casMono, fontSize: 10, letterSpacing: "0.14em", fontWeight: 700, color: myTurn && !ended ? CAS.gold : CAS.dim, background: "rgba(5,7,10,0.72)", border: `1px solid ${myTurn && !ended ? CAS.goldLine : CAS.line}`, borderRadius: 999, padding: "5px 11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", animation: "casPop 220ms ease both" }}>{banner}</span>
+          </div>
+          <SrBoard g={g} targets={targets} sel={sel} coach={coach} onVert={onVert} onEdge={onEdge} onHex={onHex} onMiss={onMiss} />
           {g.dice && (
-            <div key={g.dice.join("") + g.turn + g.round} style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 5, alignItems: "center" }}>
+            <div key={g.dice.join("") + g.turn + g.round} style={{ position: "absolute", top: 6, right: 8, display: "flex", gap: 4, alignItems: "center", zIndex: 2 }}>
               <SrDie n={g.dice[0]} /><SrDie n={g.dice[1]} />
-              <span style={{ fontFamily: casMono, fontSize: 9.5, color: CAS.cream, background: "rgba(0,0,0,0.5)", borderRadius: 6, padding: "3px 6px" }}>{SR_WAYS[g.dice[0] + g.dice[1]]}/36</span>
+              <span style={{ fontFamily: casMono, fontSize: 9.5, color: CAS.cream, background: "rgba(0,0,0,0.5)", borderRadius: 6, padding: "3px 5px" }}>{SR_WAYS[g.dice[0] + g.dice[1]]}/36</span>
+            </div>
+          )}
+          {nudge && (
+            <div key={nudge.key} style={{ position: "absolute", left: 10, right: 10, bottom: 10, zIndex: 3, pointerEvents: "none", display: "flex", justifyContent: "center" }}>
+              <span style={{ fontFamily: casSans, fontSize: 12.5, fontWeight: 700, color: CAS.cream, background: "rgba(5,7,10,0.88)", border: `1px solid ${CAS.goldLine}`, borderRadius: 12, padding: "9px 13px", textAlign: "center", lineHeight: 1.45, animation: "casPop 200ms ease both", boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>{nudge.text}</span>
             </div>
           )}
         </div>
 
-        {/* your hand */}
+        {/* a first-time lesson */}
+        {lesson && (
+          <div style={{ marginTop: 10, borderRadius: 14, border: "1px solid rgba(0,230,118,0.35)", background: "linear-gradient(180deg, rgba(0,230,118,0.09), rgba(16,20,26,0.95))", padding: "11px 14px", animation: "casPop 220ms ease both" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontFamily: casMono, fontSize: 9.5, letterSpacing: "0.2em", color: CAS.green, fontWeight: 700 }}>LESSON</span>
+              <span style={{ fontSize: 14.5, fontWeight: 900, color: CAS.cream }}>{lesson.h}</span>
+              <button onClick={closeLesson} aria-label="Close lesson" style={{ marginLeft: "auto", width: 28, height: 28, borderRadius: 8, border: `1px solid ${CAS.line}`, background: "rgba(255,255,255,0.03)", color: CAS.dim, cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ fontSize: 12.5, lineHeight: 1.6, color: CAS.dim, marginTop: 5 }}>{lesson.p}</div>
+            {lesson.table && <div style={{ fontFamily: casMono, fontSize: 10.5, color: CAS.faint, marginTop: 6 }}>{lesson.table}</div>}
+            <button onClick={() => { sfx.click(); closeLesson(); }} style={{ ...casGhost(), marginTop: 9, padding: "9px 12px", fontSize: 11, border: "1px solid rgba(0,230,118,0.35)", color: CAS.green }}>GOT IT</button>
+          </div>
+        )}
+
+        {/* the preview: what the tapped corner is worth */}
+        {preview && (
+          <div style={{ marginTop: 10, borderRadius: 14, border: `1px solid ${CAS.gold}`, background: "linear-gradient(180deg, rgba(245,197,66,0.14), rgba(16,20,26,0.95))", padding: "11px 14px", animation: "casPop 200ms ease both" }}>
+            <div style={{ fontSize: 15, fontWeight: 900, color: CAS.cream }}>{preview.title}</div>
+            <div style={{ fontSize: 12.5, lineHeight: 1.6, color: CAS.dim, marginTop: 3 }}>{preview.body}</div>
+          </div>
+        )}
+
+        {/* your hand — always tappable, always answers */}
         <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
           {SR_RES.map((r) => {
             const n = me.res[r], selected = pick[r] || 0;
-            const tappable = g.phase === "discard" || mode === "bumper" || mode === "roundup" || mode === "trade";
-            const isGive = mode === "trade" && trade.give === r;
+            const isGive = pickMode === "trade" && trade.give === r;
             return (
-              <button key={r} onClick={() => tapRes(r)} disabled={!tappable || (g.phase === "discard" && !n) || (mode === "trade" && !n)} style={{
-                flex: 1, minWidth: 0, borderRadius: 12, padding: "8px 4px 6px", cursor: tappable ? "pointer" : "default",
-                background: `linear-gradient(180deg, ${SR_META[r].fill}, ${SR_META[r].fill}cc)`, color: SR_META[r].ink,
+              <button key={r} onClick={() => tapRes(r)} style={{
+                flex: 1, minWidth: 0, borderRadius: 12, padding: "8px 4px 6px", cursor: "pointer",
+                background: `linear-gradient(180deg, ${SR_META[r].hi}, ${SR_META[r].fill} 55%, ${SR_META[r].lo})`, color: SR_META[r].ink,
                 border: selected || isGive ? `2px solid ${CAS.gold}` : "1px solid rgba(0,0,0,0.4)", boxShadow: selected || isGive ? `0 0 14px ${CAS.goldFaint}` : "0 4px 10px rgba(0,0,0,0.45)",
-                opacity: tappable || n ? 1 : 0.55, transform: selected || isGive ? "translateY(-4px)" : "none", transition: "transform 120ms ease", position: "relative",
+                opacity: n ? 1 : 0.5, transform: selected || isGive ? "translateY(-4px)" : "none", transition: "transform 120ms ease", position: "relative",
               }}>
                 <div style={{ fontSize: 20, lineHeight: 1 }}>{SR_META[r].icon}</div>
                 <div style={{ fontSize: 17, fontWeight: 900, fontVariantNumeric: "tabular-nums", marginTop: 3 }}>{n}</div>
@@ -1198,12 +1400,12 @@ export default function SheepRodeo() {
         {(me.dev.length > 0 || me.devNew.length > 0 || me.ribbons > 0) && (
           <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
             {me.dev.map((k, i) => (
-              <button key={"d" + i} onClick={() => playCard(k)} disabled={!myTurn || g.phase !== "main" || g.devPlayed || (mode && mode !== "trade")} title={SR_CARD[k].text} style={{ ...casGhost(), padding: "7px 10px", fontSize: 11, border: `1px solid ${CAS.goldLine}` }}>{SR_CARD[k].icon} {SR_CARD[k].name.toUpperCase()}</button>
+              <button key={"d" + i} onClick={() => playCard(k)} title={SR_CARD[k].text} style={{ ...casGhost(), padding: "8px 11px", fontSize: 11, border: `1px solid ${CAS.goldLine}`, opacity: inMain && !g.devPlayed ? 1 : 0.55 }}>{SR_CARD[k].icon} {SR_CARD[k].name.toUpperCase()}</button>
             ))}
             {me.devNew.map((k, i) => (
-              <span key={"n" + i} title="Bought this turn — playable next turn" style={{ ...casGhost(), padding: "7px 10px", fontSize: 11, opacity: 0.5 }}>{SR_CARD[k].icon} {SR_CARD[k].name.toUpperCase()} · NEXT TURN</span>
+              <button key={"n" + i} onClick={() => say(`${SR_CARD[k].name}: ${SR_CARD[k].text} Bought this turn — playable from your next turn.`)} style={{ ...casGhost(), padding: "8px 11px", fontSize: 11, opacity: 0.5 }}>{SR_CARD[k].icon} {SR_CARD[k].name.toUpperCase()} · NEXT TURN</button>
             ))}
-            {me.ribbons > 0 && <span style={{ ...casGhost(), padding: "7px 10px", fontSize: 11, color: CAS.gold, border: `1px solid ${CAS.goldLine}` }}>🎀 ×{me.ribbons} · +{me.ribbons} PT</span>}
+            {me.ribbons > 0 && <button onClick={() => say(`${me.ribbons} blue ribbon${me.ribbons > 1 ? "s" : ""}: ${me.ribbons} point${me.ribbons > 1 ? "s" : ""} you already own, counted in your score.`)} style={{ ...casGhost(), padding: "8px 11px", fontSize: 11, color: CAS.gold, border: `1px solid ${CAS.goldLine}` }}>🎀 ×{me.ribbons} · +{me.ribbons} PT</button>}
           </div>
         )}
 
@@ -1216,10 +1418,10 @@ export default function SheepRodeo() {
             <div style={{ padding: "0 14px 12px" }}>
               <div style={{ fontSize: 15.5, fontWeight: 900, color: CAS.cream }}>{coach.title}</div>
               <div style={{ fontSize: 12.5, lineHeight: 1.6, color: CAS.dim, marginTop: 4 }}>{coach.why}</div>
-              {coach.trade && myTurn && g.phase === "main" && !mode && (
+              {coach.trade && inMain && !pickMode && (
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                  {btn(`ASK THE TABLE · ${SR_META[coach.trade.give].icon}→${SR_META[coach.trade.get].icon}`, true, () => { sfx.click(); act((s) => srOfferTrade(s, coach.trade.give, coach.trade.get)); })}
-                  {btn(`BANK ${coach.trade.ratio}:1`, true, () => { sfx.click(); act((s) => srBankTrade(s, coach.trade.give, coach.trade.get)); })}
+                  {ghost(`ASK THE TABLE · ${SR_META[coach.trade.give].icon}→${SR_META[coach.trade.get].icon}`, () => { sfx.click(); act((s) => srOfferTrade(s, coach.trade.give, coach.trade.get)); })}
+                  {ghost(`BANK ${coach.trade.ratio}:1`, () => { sfx.click(); act((s) => srBankTrade(s, coach.trade.give, coach.trade.get)); })}
                 </div>
               )}
             </div>
@@ -1235,16 +1437,17 @@ export default function SheepRodeo() {
           <MathNote>
             <div><b style={{ color: CAS.cream }}>Two dice, 36 outcomes.</b> Ways to roll: 2→1, 3→2, 4→3, 5→4, 6→5, 7→6, 8→5, 9→4, 10→3, 11→2, 12→1. The dots under each number token are exactly these. P(7) = 6/36 = 16.7%; P(6 or 8) = 10/36 = 27.8%.</div>
             <div style={{ marginTop: 6 }}><b style={{ color: CAS.cream }}>A corner's value</b> = the sum of its hexes' pips; the Coach adds small bonuses for variety, for goods you lack, and for trading posts — and the three ranchers use the identical function. Expected cards per roll = Σ pips/36 (×2 for a ranch).</div>
-            <div style={{ marginTop: 6 }}><b style={{ color: CAS.cream }}>The range</b>: 19 hexes (4 wool, 3 lumber, 3 clay, 4 hay, 3 iron, 2 dust bowls), 17 tokens 2–12 without 7, 6 and 8 never adjacent, 7 trading posts (3 at 3:1, one 2:1 each for lumber, clay, hay, iron), a bank of {SR_BANK_EACH} of each good — if a roll asks for more than the bank holds and two ranchers want it, nobody gets it. Wool is money: {SR_WOOL_RATE} wool buy any one good, always. Deck of {SR_DECK.length}: {SR_DECK_MIX.wrangler} wranglers, {SR_DECK_MIX.ribbon} ribbons, 2 trail blazing, 2 bumper crop, 2 roundup. Hand limit {SR_HAND_LIMIT}. Longest Trail from {SR_LONGEST_MIN} sides; Largest Posse from {SR_POSSE_MIN} wranglers; {SR_WIN} points wins, on your own turn. Pieces: {SR_MAX_TRAILS} trails, {SR_MAX_CORRALS} corrals, {SR_MAX_RANCHES} ranches.</div>
+            <div style={{ marginTop: 6 }}><b style={{ color: CAS.cream }}>The range</b>: 19 hexes (4 wool, 4 lumber, 4 hay, 3 clay, 3 iron, 1 dust bowl), 18 tokens 2–12 without 7, 6 and 8 never adjacent, 9 trading posts (4 at 3:1, one 2:1 per good), a bank of {SR_BANK_EACH} of each good — if a roll asks for more than the bank holds and two ranchers want it, nobody gets it. Deck of {SR_DECK.length}: {SR_DECK_MIX.wrangler} wranglers, {SR_DECK_MIX.ribbon} ribbons, 2 trail blazing, 2 bumper crop, 2 roundup. Hand limit {SR_HAND_LIMIT}. Longest Trail from {SR_LONGEST_MIN} sides; Largest Posse from {SR_POSSE_MIN} wranglers; {SR_WIN} points wins, on your own turn. Pieces: {SR_MAX_TRAILS} trails, {SR_MAX_CORRALS} corrals, {SR_MAX_RANCHES} ranches. These are the standard rules of the hex-and-dice settlement family, so what you learn here is what you'll play at a real table.</div>
             <div style={{ marginTop: 6 }}>No wager, no wallet: this is the study table. The ranchers are fictional.</div>
-            <div style={{ marginTop: 6, color: CAS.faint }}>Sheep Rodeo is an original game — its own rules, names, text, and art. It is not affiliated with, endorsed by, or connected to any other game or publisher.</div>
+            <div style={{ marginTop: 6, color: CAS.faint }}>Sheep Rodeo is an original production — its own name, text, characters, and art. It is not affiliated with, endorsed by, or connected to any other game or publisher.</div>
+            <button onClick={() => { sfx.click(); setLessonsSeen([]); srLessonsSave([]); setLesson(null); say("Lessons reset — they'll show again as you play."); }} style={{ ...casGhost(), marginTop: 8, padding: "8px 12px", fontSize: 10.5 }}>SHOW THE LESSONS AGAIN</button>
           </MathNote>
         </div>
       </div>
 
       {/* the rail */}
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, padding: "22px 12px calc(10px + env(safe-area-inset-bottom))", background: "linear-gradient(180deg, rgba(10,12,16,0), rgba(10,12,16,0.97) 16px, #0a0c10 30px)" }}>
-        <div style={{ maxWidth: 600, margin: "0 auto" }}>{rail}</div>
+        <div style={{ maxWidth: 620, margin: "0 auto" }}>{rail}</div>
       </div>
 
       {/* the finish */}
