@@ -1120,7 +1120,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.20.2";
+const APP_VERSION = "0.20.3";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -2666,9 +2666,8 @@ function MrBoard({ g, sel, buildable, onSquare, heat, focus }) {
                 React.createElement("rect", { x: x, y: y, width: 1, height: 1, rx: 0.07, fill: heat ? `rgba(245,197,66,${0.06 + 0.55 * hot})` : "#12181f", stroke: isSel ? CAS.gold : canB ? CAS.goldDim : "rgba(255,255,255,0.14)", strokeWidth: isSel ? 0.07 : canB ? 0.05 : 0.02 }),
                 grp && (React.createElement("rect", { x: side === "left" ? x + 0.78 : side === "right" ? x : x + 0.02, y: side === "top" ? y + 0.78 : side === "bottom" ? y : y + 0.02, width: side === "left" || side === "right" ? 0.28 : 0.96, height: side === "left" || side === "right" ? 0.96 : 0.28, fill: grp.color, rx: 0.03 })),
                 own != null && React.createElement("rect", { x: x + 0.06, y: y + 0.06, width: 0.88, height: 0.88, rx: 0.05, fill: g.players[own].color, opacity: g.mortgaged[i] ? 0.13 : 0.3, stroke: g.players[own].color, strokeWidth: 0.035 }),
-                React.createElement("text", { x: x + 0.5, y: y + (cell.t === "prop" ? 0.46 : 0.58), textAnchor: "middle", fontSize: 0.3, pointerEvents: "none" }, cell.t === "go" ? "🏦" : cell.t === "jail" ? "🔒" : cell.t === "gotojail" ? "🚨" : cell.t === "parking" ? "⛰️" : cell.t === "station" ? "🚂" : cell.t === "utility" ? "💡" : cell.t === "tax" ? "🧾" : cell.t === "card" ? (cell.deck === "wildcard" ? "❓" : "🧰") : ""),
-                (cell.price || cell.amount) && (React.createElement("text", { x: x + 0.5, y: y + (cell.t === "prop" ? 0.52 : 0.85), textAnchor: "middle", fontSize: 0.23, fontWeight: 900, fontFamily: casSans, fill: CAS.cream, pointerEvents: "none" }, cell.t === "tax" ? "−" + cell.amount : cell.price)),
-                cell.t === "prop" && React.createElement("text", { x: x + 0.5, y: y + 0.75, textAnchor: "middle", fontSize: 0.185, fontFamily: casMono, fill: heat ? "#fff" : CAS.goldDim, pointerEvents: "none" }, (100 * land[i]).toFixed(1)),
+                React.createElement("text", { x: x + 0.5, y: y + (cell.t === "prop" ? 0.42 : 0.6), textAnchor: "middle", fontSize: 0.33, pointerEvents: "none" }, cell.t === "go" ? "🏦" : cell.t === "jail" ? "🔒" : cell.t === "gotojail" ? "🚨" : cell.t === "parking" ? "⛰️" : cell.t === "station" ? "🚂" : cell.t === "utility" ? "💡" : cell.t === "tax" ? "🧾" : cell.t === "card" ? (cell.deck === "wildcard" ? "❓" : "🧰") : ""),
+                (cell.price || cell.amount) && (React.createElement("text", { x: x + 0.5, y: y + (cell.t === "prop" ? 0.62 : 0.88), textAnchor: "middle", fontSize: 0.3, fontWeight: 900, fontFamily: casSans, fill: CAS.cream, pointerEvents: "none" }, cell.t === "tax" ? "−" + cell.amount : cell.price)),
                 hs > 0 && (React.createElement("g", { pointerEvents: "none" }, hs === MR_MAX_HOUSES
                     ? React.createElement("rect", { x: x + 0.34, y: y + 0.76, width: 0.32, height: 0.15, fill: "#e2453c", stroke: "#0a0c10", strokeWidth: 0.02, rx: 0.02 })
                     : Array.from({ length: hs }, (_, k) => React.createElement("rect", { key: k, x: x + 0.13 + k * 0.2, y: y + 0.78, width: 0.14, height: 0.12, fill: "#3fb765", stroke: "#0a0c10", strokeWidth: 0.02, rx: 0.02 })))),
@@ -2713,7 +2712,7 @@ function MrBoard({ g, sel, buildable, onSquare, heat, focus }) {
             React.createElement("text", { x: 5.5, y: 8.4, textAnchor: "middle", fontFamily: casMono, fontSize: 0.26, fill: CAS.faint, opacity: 0.75 }, "TAP ANOTHER SQUARE TO COMPARE"))) : (React.createElement("g", { pointerEvents: "none" },
             React.createElement("text", { x: 5.5, y: 4.9, textAnchor: "middle", fontFamily: casSans, fontSize: 0.7, fontWeight: 900, fill: CAS.cream, opacity: 0.25, letterSpacing: "0.1" }, "MOGUL ROW"),
             React.createElement("text", { x: 5.5, y: 5.75, textAnchor: "middle", fontFamily: casMono, fontSize: 0.32, fill: CAS.gold, opacity: 0.6 }, "EVERY SQUARE WEARS ITS TRUE ODDS"),
-            React.createElement("text", { x: 5.5, y: 6.5, textAnchor: "middle", fontFamily: casMono, fontSize: 0.3, fill: CAS.dim, opacity: 0.7 }, heat ? "BRIGHTER = LANDED ON MORE" : "TAP ANY SQUARE TO READ IT")))));
+            React.createElement("text", { x: 5.5, y: 6.5, textAnchor: "middle", fontFamily: casMono, fontSize: 0.3, fill: CAS.dim, opacity: 0.7 }, heat ? "BRIGHTER = MORE ARRIVALS" : "TAP ANY SQUARE TO READ IT")))));
 }
 function MrDie({ n }) {
     const dots = { 1: [[1, 1]], 2: [[0, 0], [2, 2]], 3: [[0, 0], [1, 1], [2, 2]], 4: [[0, 0], [0, 2], [2, 0], [2, 2]], 5: [[0, 0], [0, 2], [1, 1], [2, 0], [2, 2]], 6: [[0, 0], [0, 1], [0, 2], [2, 0], [2, 1], [2, 2]] }[n] || [];

@@ -707,3 +707,24 @@ always see where you are standing.
 RULE LEARNED: verify on a real phone viewport with REAL touch events,
 never force:true. A forced click ignores hit-testing and visibility,
 which is exactly the class of bug both of these were.
+
+### Final legibility pass and the measurement that was lying (v0.20.3)
+
+A 28-run sweep (14 pages × two phone viewports) found no page errors, no
+horizontal overflow, and no empty renders. It did flag small text on the
+two board games — but the detector itself was wrong: getComputedStyle on
+an SVG <text> returns the font-size in USER UNITS, not screen pixels, so
+"0.2px" was meaningless. Measuring properly (multiply by
+svgWidth / viewBox.width) showed Mogul Row's prices at 7.6px and its
+landing percentages at 6.1px on a Pixel — genuinely unreadable, and
+exactly what the founder reported.
+
+Fixed by removing information rather than shrinking it: a 35px square
+fits one readable line, so the price stays on the square at 9.4px and
+the landing share lives in the centre readout and the heat map, where it
+can be read. Sheep Rodeo's trading-post labels went 7.6px → 9.1px.
+Smallest text on either board is now 8.5px.
+
+MEASUREMENT RULE: when checking rendered text size inside an SVG, always
+scale by svgWidth / viewBox.width. A raw computed font-size is in user
+units and will happily tell you a 6px label is fine.

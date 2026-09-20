@@ -824,15 +824,18 @@ function MrBoard({ g, sel, buildable, onSquare, heat, focus }) {
                 width={side === "left" || side === "right" ? 0.28 : 0.96} height={side === "left" || side === "right" ? 0.96 : 0.28} fill={grp.color} rx={0.03} />
             )}
             {own != null && <rect x={x + 0.06} y={y + 0.06} width={0.88} height={0.88} rx={0.05} fill={g.players[own].color} opacity={g.mortgaged[i] ? 0.13 : 0.3} stroke={g.players[own].color} strokeWidth={0.035} />}
-            <text x={x + 0.5} y={y + (cell.t === "prop" ? 0.46 : 0.58)} textAnchor="middle" fontSize={0.3} pointerEvents="none">
+            <text x={x + 0.5} y={y + (cell.t === "prop" ? 0.42 : 0.6)} textAnchor="middle" fontSize={0.33} pointerEvents="none">
               {cell.t === "go" ? "🏦" : cell.t === "jail" ? "🔒" : cell.t === "gotojail" ? "🚨" : cell.t === "parking" ? "⛰️" : cell.t === "station" ? "🚂" : cell.t === "utility" ? "💡" : cell.t === "tax" ? "🧾" : cell.t === "card" ? (cell.deck === "wildcard" ? "❓" : "🧰") : ""}
             </text>
+            {/* ONE readable line per square. At phone width a square is ~35px,
+                which fits about four characters at 10px and nothing else — so
+                the price lives here and the landing share lives in the centre
+                readout and in the heat map, where it can be read. */}
             {(cell.price || cell.amount) && (
-              <text x={x + 0.5} y={y + (cell.t === "prop" ? 0.52 : 0.85)} textAnchor="middle" fontSize={0.23} fontWeight={900} fontFamily={casSans} fill={CAS.cream} pointerEvents="none">
+              <text x={x + 0.5} y={y + (cell.t === "prop" ? 0.62 : 0.88)} textAnchor="middle" fontSize={0.3} fontWeight={900} fontFamily={casSans} fill={CAS.cream} pointerEvents="none">
                 {cell.t === "tax" ? "−" + cell.amount : cell.price}
               </text>
             )}
-            {cell.t === "prop" && <text x={x + 0.5} y={y + 0.75} textAnchor="middle" fontSize={0.185} fontFamily={casMono} fill={heat ? "#fff" : CAS.goldDim} pointerEvents="none">{(100 * land[i]).toFixed(1)}</text>}
             {hs > 0 && (
               <g pointerEvents="none">
                 {hs === MR_MAX_HOUSES
@@ -876,7 +879,7 @@ function MrBoard({ g, sel, buildable, onSquare, heat, focus }) {
         <g pointerEvents="none">
           <text x={5.5} y={4.9} textAnchor="middle" fontFamily={casSans} fontSize={0.7} fontWeight={900} fill={CAS.cream} opacity={0.25} letterSpacing="0.1">MOGUL ROW</text>
           <text x={5.5} y={5.75} textAnchor="middle" fontFamily={casMono} fontSize={0.32} fill={CAS.gold} opacity={0.6}>EVERY SQUARE WEARS ITS TRUE ODDS</text>
-          <text x={5.5} y={6.5} textAnchor="middle" fontFamily={casMono} fontSize={0.3} fill={CAS.dim} opacity={0.7}>{heat ? "BRIGHTER = LANDED ON MORE" : "TAP ANY SQUARE TO READ IT"}</text>
+          <text x={5.5} y={6.5} textAnchor="middle" fontFamily={casMono} fontSize={0.3} fill={CAS.dim} opacity={0.7}>{heat ? "BRIGHTER = MORE ARRIVALS" : "TAP ANY SQUARE TO READ IT"}</text>
         </g>
       )}
     </svg>

@@ -1120,7 +1120,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.20.2";
+const APP_VERSION = "0.20.3";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -2817,9 +2817,9 @@ function SrBoard({ g, targets, sel, coach, onVert, onEdge, onHex, onMiss }) {
             return (React.createElement("g", { key: pt.edge, pointerEvents: "none" },
                 React.createElement("line", { x1: a.x, y1: a.y, x2: mx + ox, y2: my + oy, stroke: "rgba(244,239,228,0.35)", strokeWidth: 0.04 }),
                 React.createElement("line", { x1: b.x, y1: b.y, x2: mx + ox, y2: my + oy, stroke: "rgba(244,239,228,0.35)", strokeWidth: 0.04 }),
-                React.createElement("circle", { cx: mx + ox, cy: my + oy, r: 0.29, fill: "#1a2230", stroke: "rgba(244,239,228,0.4)", strokeWidth: 0.03 }),
-                React.createElement("text", { x: mx + ox, y: my + oy + 0.02, textAnchor: "middle", fontSize: 0.2, fontWeight: 900, fontFamily: casMono, fill: CAS.cream }, pt.kind === "any" ? "3:1" : "2:1"),
-                React.createElement("text", { x: mx + ox, y: my + oy + 0.24, textAnchor: "middle", fontSize: 0.2 }, pt.kind === "any" ? "?" : SR_META[pt.kind].icon)));
+                React.createElement("circle", { cx: mx + ox, cy: my + oy, r: 0.34, fill: "#1a2230", stroke: "rgba(244,239,228,0.4)", strokeWidth: 0.03 }),
+                React.createElement("text", { x: mx + ox, y: my + oy + 0.02, textAnchor: "middle", fontSize: 0.25, fontWeight: 900, fontFamily: casMono, fill: CAS.cream }, pt.kind === "any" ? "3:1" : "2:1"),
+                React.createElement("text", { x: mx + ox, y: my + oy + 0.27, textAnchor: "middle", fontSize: 0.24 }, pt.kind === "any" ? "?" : SR_META[pt.kind].icon)));
         }),
         edges.map((e) => {
             const o = srTrailOwner(g, e.id);

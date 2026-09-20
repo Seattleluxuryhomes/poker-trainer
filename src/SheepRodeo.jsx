@@ -958,9 +958,9 @@ function SrBoard({ g, targets, sel, coach, onVert, onEdge, onHex, onMiss }) {
           <g key={pt.edge} pointerEvents="none">
             <line x1={a.x} y1={a.y} x2={mx + ox} y2={my + oy} stroke="rgba(244,239,228,0.35)" strokeWidth={0.04} />
             <line x1={b.x} y1={b.y} x2={mx + ox} y2={my + oy} stroke="rgba(244,239,228,0.35)" strokeWidth={0.04} />
-            <circle cx={mx + ox} cy={my + oy} r={0.29} fill="#1a2230" stroke="rgba(244,239,228,0.4)" strokeWidth={0.03} />
-            <text x={mx + ox} y={my + oy + 0.02} textAnchor="middle" fontSize={0.2} fontWeight={900} fontFamily={casMono} fill={CAS.cream}>{pt.kind === "any" ? "3:1" : "2:1"}</text>
-            <text x={mx + ox} y={my + oy + 0.24} textAnchor="middle" fontSize={0.2}>{pt.kind === "any" ? "?" : SR_META[pt.kind].icon}</text>
+            <circle cx={mx + ox} cy={my + oy} r={0.34} fill="#1a2230" stroke="rgba(244,239,228,0.4)" strokeWidth={0.03} />
+            <text x={mx + ox} y={my + oy + 0.02} textAnchor="middle" fontSize={0.25} fontWeight={900} fontFamily={casMono} fill={CAS.cream}>{pt.kind === "any" ? "3:1" : "2:1"}</text>
+            <text x={mx + ox} y={my + oy + 0.27} textAnchor="middle" fontSize={0.24}>{pt.kind === "any" ? "?" : SR_META[pt.kind].icon}</text>
           </g>
         );
       })}
