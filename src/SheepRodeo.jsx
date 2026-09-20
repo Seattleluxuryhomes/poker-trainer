@@ -980,8 +980,12 @@ function SrBoard({ g, targets, sel, coach, onVert, onEdge, onHex, onMiss }) {
         const e = edges[eid], a = verts[e.a], b = verts[e.b], hot = isTgt("edge", eid);
         return (
           <g key={"le" + eid} onClick={(ev) => { ev.stopPropagation(); onEdge(eid); }} style={{ cursor: "pointer" }}>
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={0.7} strokeLinecap="round" />
-            <line className={hot ? "srPulse" : "srBreathe"} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={hot ? CAS.gold : "rgba(255,255,255,0.8)"} strokeWidth={hot ? 0.18 : 0.09} strokeLinecap="round" />
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={0.8} strokeLinecap="round" />
+            {/* a dark casing so the glow reads on ANY hex colour — without it a
+                thin bright line vanishes on the pale tiles at phone size */}
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="rgba(5,7,10,0.85)" strokeWidth={hot ? 0.34 : 0.26} strokeLinecap="round" />
+            <line className={hot ? "srPulse" : "srBreathe"} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={hot ? CAS.goldHi : CAS.gold} strokeWidth={hot ? 0.24 : 0.17} strokeLinecap="round" />
+            {hot && <line className="srPulse" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="rgba(255,224,138,0.35)" strokeWidth={0.5} strokeLinecap="round" />}
           </g>
         );
       })}
@@ -995,10 +999,11 @@ function SrBoard({ g, targets, sel, coach, onVert, onEdge, onHex, onMiss }) {
         return (
           <g key={"lv" + vid} onClick={(ev) => { ev.stopPropagation(); onVert(vid); }} style={{ cursor: "pointer" }}>
             {(hot || on) && <circle cx={v.x} cy={v.y} r={0.75} fill="url(#srGlow)" pointerEvents="none" />}
-            <circle cx={v.x} cy={v.y} r={0.55} fill="transparent" />
-            <circle className={hot && !on ? "srPulse" : on ? undefined : "srBreathe"} cx={v.x} cy={v.y} r={on ? 0.34 : hot ? 0.28 : 0.13}
-              fill={on ? CAS.gold : hot ? CAS.gold : "rgba(255,255,255,0.8)"}
-              stroke={on || hot ? "rgba(10,12,16,0.65)" : "rgba(10,12,16,0.5)"} strokeWidth={0.05} />
+            <circle cx={v.x} cy={v.y} r={0.6} fill="transparent" />
+            <circle cx={v.x} cy={v.y} r={on ? 0.38 : hot ? 0.33 : 0.21} fill="rgba(5,7,10,0.8)" />
+            <circle className={hot && !on ? "srPulse" : on ? undefined : "srBreathe"} cx={v.x} cy={v.y} r={on ? 0.32 : hot ? 0.27 : 0.16}
+              fill={on ? CAS.goldHi : hot ? CAS.goldHi : CAS.gold}
+              stroke="rgba(5,7,10,0.9)" strokeWidth={0.04} />
             {on && <text x={v.x} y={v.y + 0.09} textAnchor="middle" fontSize={0.26} fontWeight={900} fontFamily={casSans} fill="#14171d" pointerEvents="none">✓</text>}
           </g>
         );
@@ -1201,7 +1206,7 @@ export default function SheepRodeo() {
     <button key={label} onClick={onClick} disabled={opts.off} style={{ ...casGhost(), padding: "12px 6px", fontSize: 11.5, flex: opts.flex || 1, minWidth: 0, whiteSpace: "nowrap", ...(opts.gold ? { border: `1px solid ${CAS.goldLine}`, color: CAS.gold, background: CAS.goldFaint } : {}) }}>{label}</button>
   );
   const star = (label = "★ COACH'S PICK") => (
-    <button key="star" onClick={coachDo} style={{ ...casGhost(), padding: "12px 8px", fontSize: 11.5, flex: 1, minWidth: 0, whiteSpace: "nowrap", border: `1px solid ${CAS.goldLine}`, color: CAS.gold, background: CAS.goldFaint }}>{label}</button>
+    <button key="star" onClick={() => { if (!coach.target && !coach.trade) { sfx.click(); say("The Coach has nothing to point at here — read the panel below and tap the board yourself."); return; } coachDo(); }} style={{ ...casGhost(), padding: "12px 8px", fontSize: 11.5, flex: 1, minWidth: 0, whiteSpace: "nowrap", border: `1px solid ${CAS.goldLine}`, color: CAS.gold, background: CAS.goldFaint }}>{label}</button>
   );
   /* A build button teaches: the name, then the price with the goods you're
    * still missing marked in amber. Never a dead grey box. */
@@ -1313,7 +1318,7 @@ export default function SheepRodeo() {
       <SrHeader vp={srVP(g, 0)} onHelp={() => { sfx.click(); setGuideOpen(true); }} />
       <Guide game="sheep" title="SHEEP RODEO" steps={SR_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
-      <div style={{ maxWidth: 620, margin: "0 auto", padding: "10px 10px 270px" }}>
+      <div style={{ maxWidth: 620, margin: "0 auto", padding: "10px 10px 290px" }}>
         {/* the table */}
         <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
           {g.players.map((p) => {

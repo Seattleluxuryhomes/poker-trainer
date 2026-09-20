@@ -1120,7 +1120,7 @@ const mono = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 const serif = "Inter, 'Albert Sans', system-ui, -apple-system, sans-serif";
 const CAT_NAMES = ["Nothing", "Jacks or Better", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush", "Royal Flush"];
 const catName = (i) => CAT_NAMES[i];
-const APP_VERSION = "0.20.1";
+const APP_VERSION = "0.20.2";
 const IS_DEV_VERSION = APP_VERSION.indexOf("-dev") !== -1;
 const segStyle = (on) => ({
     flex: 1, padding: "9px 6px", borderRadius: 8, cursor: "pointer", fontFamily: mono, fontSize: 11.5,
@@ -2834,8 +2834,10 @@ function SrBoard({ g, targets, sel, coach, onVert, onEdge, onHex, onMiss }) {
         [...targets.edges].map((eid) => {
             const e = edges[eid], a = verts[e.a], b = verts[e.b], hot = isTgt("edge", eid);
             return (React.createElement("g", { key: "le" + eid, onClick: (ev) => { ev.stopPropagation(); onEdge(eid); }, style: { cursor: "pointer" } },
-                React.createElement("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: "transparent", strokeWidth: 0.7, strokeLinecap: "round" }),
-                React.createElement("line", { className: hot ? "srPulse" : "srBreathe", x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: hot ? CAS.gold : "rgba(255,255,255,0.8)", strokeWidth: hot ? 0.18 : 0.09, strokeLinecap: "round" })));
+                React.createElement("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: "transparent", strokeWidth: 0.8, strokeLinecap: "round" }),
+                React.createElement("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: "rgba(5,7,10,0.85)", strokeWidth: hot ? 0.34 : 0.26, strokeLinecap: "round" }),
+                React.createElement("line", { className: hot ? "srPulse" : "srBreathe", x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: hot ? CAS.goldHi : CAS.gold, strokeWidth: hot ? 0.24 : 0.17, strokeLinecap: "round" }),
+                hot && React.createElement("line", { className: "srPulse", x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: "rgba(255,224,138,0.35)", strokeWidth: 0.5, strokeLinecap: "round" })));
         }),
         verts.map((v) => { const o = srOwnerAt(g, v.id); return o ? house(v.x, v.y, "b" + v.id, g.players[o.pid].color, o.kind === "ranch", targets.ranchVerts.has(v.id)) : null; }),
         [...targets.ranchVerts].map((vid) => {
@@ -2846,8 +2848,9 @@ function SrBoard({ g, targets, sel, coach, onVert, onEdge, onHex, onMiss }) {
             const v = verts[vid], hot = isTgt("vert", vid), on = isSel("vert", vid);
             return (React.createElement("g", { key: "lv" + vid, onClick: (ev) => { ev.stopPropagation(); onVert(vid); }, style: { cursor: "pointer" } },
                 (hot || on) && React.createElement("circle", { cx: v.x, cy: v.y, r: 0.75, fill: "url(#srGlow)", pointerEvents: "none" }),
-                React.createElement("circle", { cx: v.x, cy: v.y, r: 0.55, fill: "transparent" }),
-                React.createElement("circle", { className: hot && !on ? "srPulse" : on ? undefined : "srBreathe", cx: v.x, cy: v.y, r: on ? 0.34 : hot ? 0.28 : 0.13, fill: on ? CAS.gold : hot ? CAS.gold : "rgba(255,255,255,0.8)", stroke: on || hot ? "rgba(10,12,16,0.65)" : "rgba(10,12,16,0.5)", strokeWidth: 0.05 }),
+                React.createElement("circle", { cx: v.x, cy: v.y, r: 0.6, fill: "transparent" }),
+                React.createElement("circle", { cx: v.x, cy: v.y, r: on ? 0.38 : hot ? 0.33 : 0.21, fill: "rgba(5,7,10,0.8)" }),
+                React.createElement("circle", { className: hot && !on ? "srPulse" : on ? undefined : "srBreathe", cx: v.x, cy: v.y, r: on ? 0.32 : hot ? 0.27 : 0.16, fill: on ? CAS.goldHi : hot ? CAS.goldHi : CAS.gold, stroke: "rgba(5,7,10,0.9)", strokeWidth: 0.04 }),
                 on && React.createElement("text", { x: v.x, y: v.y + 0.09, textAnchor: "middle", fontSize: 0.26, fontWeight: 900, fontFamily: casSans, fill: "#14171d", pointerEvents: "none" }, "\u2713")));
         })));
 }
@@ -3157,7 +3160,11 @@ function SheepRodeo() {
         say(k === "trail" ? "Tap a glowing side." : k === "corral" ? "Tap a glowing corner." : "Tap one of your corrals.");
     };
     const ghost = (label, onClick, opts = {}) => (React.createElement("button", { key: label, onClick: onClick, disabled: opts.off, style: { ...casGhost(), padding: "12px 6px", fontSize: 11.5, flex: opts.flex || 1, minWidth: 0, whiteSpace: "nowrap", ...(opts.gold ? { border: `1px solid ${CAS.goldLine}`, color: CAS.gold, background: CAS.goldFaint } : {}) } }, label));
-    const star = (label = "★ COACH'S PICK") => (React.createElement("button", { key: "star", onClick: coachDo, style: { ...casGhost(), padding: "12px 8px", fontSize: 11.5, flex: 1, minWidth: 0, whiteSpace: "nowrap", border: `1px solid ${CAS.goldLine}`, color: CAS.gold, background: CAS.goldFaint } }, label));
+    const star = (label = "★ COACH'S PICK") => (React.createElement("button", { key: "star", onClick: () => { if (!coach.target && !coach.trade) {
+            sfx.click();
+            say("The Coach has nothing to point at here — read the panel below and tap the board yourself.");
+            return;
+        } coachDo(); }, style: { ...casGhost(), padding: "12px 8px", fontSize: 11.5, flex: 1, minWidth: 0, whiteSpace: "nowrap", border: `1px solid ${CAS.goldLine}`, color: CAS.gold, background: CAS.goldFaint } }, label));
     const buildBtn = (k, label) => {
         const on = can[k], active = filter === k, cost = SR_COST[k];
         return (React.createElement("button", { key: k, onClick: () => buildTap(k), "aria-disabled": !on, style: {
@@ -3276,7 +3283,7 @@ function SheepRodeo() {
         React.createElement("style", null, CAS_CSS),
         React.createElement(SrHeader, { vp: srVP(g, 0), onHelp: () => { sfx.click(); setGuideOpen(true); } }),
         React.createElement(Guide, { game: "sheep", title: "SHEEP RODEO", steps: SR_GUIDE, open: guideOpen, onClose: () => setGuideOpen(false) }),
-        React.createElement("div", { style: { maxWidth: 620, margin: "0 auto", padding: "10px 10px 270px" } },
+        React.createElement("div", { style: { maxWidth: 620, margin: "0 auto", padding: "10px 10px 290px" } },
             React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 8 } }, g.players.map((p) => {
                 const cur = g.turn === p.id && !ended;
                 return (React.createElement("div", { key: p.id, style: { flex: 1, minWidth: 0, borderRadius: 10, padding: "6px 7px", background: cur ? "rgba(245,197,66,0.1)" : CAS.panel, border: `1px solid ${cur ? CAS.gold : CAS.line}`, boxShadow: cur ? `0 0 14px ${CAS.goldFaint}` : "none", transition: "all 200ms ease" } },

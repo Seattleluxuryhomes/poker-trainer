@@ -676,3 +676,34 @@ Also learned from the batch: games run 21 to 107 rounds (48 average),
 symmetric seats, and the winner holds a complete colour group in 84–93%
 of wins — the strategic lesson the game is meant to teach, measured
 rather than asserted.
+
+### Legible on a real phone (v0.20.2)
+
+Founder, with two screenshots: Sheep Rodeo looked frozen asking for a
+trail with nothing tappable, and "you can't see this on mobile" for
+Mogul Row. Both were the same mistake — designing at desktop size and
+proving it with forced clicks in a headless browser.
+
+SHEEP RODEO was never actually stuck. A 4,000-game probe of the setup
+phase (32,000 trail placements) found ZERO states with no legal side, so
+the logic was sound; the candidate sides were simply invisible. They had
+become 0.09-unit white lines animating between 0.4 and 0.85 opacity —
+about one screen pixel on a phone, over a busy board. Now every legal
+side is a 0.17-unit gold bar on a dark casing (so it reads on any hex
+colour), the Coach's pick is 0.24 plus a halo, and legal corners grew
+from 0.13 to 0.16 with a casing of their own. The ★ button also stopped
+being able to do nothing: with no target it now says so instead.
+
+MOGUL ROW: at phone width each of the forty squares is about 35 pixels,
+so the 0.145-unit text was roughly five pixels and the square names were
+not drawn at all. Prices are now 0.23 and icons 0.3, the group colour
+bars are wider, tokens went from 0.17 to 0.22 — and THE BIG EMPTY MIDDLE
+BECAME THE READOUT. Tapping any square fills the centre of the board
+with its name, owner, price, current rent, its share of all arrivals,
+your book value and its payback, all at a size that is readable without
+zooming. The centre also follows your token after a roll, so you can
+always see where you are standing.
+
+RULE LEARNED: verify on a real phone viewport with REAL touch events,
+never force:true. A forced click ignores hit-testing and visibility,
+which is exactly the class of bug both of these were.

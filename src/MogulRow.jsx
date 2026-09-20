@@ -790,9 +790,15 @@ function MrHeader({ cash, onHelp }) {
   );
 }
 
-function MrBoard({ g, sel, buildable, onSquare, heat }) {
+function MrBoard({ g, sel, buildable, onSquare, heat, focus }) {
   const land = mrLanding();
   const maxLand = Math.max(...land.filter((_, i) => i !== MR_JAIL));
+  /* THE CENTRE IS THE READOUT. At phone width each square is about 35px, so
+   * nothing inside one can carry a name. The big empty middle does it
+   * instead, at a size you can actually read. */
+  const f = focus != null ? focus : null;
+  const fc = f != null ? MR_BOARD[f] : null;
+  const fOwn = f != null ? g.owner[f] : null;
   return (
     <svg viewBox="-0.4 -0.4 11.8 11.8" style={{ width: "100%", maxWidth: 620, display: "block", margin: "0 auto", touchAction: "manipulation" }} role="img" aria-label="Mogul Row">
       <defs>
@@ -815,16 +821,18 @@ function MrBoard({ g, sel, buildable, onSquare, heat }) {
               stroke={isSel ? CAS.gold : canB ? CAS.goldDim : "rgba(255,255,255,0.14)"} strokeWidth={isSel ? 0.07 : canB ? 0.05 : 0.02} />
             {grp && (
               <rect x={side === "left" ? x + 0.78 : side === "right" ? x : x + 0.02} y={side === "top" ? y + 0.78 : side === "bottom" ? y : y + 0.02}
-                width={side === "left" || side === "right" ? 0.22 : 0.96} height={side === "left" || side === "right" ? 0.96 : 0.22} fill={grp.color} rx={0.03} />
+                width={side === "left" || side === "right" ? 0.28 : 0.96} height={side === "left" || side === "right" ? 0.96 : 0.28} fill={grp.color} rx={0.03} />
             )}
             {own != null && <rect x={x + 0.06} y={y + 0.06} width={0.88} height={0.88} rx={0.05} fill={g.players[own].color} opacity={g.mortgaged[i] ? 0.13 : 0.3} stroke={g.players[own].color} strokeWidth={0.035} />}
-            <text x={x + 0.5} y={y + 0.42} textAnchor="middle" fontSize={0.2} pointerEvents="none">
+            <text x={x + 0.5} y={y + (cell.t === "prop" ? 0.46 : 0.58)} textAnchor="middle" fontSize={0.3} pointerEvents="none">
               {cell.t === "go" ? "🏦" : cell.t === "jail" ? "🔒" : cell.t === "gotojail" ? "🚨" : cell.t === "parking" ? "⛰️" : cell.t === "station" ? "🚂" : cell.t === "utility" ? "💡" : cell.t === "tax" ? "🧾" : cell.t === "card" ? (cell.deck === "wildcard" ? "❓" : "🧰") : ""}
             </text>
-            <text x={x + 0.5} y={y + (cell.t === "prop" ? 0.45 : 0.72)} textAnchor="middle" fontSize={0.145} fontWeight={800} fontFamily={casMono} fill={CAS.cream} pointerEvents="none">
-              {cell.t === "prop" ? "$" + cell.price : cell.t === "station" || cell.t === "utility" ? "$" + cell.price : cell.t === "tax" ? "-$" + cell.amount : ""}
-            </text>
-            <text x={x + 0.5} y={y + 0.68} textAnchor="middle" fontSize={0.135} fontFamily={casMono} fill={heat ? "#fff" : CAS.goldDim} pointerEvents="none">{(100 * land[i]).toFixed(1)}%</text>
+            {(cell.price || cell.amount) && (
+              <text x={x + 0.5} y={y + (cell.t === "prop" ? 0.52 : 0.85)} textAnchor="middle" fontSize={0.23} fontWeight={900} fontFamily={casSans} fill={CAS.cream} pointerEvents="none">
+                {cell.t === "tax" ? "−" + cell.amount : cell.price}
+              </text>
+            )}
+            {cell.t === "prop" && <text x={x + 0.5} y={y + 0.75} textAnchor="middle" fontSize={0.185} fontFamily={casMono} fill={heat ? "#fff" : CAS.goldDim} pointerEvents="none">{(100 * land[i]).toFixed(1)}</text>}
             {hs > 0 && (
               <g pointerEvents="none">
                 {hs === MR_MAX_HOUSES
@@ -845,14 +853,32 @@ function MrBoard({ g, sel, buildable, onSquare, heat }) {
         const k = same.findIndex((q) => q.id === p.id);
         return (
           <g key={p.id} pointerEvents="none">
-            <circle cx={x + 0.28 + (k % 2) * 0.44} cy={y + 0.27 + Math.floor(k / 2) * 0.44} r={0.17} fill="#0a0c10" stroke={p.color} strokeWidth={0.06} />
-            <text x={x + 0.28 + (k % 2) * 0.44} y={y + 0.33 + Math.floor(k / 2) * 0.44} textAnchor="middle" fontSize={0.2}>{p.token}</text>
+            <circle cx={x + 0.27 + (k % 2) * 0.46} cy={y + 0.26 + Math.floor(k / 2) * 0.46} r={0.22} fill="#0a0c10" stroke={p.color} strokeWidth={0.08} />
+            <text x={x + 0.27 + (k % 2) * 0.46} y={y + 0.34 + Math.floor(k / 2) * 0.46} textAnchor="middle" fontSize={0.27}>{p.token}</text>
           </g>
         );
       })}
-      <text x={5.5} y={4.6} textAnchor="middle" fontFamily={casSans} fontSize={0.62} fontWeight={900} fill={CAS.cream} opacity={0.22} letterSpacing="0.1">MOGUL ROW</text>
-      <text x={5.5} y={5.5} textAnchor="middle" fontFamily={casMono} fontSize={0.26} fill={CAS.gold} opacity={0.55}>EVERY SQUARE WEARS ITS TRUE ODDS</text>
-      <text x={5.5} y={6.2} textAnchor="middle" fontFamily={casMono} fontSize={0.22} fill={CAS.dim} opacity={0.6}>{heat ? "HEAT: BRIGHTER = LANDED ON MORE" : "TAP ANY SQUARE TO READ IT"}</text>
+      {fc ? (
+        <g pointerEvents="none">
+          {fc.t === "prop" && <rect x={2.0} y={2.35} width={7} height={0.3} rx={0.1} fill={MR_GROUPS[fc.g].color} />}
+          <text x={5.5} y={3.5} textAnchor="middle" fontFamily={casSans} fontSize={fc.name.length > 15 ? 0.52 : 0.62} fontWeight={900} fill={CAS.cream}>{fc.name}</text>
+          {fOwn != null
+            ? <text x={5.5} y={4.15} textAnchor="middle" fontFamily={casMono} fontSize={0.32} fill={g.players[fOwn].color}>{fOwn === 0 ? "YOURS" : g.players[fOwn].name.toUpperCase()}{g.mortgaged[f] ? " · MORTGAGED" : ""}</text>
+            : fc.price ? <text x={5.5} y={4.15} textAnchor="middle" fontFamily={casMono} fontSize={0.32} fill={CAS.faint}>UNOWNED</text> : null}
+          {fc.price && <text x={5.5} y={5.15} textAnchor="middle" fontFamily={casSans} fontSize={0.66} fontWeight={900} fill={CAS.gold}>${fc.price}</text>}
+          {fc.t === "prop" && <text x={5.5} y={5.85} textAnchor="middle" fontFamily={casMono} fontSize={0.3} fill={CAS.dim}>RENT ${mrRentAt(g, f, 7) || (g.owner[f] == null ? fc.base : 0)}{g.houses[f] ? ` · ${g.houses[f] === MR_MAX_HOUSES ? "HOTEL" : g.houses[f] + " HOUSE" + (g.houses[f] > 1 ? "S" : "")}` : ""}</text>}
+          {fc.t === "tax" && <text x={5.5} y={5.15} textAnchor="middle" fontFamily={casSans} fontSize={0.62} fontWeight={900} fill="#ff8a80">−${fc.amount}</text>}
+          <text x={5.5} y={6.75} textAnchor="middle" fontFamily={casMono} fontSize={0.34} fill={CAS.goldDim}>{(100 * land[f]).toFixed(2)}% OF ALL ARRIVALS</text>
+          {fc.price && <text x={5.5} y={7.35} textAnchor="middle" fontFamily={casMono} fontSize={0.27} fill={CAS.faint}>YOUR BOOK ${mrBotValue(g, 0, f)}{mrPayback(g, f) ? ` · PAYS BACK IN ${mrPayback(g, f)} ROUNDS` : ""}</text>}
+          <text x={5.5} y={8.4} textAnchor="middle" fontFamily={casMono} fontSize={0.26} fill={CAS.faint} opacity={0.75}>TAP ANOTHER SQUARE TO COMPARE</text>
+        </g>
+      ) : (
+        <g pointerEvents="none">
+          <text x={5.5} y={4.9} textAnchor="middle" fontFamily={casSans} fontSize={0.7} fontWeight={900} fill={CAS.cream} opacity={0.25} letterSpacing="0.1">MOGUL ROW</text>
+          <text x={5.5} y={5.75} textAnchor="middle" fontFamily={casMono} fontSize={0.32} fill={CAS.gold} opacity={0.6}>EVERY SQUARE WEARS ITS TRUE ODDS</text>
+          <text x={5.5} y={6.5} textAnchor="middle" fontFamily={casMono} fontSize={0.3} fill={CAS.dim} opacity={0.7}>{heat ? "BRIGHTER = LANDED ON MORE" : "TAP ANY SQUARE TO READ IT"}</text>
+        </g>
+      )}
     </svg>
   );
 }
@@ -1098,7 +1124,7 @@ export default function MogulRow() {
       <MrHeader cash={me.cash} onHelp={() => { sfx.click(); setGuideOpen(true); }} />
       <Guide game="moguls" title="MOGUL ROW" steps={MR_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
-      <div style={{ maxWidth: 640, margin: "0 auto", padding: "10px 10px 250px" }}>
+      <div style={{ maxWidth: 640, margin: "0 auto", padding: "10px 10px 290px" }}>
         <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
           {g.players.map((p) => {
             const cur = g.turn === p.id && !ended;
@@ -1127,7 +1153,7 @@ export default function MogulRow() {
               <span style={{ fontFamily: casMono, fontSize: 9, color: CAS.cream, background: "rgba(0,0,0,0.5)", borderRadius: 6, padding: "3px 5px" }}>{MR_WAYS[g.dice[0] + g.dice[1]]}/36</span>
             </div>
           )}
-          <MrBoard g={g} sel={sel} buildable={buildable} onSquare={onSquare} heat={heat} />
+          <MrBoard g={g} sel={sel} buildable={buildable} onSquare={onSquare} heat={heat} focus={sel != null ? sel : g.phase === "buy" && g.pending ? g.pending.sq : g.phase === "auction" && g.auction ? g.auction.sq : myTurn && me.pos >= 0 && g.dice ? me.pos : null} />
           {nudge && (
             <div key={nudge.key} style={{ position: "absolute", left: 10, right: 10, bottom: 8, zIndex: 3, pointerEvents: "none", display: "flex", justifyContent: "center" }}>
               <span style={{ fontFamily: casSans, fontSize: 12.5, fontWeight: 700, color: CAS.cream, background: "rgba(5,7,10,0.9)", border: `1px solid ${CAS.goldLine}`, borderRadius: 12, padding: "9px 13px", textAlign: "center", lineHeight: 1.45, animation: "casPop 200ms ease both" }}>{nudge.t}</span>
