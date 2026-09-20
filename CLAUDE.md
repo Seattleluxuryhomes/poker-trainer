@@ -526,3 +526,41 @@ compulsion. This is a refuse-and-explain, not a build; flagged to the
 founder rather than guessed at. If "honesty" meant something narrower
 (e.g., a values statement, not a technical integration), that's open to
 revisit on clarification — but no cross-repo wiring happens by default.
+
+## Sheep Rodeo (v0.19.0)
+
+Founder: "Build the game of Catan. We're going to call it sheep rodeo," then:
+"I needed to train Anya how to be better at it." So it is a TRAINER first,
+in the house style. src/SheepRodeo.jsx (sheep.html) is an original
+implementation of the hex-and-dice settlement family — our own rules text,
+names, and art (goods: wool/lumber/clay/hay/iron; trail/corral/ranch;
+the rustler; rodeo cards: wrangler, blue ribbon, trail blazing, bumper
+crop, roundup; Longest Trail, Largest Posse; 10 points). No trademarked
+name, art, or card text is used or to be added. Three FICTIONAL ranchers
+(Dusty Vale, Marisol Quade, Buck Tanner) — same rule as Ace Meridian.
+
+THE COACH is the lesson: every number token wears its pips (ways in 36,
+enumerated), and the Coach panel names the best move and says WHY in
+numbers — pips per good, chance of production per roll (ways/36), expected
+cards per turn (Σ pips/36, ×2 for a ranch), the trade that unlocks the
+next build, where the rustler hurts the leader most. HONESTY RULE: the
+Coach IS the bots' evaluation (srScoreCorner / srBestTrail /
+srBestRustlerHex / srTradePlan) shown to the human — verify_sheep proves
+the Coach's target equals the bots' pick. No hidden edge, no "trust me".
+The Guide teaches the table; the Coach advises; neither plays for you.
+
+NO WAGER: the casino wallet is deliberately not wired — it's a board game
+and the study table. Game state persists in localStorage
+(`poker-trainer:sheep`) so a refresh resumes mid-game.
+
+Engine (pure, top-level, JSON-plain state; bots act one step per call so
+the page can pace them): srBoard (19 hexes / 54 corners / 72 sides via
+rounded-position de-dup, 6/8 never adjacent by retry, 9 coastal trading
+posts), srProduce (bank of 19 each, shortage rule: two claimants short →
+nobody), the 7 (discard half above 7, rustler must move, robbery is one
+random card), distance rule, opponent buildings break trail lines,
+srLongestTrail (DFS, no side twice, blocked through opponents), awards
+with ties, srCheckWin on the mover's turn only. engine/verify_sheep.js
+(78 checks): 2d6 distribution vs brute force, 40 seeded boards, every law
+above by construction, and 30 full four-bot seeded games to a winner with
+goods conserved against the bank at every step. 14 suites, 743 checks.

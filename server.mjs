@@ -38,6 +38,7 @@ const FILES = new Map([
   ["/bac.html", "bac.html"],
   ["/sp21.html", "sp21.html"],
   ["/flush.html", "flush.html"],
+  ["/sheep.html", "sheep.html"],
   ["/sw.js", "sw.js"],
   ["/favicon.svg", "favicon.svg"],
   ["/manifest.webmanifest", "manifest.webmanifest"],

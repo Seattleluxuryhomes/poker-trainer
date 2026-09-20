@@ -58,7 +58,7 @@ async function main() {
      * (v0.13.0 lesson: bj.html shipped in the build but not in the whitelist —
      * the founder's phone found the 404 before we did. Never again.) */
     const ORIGIN = BASE.replace(/\/api$/, "");
-    for (const page of ["/", "/index.html", "/trainer.html", "/play.html", "/table.html", "/profile.html", "/roulette.html", "/craps.html", "/paigow.html", "/bj.html", "/bac.html", "/sp21.html", "/flush.html"]) {
+    for (const page of ["/", "/index.html", "/trainer.html", "/play.html", "/table.html", "/profile.html", "/roulette.html", "/craps.html", "/paigow.html", "/bj.html", "/bac.html", "/sp21.html", "/flush.html", "/sheep.html"]) {
       const r = await fetch(ORIGIN + page);
       const ct = r.headers.get("content-type") || "";
       check(r.status === 200 && ct.includes("text/html"), `served: ${page} (got ${r.status})`);

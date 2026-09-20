@@ -115,6 +115,7 @@
   .pip.bac{ background:linear-gradient(180deg,#2e3d52,#1a2433); color:#f4efe4 }
   .pip.sp21{ background:linear-gradient(180deg,#c62f2f,#7d1d1d); font-weight:900; font-size:18px }
   .pip.flush{ background:linear-gradient(180deg,#6d3bb8,#3d1f6e) }
+  .pip.sheep{ background:linear-gradient(180deg,#86c06a,#2f6b3a) }
   .pip.profile{ background:linear-gradient(180deg,#8a5e37,#4a3018) }
   .opt-title{ font-size:18px; font-weight:800; letter-spacing:-0.01em; color:var(--cream) }
   .opt-sub{ font-family:var(--mono); font-size:10.5px; color:var(--faint); margin-top:3px; letter-spacing:0.03em }
@@ -251,13 +252,13 @@
     </div>
     <h1>The casino that<br/><span class="gold">shows you the math.</span></h1>
     <p class="creed">
-      Ten games, one rule: <b>every probability is enumerated and every house edge is
+      Eleven games, one rule: <b>every probability is enumerated and every house edge is
       printed on the felt</b> — and when a number can only be estimated, it says so.
       Practice chips only. No accounts required. No tracking, ever.
     </p>
     <div class="badges">
       <span class="badge gold">EVERY EDGE PRINTED</span>
-      <span class="badge"><span id="proofs">652</span> AUTOMATED PROOFS</span>
+      <span class="badge"><span id="proofs">743</span> AUTOMATED PROOFS</span>
       <span class="badge">PRACTICE CHIPS ONLY</span>
       <span class="badge">OPEN SOURCE</span>
     </div>
@@ -423,7 +424,23 @@
         </div>
         <span class="edge">~2.7% &middot; SIMULATED, AND IT SAYS SO</span>
       </a>
-      <a class="option" href="profile.html" style="--i:10">
+      <a class="option" href="sheep.html" style="--i:10">
+        <div class="opt-row">
+          <span class="pip sheep">&#128017;</span>
+          <div>
+            <div class="opt-title">Sheep Rodeo</div>
+            <div class="opt-sub">SETTLE THE RANGE &middot; A COACH IN THE BOX</div>
+          </div>
+          <span class="arrow">&#8250;</span>
+        </div>
+        <div class="opt-desc">
+          Hexes, dice, corrals and a rustler against three ranchers. Every number wears its
+          pips (ways in 36), and the Coach marks the best move and says why &mdash; it's the
+          same brain the ranchers play by. No wager: this is the study table.
+        </div>
+        <span class="edge">36 OUTCOMES, ALL PRINTED &middot; COACH = THE BOTS' OWN MATH</span>
+      </a>
+      <a class="option" href="profile.html" style="--i:11">
         <div class="opt-row">
           <span class="pip profile">&#127183;</span>
           <div>
@@ -507,7 +524,7 @@
       track.innerHTML = facts.concat(facts).map(function (f) { return "<span>" + f + "</span>"; }).join("");
 
       // proofs count up on arrival
-      var target = 652, el2 = document.getElementById("proofs"), t0 = null;
+      var target = 743, el2 = document.getElementById("proofs"), t0 = null;
       function stepUp(ts) {
         if (!t0) t0 = ts;
         var k = Math.min(1, (ts - t0) / 1100);

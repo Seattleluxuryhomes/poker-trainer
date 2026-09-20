@@ -4,9 +4,9 @@
  * navigations go NETWORK-FIRST (a deploy reaches you on the next load) with
  * the cache as the offline fallback; static assets go cache-first. The cache
  * name carries the app version, and activation deletes every older cache. */
-const CACHE = "poker-trainer-0.18.0";
+const CACHE = "poker-trainer-0.19.0";
 const PAGES = ["./", "./index.html", "./trainer.html", "./play.html", "./table.html",
-  "./profile.html", "./roulette.html", "./craps.html", "./paigow.html", "./bj.html", "./bac.html", "./sp21.html", "./flush.html"];
+  "./profile.html", "./roulette.html", "./craps.html", "./paigow.html", "./bj.html", "./bac.html", "./sp21.html", "./flush.html", "./sheep.html"];
 const ASSETS = ["./favicon.svg", "./manifest.webmanifest",
   "./vendor/react.production.min.js", "./vendor/react-dom.production.min.js"];
 
