@@ -728,3 +728,38 @@ Smallest text on either board is now 8.5px.
 MEASUREMENT RULE: when checking rendered text size inside an SVG, always
 scale by svgWidth / viewBox.width. A raw computed font-size is in user
 units and will happily tell you a 6px label is fine.
+
+### The pieces, and the life you're building (v0.21.0)
+
+Founder, on a screenshot: "You can't start the game like this and it
+looks like a bunch of dicks." He was right and it was not a close call.
+The corral glyph was a narrow pointed pentagon sitting directly on top of
+a thick solid trail bar running out of the same vertex. At phone size
+that silhouette reads as exactly one thing.
+
+FIXED, three ways. (1) Every building is now a BARN drawn wide — clearly
+wider than tall, gable roof overhanging a rectangular body, barn doors,
+a chimney, a shadow on the felt; the farmhouse adds side wings and a
+lean-to. (2) Trails are FENCES: inset 0.32 from both corners so they can
+never touch a building, thinner, with three cross-posts along each run.
+A fence cannot read as a shaft. (3) The banner was being clipped by the
+dice ("TAP THE BOARD TO"), so it was shortened and the dice given room.
+A ⟳ restart button went in the header of both board games, because you
+could not start over without clearing storage.
+
+Then the founder asked: "why can't it be about farms, maybe upgrading
+your life, your lifestyle." That is the better game, so THE LIFESTYLE
+LADDER (SR_RANKS) went in: Drifter → Squatter → Homesteader → Farmer →
+Rancher → Cattle Baron → Land Baron → King of the Range, earned at 0, 1,
+2, 3, 4, 6, 8 and 10 points. The header leads with the rank instead of a
+bare score, a strip under the table names it, says what it means and
+what the next one costs, and earning one fires the win sparkle plus a
+line on the felt. The subtitle is now "BUILD A LIFE ON THE RANGE". No
+rule changed: the ranks are pure framing over the same points, so the
+teaching value is untouched.
+
+Also settled: the intermittent "no CTA after corner tap" in the long
+touch script is a TEST flake, not a product bug. Three consecutive
+isolated runs of the exact sequence (close guide, dismiss lesson, tap
+the coached corner) opened the preview every time, with the tap landing
+on the intended circle.

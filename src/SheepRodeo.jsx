@@ -63,6 +63,21 @@ const SR_CARD = {
   roundup:  { name: "Roundup", icon: "🪢", text: "Name one good; every other rancher hands you all of theirs." },
 };
 const SR_WIN = 10;
+/* THE LIFE YOU'RE BUILDING. Points are not an abstract score: they are how
+ * far you've come, from sleeping in the wagon to owning the whole valley.
+ * Every rank is earned by land and buildings you can see on the board. */
+const SR_RANKS = [
+  { at: 0,  name: "Drifter",        icon: "🎒", blurb: "Everything you own is in the wagon." },
+  { at: 1,  name: "Squatter",       icon: "⛺", blurb: "One corner of the range is yours." },
+  { at: 2,  name: "Homesteader",    icon: "🏚️", blurb: "Two corners, and a reason to stay." },
+  { at: 3,  name: "Farmer",         icon: "🌾", blurb: "The land is starting to pay you back." },
+  { at: 4,  name: "Rancher",        icon: "🐑", blurb: "A real spread, with stock on it." },
+  { at: 6,  name: "Cattle Baron",   icon: "🐄", blurb: "People take the long way round your land." },
+  { at: 8,  name: "Land Baron",     icon: "🏡", blurb: "Two more and the valley is yours." },
+  { at: 10, name: "King of the Range", icon: "👑", blurb: "You own the whole valley." },
+];
+function srRank(vp) { let r = SR_RANKS[0]; for (const x of SR_RANKS) if (vp >= x.at) r = x; return r; }
+function srNextRank(vp) { return SR_RANKS.find((x) => x.at > vp) || null; }
 const SR_MAX_TRAILS = 15, SR_MAX_CORRALS = 5, SR_MAX_RANCHES = 4;
 const SR_HAND_LIMIT = 7;                                                 // over seven, a 7 costs half
 const SR_BANK_EACH = 19;
@@ -759,7 +774,7 @@ function srFmtYield(y) {
 }
 function srCoach(s) {
   const pid = 0, p = s.players[pid];
-  if (s.phase === "over") return { title: s.winner === 0 ? "You won the range." : `${s.players[s.winner].name} won.`, why: "Start a new game to run it back — the board and the numbers reshuffle every time.", target: null };
+  if (s.phase === "over") return { title: s.winner === 0 ? "King of the Range." : `${s.players[s.winner].name} took the valley.`, why: s.winner === 0 ? "You started in a wagon and finished owning the whole valley. Run it back — the board and the numbers reshuffle every time." : "Start a new game to run it back — the board and the numbers reshuffle every time.", target: null };
   if (s.turn !== pid && s.phase !== "discard") {
     const ex = srExpected(s, pid), tot = SR_RES.reduce((n, r) => n + ex[r], 0);
     return { title: `${s.players[s.turn].name} is up.`, why: `While you wait: your corrals pay an average of ${tot.toFixed(2)} cards per roll (${SR_RES.filter((r) => ex[r] > 0).map((r) => `${SR_META[r].icon} ${ex[r].toFixed(2)}`).join(" · ")}). Cards in hand: ${srCount(p.res)} — over ${SR_HAND_LIMIT} and a rolled 7 costs you half.`, target: null };
@@ -870,19 +885,23 @@ const SR_LESSONS = {
   over: { h: "Run it back", p: "Every game reshuffles the hexes, the numbers, and the deck. The Coach's numbers were never a script — beat its advice by finding what it under-weighs: blocking, timing the rustler, and reading what the table needs." },
 };
 
-function SrHeader({ vp, onHelp }) {
+function SrHeader({ vp, onHelp, onRestart }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "12px 16px", flexWrap: "wrap", background: "linear-gradient(180deg, rgba(255,255,255,0.03), transparent)", borderBottom: `1px solid ${CAS.line}` }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: casSans, fontSize: 17, fontWeight: 900, letterSpacing: "0.22em", color: CAS.cream }}>SHEEP RODEO</div>
-        <div style={{ fontFamily: casMono, fontSize: 9.5, letterSpacing: "0.08em", color: CAS.faint, marginTop: 2 }}>SETTLE THE RANGE · FIRST TO {SR_WIN}</div>
+        <div style={{ fontFamily: casMono, fontSize: 9.5, letterSpacing: "0.08em", color: CAS.faint, marginTop: 2 }}>BUILD A LIFE ON THE RANGE</div>
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 13px", borderRadius: 999, background: CAS.goldFaint, border: `1px solid ${CAS.goldLine}` }}>
-          <span style={{ fontFamily: casMono, fontSize: 9.5, letterSpacing: "0.14em", color: CAS.goldDim }}>PTS</span>
-          <span style={{ fontFamily: casSans, fontSize: 14, fontWeight: 900, color: CAS.gold, fontVariantNumeric: "tabular-nums" }}>{vp} / {SR_WIN}</span>
+        <div key={srRank(vp).name} style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 999, background: CAS.goldFaint, border: `1px solid ${CAS.goldLine}`, animation: "casPop 300ms ease both" }}>
+          <span style={{ fontSize: 14 }}>{srRank(vp).icon}</span>
+          <div style={{ display: "grid", lineHeight: 1.15 }}>
+            <span style={{ fontFamily: casSans, fontSize: 12, fontWeight: 900, color: CAS.gold, whiteSpace: "nowrap" }}>{srRank(vp).name}</span>
+            <span style={{ fontFamily: casMono, fontSize: 8.5, color: CAS.goldDim, letterSpacing: "0.1em" }}>{vp} / {SR_WIN} PTS</span>
+          </div>
         </div>
         <button onClick={onHelp} aria-label="Open the table guide" style={{ height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px", border: `1px solid ${CAS.line}`, background: "rgba(255,255,255,0.03)", color: CAS.dim, fontSize: 13, fontWeight: 900, lineHeight: 1, fontFamily: casSans }}>?</button>
+        <button onClick={onRestart} aria-label="Start a new game" title="New game" style={{ height: 30, borderRadius: 9, cursor: "pointer", padding: "0 10px", border: `1px solid ${CAS.line}`, background: "rgba(255,255,255,0.03)", color: CAS.dim, fontSize: 14, lineHeight: 1, fontFamily: casSans }}>⟳</button>
         <SoundToggle dark />
         <AccountArea dark />
         <a href="index.html" aria-label="Home" style={{ color: CAS.dim, textDecoration: "none", fontSize: 16, lineHeight: 1, border: `1px solid ${CAS.line}`, borderRadius: 9, padding: "6px 10px", background: "rgba(255,255,255,0.02)" }}>⌂</a>
@@ -895,15 +914,31 @@ function SrHeader({ vp, onHelp }) {
 function SrBoard({ g, targets, sel, coach, onVert, onEdge, onHex, onMiss }) {
   const { hexes, verts, edges } = g.board;
   const tgt = coach && coach.target;
+  /* A BARN, drawn wide. The first cut was a narrow pointed cap that sat on
+   * top of a thick vertical trail — which read as something else entirely on
+   * a phone. Every piece is now clearly wider than it is tall, sits on a
+   * ground line, and the trails are inset so they never touch it. */
   const house = (x, y, k, color, ranch, lit) => {
-    const s = ranch ? 0.3 : 0.22;
-    const pts = [[-s, s * 0.9], [-s, -s * 0.2], [0, -s], [s, -s * 0.2], [s, s * 0.9]].map(([px, py]) => `${x + px},${y + py}`).join(" ");
+    const w = ranch ? 0.46 : 0.33;          // half-width
+    const h = ranch ? 0.2 : 0.15;           // half-height of the body
+    const roof = ranch ? 0.2 : 0.16;
+    const top = y - h;
     return (
       <g key={k} pointerEvents="none">
-        {lit && <circle cx={x} cy={y} r={0.5} fill="none" stroke={CAS.gold} strokeWidth={0.06} strokeDasharray="0.12 0.1" className="srPulse" />}
-        <polygon points={pts} fill={color} stroke="#0a0c10" strokeWidth={0.06} />
-        {ranch && <rect x={x - s * 0.55} y={y - s * 0.95} width={s * 0.4} height={s * 0.7} fill={color} stroke="#0a0c10" strokeWidth={0.05} />}
-        {ranch && <rect x={x - s * 0.9} y={y + s * 0.95} width={s * 1.8} height={0.09} fill="#0a0c10" opacity={0.6} />}
+        {lit && <circle cx={x} cy={y} r={0.56} fill="none" stroke={CAS.gold} strokeWidth={0.07} className="srPulse" />}
+        {/* shadow on the felt */}
+        <ellipse cx={x} cy={y + h + 0.05} rx={w * 1.05} ry={0.07} fill="#05070a" opacity={0.55} />
+        {/* body */}
+        <rect x={x - w} y={top} width={w * 2} height={h * 2} rx={0.03} fill={color} stroke="#05070a" strokeWidth={0.055} />
+        {/* gable roof, wider than the body */}
+        <polygon points={`${x - w - 0.05},${top} ${x},${top - roof} ${x + w + 0.05},${top}`} fill={color} stroke="#05070a" strokeWidth={0.055} strokeLinejoin="round" />
+        {/* barn doors, so it reads as a building at any size */}
+        <rect x={x - w * 0.3} y={y - h * 0.15} width={w * 0.6} height={h * 1.15} rx={0.02} fill="#05070a" opacity={0.45} />
+        {/* a chimney: this is somewhere somebody lives */}
+        <rect x={x + w * 0.42} y={top - roof * 0.62} width={0.075} height={roof * 0.66} fill={color} stroke="#05070a" strokeWidth={0.04} />
+        {ranch && <rect x={x - w * 0.82} y={y - h * 0.2} width={w * 0.34} height={h * 1.2} rx={0.02} fill="#05070a" opacity={0.3} />}
+        {ranch && <rect x={x + w * 0.48} y={y - h * 0.2} width={w * 0.34} height={h * 1.2} rx={0.02} fill="#05070a" opacity={0.3} />}
+        {ranch && <rect x={x - w * 1.12} y={y + h * 0.15} width={w * 0.34} height={h * 0.85} rx={0.02} fill={color} stroke="#05070a" strokeWidth={0.045} />}
       </g>
     );
   };
@@ -968,24 +1003,40 @@ function SrBoard({ g, targets, sel, coach, onVert, onEdge, onHex, onMiss }) {
         const o = srTrailOwner(g, e.id);
         if (o == null) return null;
         const a = verts[e.a], b = verts[e.b];
+        /* inset both ends: a trail is a fence BETWEEN two corners, it must
+         * never run up to a building and read as part of it */
+        const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+        const ix = (dx / len) * 0.32, iy = (dy / len) * 0.32;
+        const x1 = a.x + ix, y1 = a.y + iy, x2 = b.x - ix, y2 = b.y - iy;
+        /* A FENCE, with posts. A plain thick bar running out of a building
+         * reads as part of the building; cross-posts make it unmistakably a
+         * fence line between two corners. */
+        const px = -(dy / len) * 0.075, py = (dx / len) * 0.075;
+        const posts = [0.16, 0.5, 0.84].map((t) => ({ x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t }));
         return (
           <g key={e.id} pointerEvents="none">
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#05070a" strokeWidth={0.24} strokeLinecap="round" />
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={g.players[o].color} strokeWidth={0.15} strokeLinecap="round" />
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="rgba(255,255,255,0.4)" strokeWidth={0.04} strokeLinecap="round" />
+            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#05070a" strokeWidth={0.17} strokeLinecap="round" />
+            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={g.players[o].color} strokeWidth={0.1} strokeLinecap="round" />
+            {posts.map((q, k) => (
+              <line key={k} x1={q.x - px} y1={q.y - py} x2={q.x + px} y2={q.y + py}
+                stroke={k === 1 ? g.players[o].color : "#05070a"} strokeWidth={k === 1 ? 0.075 : 0.055} strokeLinecap="round" opacity={k === 1 ? 1 : 0.85} />
+            ))}
           </g>
         );
       })}
       {[...targets.edges].map((eid) => {
         const e = edges[eid], a = verts[e.a], b = verts[e.b], hot = isTgt("edge", eid);
+        const edx = b.x - a.x, edy = b.y - a.y, elen = Math.hypot(edx, edy) || 1;
+        const eix = (edx / elen) * 0.32, eiy = (edy / elen) * 0.32;
+        const ex1 = a.x + eix, ey1 = a.y + eiy, ex2 = b.x - eix, ey2 = b.y - eiy;
         return (
           <g key={"le" + eid} onClick={(ev) => { ev.stopPropagation(); onEdge(eid); }} style={{ cursor: "pointer" }}>
             <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={0.8} strokeLinecap="round" />
-            {/* a dark casing so the glow reads on ANY hex colour — without it a
-                thin bright line vanishes on the pale tiles at phone size */}
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="rgba(5,7,10,0.85)" strokeWidth={hot ? 0.34 : 0.26} strokeLinecap="round" />
-            <line className={hot ? "srPulse" : "srBreathe"} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={hot ? CAS.goldHi : CAS.gold} strokeWidth={hot ? 0.24 : 0.17} strokeLinecap="round" />
-            {hot && <line className="srPulse" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="rgba(255,224,138,0.35)" strokeWidth={0.5} strokeLinecap="round" />}
+            {/* inset to match a built trail; dark casing so the glow reads on
+                ANY hex colour — a thin bright line vanishes at phone size */}
+            <line x1={ex1} y1={ey1} x2={ex2} y2={ey2} stroke="rgba(5,7,10,0.85)" strokeWidth={hot ? 0.3 : 0.23} strokeLinecap="round" />
+            <line className={hot ? "srPulse" : "srBreathe"} x1={ex1} y1={ey1} x2={ex2} y2={ey2} stroke={hot ? CAS.goldHi : CAS.gold} strokeWidth={hot ? 0.21 : 0.15} strokeLinecap="round" />
+            {hot && <line className="srPulse" x1={ex1} y1={ey1} x2={ex2} y2={ey2} stroke="rgba(255,224,138,0.3)" strokeWidth={0.44} strokeLinecap="round" />}
           </g>
         );
       })}
@@ -1093,6 +1144,15 @@ export default function SheepRodeo() {
   }, [g.fxSeq, g.fx]);
   useEffect(() => { setSel(null); if (g.phase !== "main") { setFilter(null); setPickMode(null); setPick({}); } }, [g.phase, g.turn]);
   useEffect(() => { if (ended) setEndDismissed(false); }, [ended]);
+  /* a rank earned is the moment the game is about — mark it */
+  const rankRef = useRef(srRank(srVP(g, 0)).name);
+  useEffect(() => {
+    const now = srRank(srVP(g, 0)).name;
+    if (now === rankRef.current) return;
+    const up = SR_RANKS.findIndex((r) => r.name === now) > SR_RANKS.findIndex((r) => r.name === rankRef.current);
+    rankRef.current = now;
+    if (up) { setWinKey((k) => k + 1); sfx.win(false); say(`${srRank(srVP(g, 0)).icon}  You're a ${now} now — ${srRank(srVP(g, 0)).blurb}`); }
+  }, [g]);
 
   /* first-time lessons, keyed to the moment they matter */
   const teach = useCallback((key) => {
@@ -1264,7 +1324,7 @@ export default function SheepRodeo() {
     : g.phase === "steal" ? "PICK WHO TO ROB"
     : sel ? "TAP AGAIN OR CONFIRM BELOW"
     : g.trailsFree > 0 ? `${g.trailsFree} FREE TRAIL${g.trailsFree > 1 ? "S" : ""} · TAP A SIDE`
-    : targets.verts.size || targets.edges.size || targets.ranchVerts.size ? "YOUR TURN · TAP THE BOARD TO BUILD" : "YOUR TURN · TRADE OR END";
+    : targets.verts.size || targets.edges.size || targets.ranchVerts.size ? "YOUR TURN · TAP TO BUILD" : "YOUR TURN · TRADE OR END";
 
   /* the rail */
   let rail;
@@ -1315,7 +1375,7 @@ export default function SheepRodeo() {
   return (
     <div style={{ minHeight: "var(--vh)", background: CAS.bg, color: CAS.text, fontFamily: casSans, position: "relative" }}>
       <style>{CAS_CSS}</style>
-      <SrHeader vp={srVP(g, 0)} onHelp={() => { sfx.click(); setGuideOpen(true); }} />
+      <SrHeader vp={srVP(g, 0)} onHelp={() => { sfx.click(); setGuideOpen(true); }} onRestart={() => { if (g.phase === "over" || window.confirm("Start a new game? This board will be lost.")) newGame(); }} />
       <Guide game="sheep" title="SHEEP RODEO" steps={SR_GUIDE} open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       <div style={{ maxWidth: 620, margin: "0 auto", padding: "10px 10px 290px" }}>
@@ -1340,10 +1400,26 @@ export default function SheepRodeo() {
           })}
         </div>
 
+        {/* where you are in the life you're building */}
+        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8, padding: "8px 12px", borderRadius: 12, background: "linear-gradient(90deg, rgba(245,197,66,0.1), rgba(16,20,26,0.9))", border: `1px solid ${CAS.goldLine}` }}>
+          <span style={{ fontSize: 19 }}>{srRank(srVP(g, 0)).icon}</span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 900, color: CAS.cream }}>{srRank(srVP(g, 0)).name}</div>
+            <div style={{ fontFamily: casMono, fontSize: 10.5, color: CAS.dim, lineHeight: 1.4 }}>{srRank(srVP(g, 0)).blurb}</div>
+          </div>
+          {srNextRank(srVP(g, 0)) && (
+            <div style={{ textAlign: "right", flex: "0 0 auto" }}>
+              <div style={{ fontFamily: casMono, fontSize: 9, letterSpacing: "0.12em", color: CAS.faint }}>NEXT</div>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: CAS.gold, whiteSpace: "nowrap" }}>{srNextRank(srVP(g, 0)).icon} {srNextRank(srVP(g, 0)).name}</div>
+              <div style={{ fontFamily: casMono, fontSize: 9.5, color: CAS.faint }}>in {srNextRank(srVP(g, 0)).at - srVP(g, 0)} pt{srNextRank(srVP(g, 0)).at - srVP(g, 0) === 1 ? "" : "s"}</div>
+            </div>
+          )}
+        </div>
+
         <div style={{ ...feltPanel("30px 2px 6px"), position: "relative", background: "radial-gradient(90% 80% at 50% 8%, #105434, #07351f 60%, #03150d 100%) padding-box, linear-gradient(180deg, #6b4f2c, #3a2a18) border-box" }}>
           <Burst fireKey={winKey} count={22} />
           <Sparkles fireKey={winKey} count={16} />
-          <div style={{ position: "absolute", top: 8, left: 10, right: g.dice ? 96 : 10, zIndex: 2, pointerEvents: "none" }}>
+          <div style={{ position: "absolute", top: 8, left: 10, right: g.dice ? 118 : 10, zIndex: 2, pointerEvents: "none" }}>
             <span key={banner} style={{ display: "inline-block", maxWidth: "100%", fontFamily: casMono, fontSize: 10, letterSpacing: "0.14em", fontWeight: 700, color: myTurn && !ended ? CAS.gold : CAS.dim, background: "rgba(5,7,10,0.72)", border: `1px solid ${myTurn && !ended ? CAS.goldLine : CAS.line}`, borderRadius: 999, padding: "5px 11px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", animation: "casPop 220ms ease both" }}>{banner}</span>
           </div>
           <SrBoard g={g} targets={targets} sel={sel} coach={coach} onVert={onVert} onEdge={onEdge} onHex={onHex} onMiss={onMiss} />
