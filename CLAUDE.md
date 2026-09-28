@@ -763,3 +763,23 @@ touch script is a TEST flake, not a product bug. Three consecutive
 isolated runs of the exact sequence (close guide, dismiss lesson, tap
 the coached corner) opened the preview every time, with the tap landing
 on the intended circle.
+
+## Cross-chat memory: docs/PORTABLE-TECH.md (2026-09-28)
+
+Founder: "everything's going to be on its own server but I didn't realise
+that you guys can't communicate chat to chat." He is right, and it is the
+single most important operating fact about working this way: a new Claude
+Code session starts blank and remembers nothing of the one before it. THE
+REPO IS THE MEMORY. That is why this file is appended to after every
+release, and why a session should read it before its first change.
+
+New: `docs/PORTABLE-TECH.md` — a handoff written for a session with NO
+prior context, in this repo or another one. It documents the three pieces
+of this codebase worth reusing elsewhere (per-party server-side redaction
+plus its payload audit; verification-over-trust with the four real bugs
+it caught; the zero-dependency server, accounts and the static
+whitelist), with file and line references, the invariants that must
+survive a port, a mapping table from poker seats to transaction parties,
+and an explicit list of what NOT to carry. If someone asks "can we reuse
+this app's technology", that file is the answer — do not re-derive it in
+chat.
