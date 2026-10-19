@@ -4,10 +4,11 @@
  * navigations go NETWORK-FIRST (a deploy reaches you on the next load) with
  * the cache as the offline fallback; static assets go cache-first. The cache
  * name carries the app version, and activation deletes every older cache. */
-const CACHE = "poker-trainer-0.21.0";
+const CACHE = "poker-trainer-0.21.1";
 const PAGES = ["./", "./index.html", "./trainer.html", "./play.html", "./table.html",
   "./profile.html", "./roulette.html", "./craps.html", "./paigow.html", "./bj.html", "./bac.html", "./sp21.html", "./flush.html", "./sheep.html", "./moguls.html"];
-const ASSETS = ["./favicon.svg", "./manifest.webmanifest",
+const ASSETS = ["./favicon.svg", "./manifest.webmanifest", "./offline.html", "./install-card.js",
+  "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png", "./apple-touch-icon.png",
   "./vendor/react.production.min.js", "./vendor/react-dom.production.min.js"];
 
 self.addEventListener("install", (e) => {
@@ -28,7 +29,7 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(
       fetch(e.request)
         .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return res; })
-        .catch(() => caches.match(e.request).then((hit) => hit || caches.match("./index.html")))
+        .catch(() => caches.match(e.request).then((hit) => hit || caches.match("./index.html")).then((hit) => hit || caches.match("./offline.html")))
     );
     return;
   }

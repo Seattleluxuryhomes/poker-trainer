@@ -43,6 +43,12 @@ const FILES = new Map([
   ["/sw.js", "sw.js"],
   ["/favicon.svg", "favicon.svg"],
   ["/manifest.webmanifest", "manifest.webmanifest"],
+  ["/offline.html", "offline.html"],
+  ["/install-card.js", "install-card.js"],
+  ["/icon-192.png", "icon-192.png"],
+  ["/icon-512.png", "icon-512.png"],
+  ["/icon-maskable-512.png", "icon-maskable-512.png"],
+  ["/apple-touch-icon.png", "apple-touch-icon.png"],
   ["/vendor/react.production.min.js", "vendor/react.production.min.js"],
   ["/vendor/react-dom.production.min.js", "vendor/react-dom.production.min.js"],
 ]);
@@ -51,6 +57,7 @@ const TYPES = {
   html: "text/html; charset=utf-8",
   js: "text/javascript; charset=utf-8",
   svg: "image/svg+xml",
+  png: "image/png",
   webmanifest: "application/manifest+json",
 };
 

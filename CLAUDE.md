@@ -115,7 +115,7 @@ the one remaining founder step for durable accounts.
    when it matters.
 3. The trainer's "Deal custom" card picker (the reference has one; not ported yet).
 4. i18n: the reference ships a full locale system; this port is English-only.
-5. PWA service worker for offline (manifest exists; no SW yet).
+5. (done in v0.15.0 and v0.21.1: the PWA worker, icons and the install card)
 6. Multi-paytable support (8/5, 7/5) — PAY is already the single source of truth.
 7. httpOnly cookie session for the web token (their parked fix, inherited).
 
@@ -783,3 +783,22 @@ survive a port, a mapping table from poker seats to transaction parties,
 and an explicit list of what NOT to carry. If someone asks "can we reuse
 this app's technology", that file is the answer — do not re-derive it in
 chat.
+
+## Installable on a phone (v0.21.1, 2026-10-19)
+
+Founder: "All my apps should be able to be downloaded on my phone." The site was
+already a PWA (manifest, `sw.js`); the audit added what Android and iPhone need
+to treat it as an app. Icons are the existing `favicon.svg` (the cream spade on
+felt green, nothing redrawn) as `icon-192.png`, `icon-512.png`,
+`icon-maskable-512.png` (the spade inside the safe zone) and a 180-pixel
+`apple-touch-icon.png`, all opaque. The manifest has an id, scope, description
+and those icons. Every page's head (build.sh and src/landing.html) carries the
+Apple tags. `offline.html` is the worker's last fallback. `install-card.js` draws
+one calm card on the landing page on a phone, until the app is open as an app:
+Android's browser prompt is held and the button calls it; "Added." shows only
+after the browser's `appinstalled`; an iPhone gets the two real steps; nothing is
+stored on the phone, and "Not now" lasts for the page view. The new files are in
+`server.mjs`'s whitelist and `pages.yml`. `node engine/verify_pwa.mjs` (106
+checks) reads the manifest, the icons' real pixel sizes, opacity, the head of all
+14 pages and the worker. The worker never touches `/api/` and keeps no
+account data. The old "PWA service worker" known limitation above is done.

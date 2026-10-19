@@ -8,6 +8,11 @@
 <meta name="description" content="A practice casino where every probability is enumerated and every house edge is printed on the felt. Poker vs a fictional world champion, rooms for friends, roulette, craps, Pai Gow, blackjack, baccarat, Spanish 21, High Card Flush. Free, open-source, practice chips only." />
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
 <link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Poker" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Poker Trainer" />
 <meta property="og:description" content="The casino that shows you the math. Practice chips only — every edge printed on the felt." />
@@ -265,6 +270,14 @@
     </div>
     <a class="cta" href="#floor">STEP ONTO THE FLOOR</a>
   </section>
+
+  <div id="install-slot"></div>
+  <script src="install-card.js"></script>
+  <script>
+    // On a phone, until the app is open as an app. Keeps nothing on the phone; Not now lasts for this page view only.
+    InstallCard.mount(document.getElementById("install-slot"), { name: "Poker Trainer", icon: "icon-192.png",
+      colors: { bg: "#12161d", fg: "#e8ebf2", muted: "#96a0b0", accent: "#f5c542", accentText: "#1a1405", line: "#232833" } });
+  </script>
 
   <div class="ticker" aria-hidden="true">
     <div class="ticker-track" id="tick"></div>

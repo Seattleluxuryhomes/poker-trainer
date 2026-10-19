@@ -31,7 +31,8 @@ jobs:
         run: |
           mkdir -p _site/vendor
           cp index.html trainer.html play.html table.html profile.html roulette.html craps.html paigow.html \
-             favicon.svg manifest.webmanifest _site/
+             favicon.svg manifest.webmanifest offline.html install-card.js \
+             icon-192.png icon-512.png icon-maskable-512.png apple-touch-icon.png _site/
           cp vendor/react.production.min.js \
              vendor/react-dom.production.min.js _site/vendor/
 
