@@ -21,6 +21,7 @@
  */
 import { createHmac, randomUUID, scryptSync, randomBytes, timingSafeEqual } from "node:crypto";
 import { get, all, run, purgeLedgers, logEvent } from "./db.mjs";
+import { kpiAnswer } from "./kpi.mjs";
 
 const ACCESS_HOURS = parseInt(process.env.ACCESS_TOKEN_EXPIRE_HOURS || "168", 10); // their default: 7 days
 const DELETE_GRACE_DAYS = 30;
@@ -369,6 +370,8 @@ export async function handleApi(req, res, path) {
   };
   if (req.method === "OPTIONS") { res.writeHead(204, cors); res.end(); return; }
 
+  // Eden reads Poker Trainer's counts here (kpi.mjs): counts only, KPI_READ_TOKEN or a 404.
+  if (path === "/api/kpi" && req.method === "GET") return kpiAnswer(req, res, new URL(req.url, "http://poker"), get);
   if (path === "/api/health" && req.method === "GET")
     return send(200, { ok: true, accounts: accountsEnabled(), rooms: true, time: nowIso() });
 

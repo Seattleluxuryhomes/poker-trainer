@@ -65,6 +65,7 @@ node engine/verify_trainer.js   # trainer.html: exact EVs vs hand-derived facts
 node engine/verify_play.js      # play.html: paytable math + hint == analysis
 node engine/verify_table.js     # table.html: game core, side pots, runout broadcast, equities
 node engine/verify_auth.js      # the accounts API, driven over HTTP against a temp database
+node engine/verify_kpi.js       # GET /api/kpi, the counts Eden reads: the read key, the shape, nothing personal
 ```
 
 The verify scripts eval the **compiled pages** in a Node vm — they test what
